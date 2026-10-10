@@ -89,11 +89,12 @@ committed test, using the same render settings.
 
 ## CI windows-2022 runner readings
 
-These are the readings from gating CI run 38081622465 on commit `1aecbb4`, 2026-10-10. All
-three jobs succeeded. The `windows-native-sandbox` job's pytest step printed them from the
-`lpac_render_spike.*` JUnit testsuite properties. If a later measurement fails or disagrees
-with the recorded verdict, pytest also prints the `LPAC_RENDER_SPIKE` summary line in its
-failure output.
+The `windows-native-sandbox` job's pytest step prints the readings from the
+`lpac_render_spike.*` JUnit testsuite properties. If a measurement fails or disagrees with
+the recorded verdict, pytest also prints the `LPAC_RENDER_SPIKE` summary line in its failure
+output. Both gating runs below were on 2026-10-10, and all three CI jobs succeeded in each.
+
+### Run 38083898264 on commit `7981f69`
 
 | render | ink coverage | glyph NCC | result |
 |---|---|---|---|
@@ -102,29 +103,118 @@ failure output.
 | garbage: box-glyph page | 0.4357 | 0.654 | below both thresholds |
 | **subject inside the real LPAC** | **0.9991** | **0.9549** | **pass** |
 
-- **Thresholds** printed: `threshold.ink=0.75` and `threshold.ncc=0.8`. Calibration held on
-  both metrics, and the runner's verdict was `pass`.
+- **Thresholds and verdict:** `threshold.ink=0.75` and `threshold.ncc=0.8`, verdict `pass`.
+- **LPAC render:** `1700x2200`, with `lpac_identical_to_known_good=True`. Every score
+  matches run 38081622465.
+- **Wall time:** `lpac_elapsed_s=8.02` against `lpac_wall_seconds_limit=15`, a margin of
+  about 7 s on the runner.
+
+### Run 38081622465 on commit `1aecbb4`
+
+| render | ink coverage | glyph NCC | result |
+|---|---|---|---|
+| known-good: subject outside the LPAC | 0.9991 | 0.9549 | above both thresholds |
+| garbage: all-white page | 0.0 | 0.0 | below both thresholds |
+| garbage: box-glyph page | 0.4357 | 0.654 | below both thresholds |
+| **subject inside the real LPAC** | **0.9991** | **0.9549** | **pass** |
+
+- **Thresholds and verdict:** `threshold.ink=0.75` and `threshold.ncc=0.8`. Calibration
+  held on both metrics, and the runner's verdict was `pass`.
 - **LPAC render:** `1700x2200`, with `lpac_identical_to_known_good=True` and
   `lpac_raw_sha256=48d00b9a6d4fa66ad7d841597e90c7764f0c564800d5c1b6ea4ecb61b7e54924`. These
   are the same pixels the dev box produced.
-- **Wall time:** the runner passed within the same 15 s `wall_seconds` ceiling. That run
-  predates the `lpac_elapsed_s` property, so its elapsed time was not recorded. Later runs
-  of the job print it.
+- **Wall time:** the runner passed within the same 15 s `wall_seconds` ceiling. This run
+  predates the `lpac_elapsed_s` property, so its elapsed time was not recorded.
 
-## Scope of the render branch
+## Scope boundary with the full render protocol
 
-Step 41 added only the three envelope fields the spike needs: `operation` (1 extraction,
-2 render; ceiling 2), `render_page_first` (ceiling 25) and `render_scale_permille` (public
-value 2,778; ceiling 4,167). Every request carries them, extraction included, and extraction
-ignores them. The rendered page is bounded by the existing `max_rendered_pixels_per_page`
-and `max_wire_bytes` ceilings. Every worker-side refusal answers the existing
-`{"status":"failed"}` frame.
+### What landed with the spike (Step 41)
 
-Step 43 completes the protocol:
+- **Three envelope fields:** `operation` (1 extraction, 2 render; ceiling 2),
+  `render_page_first` (ceiling 25) and `render_scale_permille` (public value 2,778, the
+  `RENDER_SCALE_PERMILLE` constant; ceiling 4,167). Every request carries them, extraction
+  included, and extraction ignores them. The envelope still refuses an `operation` outside
+  {1, 2}.
+- **The worker render branch** for `operation` 2.
+  - It opens the document and requires 1 to `max_pages` pages and a `render_page_first`
+    within the document.
+  - It derives each edge as points × scale / 1,000, rounded half up, and checks the existing
+    `max_rendered_pixels_per_page` ceiling before it allocates a bitmap.
+  - It renders one page into a Python-owned packed gray8 buffer (stride equals width).
+  - It answers the § 5A `rendered` frame within the existing `max_wire_bytes` ceiling.
+  - Every refusal or failure answers the existing `{"status":"failed"}` frame.
+- **The broker frame reader** `_deserialize_rendered_page`. It checks:
+  - exact key sets at both levels, and the status `rendered` only
+  - integer types and bounds
+  - `page_number` equal to the launch's `render_page_first`, and `page_count` of at least
+    that page
+  - `format` equal to `gray8`
+  - base64 decoding
+  - bounded decompression, inflating at most one byte past `raw_length`, with an assertion
+    of end of stream and no unconsumed or unused bytes
+  - `raw_length == width × height` and the decompressed length equal to `raw_length`
+  - the sha256 digest
+- **The broker helper** `_render_native_page_in_worker`, which launches one attested LPAC
+  worker per call and lets `NativeSandboxUnavailable` propagate unchanged.
+- **`RenderedPage`**, the § 5A dataclass.
+- **`ReceiptRenderError`**, the base class only.
 
-- the remaining § 5A fields (`render_page_count`, `max_render_raw_bytes_per_page`,
-  `max_render_wire_bytes`)
-- the render dimension gate
-- the `rejected` reasons
-- the named `ReceiptRenderError` subclasses
-- `render_receipt_pdf`
+### Why it landed here
+
+- **The verdict must not rest on unchecked pixels.** The spike has to score what production
+  would accept. Every worker response crosses the trust boundary as untrusted input, so the
+  measured pixels pass the same length, decompression and digest checks a real caller
+  would rely on.
+- **It avoids a later rename.** Step 43 extends and hardens this branch rather than
+  replacing it. Landing the plan's public names and shapes now (`RenderedPage`,
+  `ReceiptRenderError`, `RENDER_SCALE_PERMILLE`, the `rendered` frame) means Step 43 builds
+  on them unchanged.
+- **The reader is safe to keep on main.** Removing the validation would leave a broker
+  reader on main that trusts worker output until Step 43 lands.
+
+### What Step 43 still owns
+
+These items were checked against § 5A (the LPAC render request and response) and Step 43's
+brief.
+
+- **The remaining envelope fields:** `render_page_count` (public value 1, ceiling 1),
+  `max_render_raw_bytes_per_page` (12,000,000) and `max_render_wire_bytes` (16 MiB, the
+  render frame's `recv_bytes` cap; the spike uses `max_wire_bytes`, which is equal).
+- **The render dimension gate and `RENDER_MAX_EDGE = 65_535`.** A page passes only when
+  1 ≤ width, height ≤ `RENDER_MAX_EDGE` and width × height ≤ `max_render_raw_bytes_per_page`.
+  The worker applies the gate from the page size in points before it allocates a bitmap,
+  and the broker re-applies it to every response. It replaces the spike's bound, which is
+  the existing `max_rendered_pixels_per_page` of 20,000,000.
+- **The named `rejected` reasons**, replacing today's `{"status":"failed"}` for each
+  outcome:
+  - `too-many-pages`: the whole document is refused before any render.
+  - `page-too-large`, with its `page_number`.
+  - `unreadable`: a document pdfium cannot open or render.
+- **The four named `ReceiptRenderError` subclasses:** `ReceiptRenderInvalidError`,
+  `ReceiptRenderPageTooLargeError`, `ReceiptRenderTooManyPagesError` and
+  `ReceiptRenderFailedError`. Each § 5A response row maps to its own class, including the
+  `{"status":"failed"}` and no-frame rows (worker ended by its Job limits, or the broker's
+  `wall_seconds` passed), which map to `ReceiptRenderFailedError`. The spike raises the base
+  class for every case.
+- **The `render_receipt_pdf` entry point and its per-page launch loop.** It launches page 1
+  first and takes the document's `page_count` from that response. It then launches pages 2
+  to `page_count` one at a time and calls `on_page` with each validated page in order.
+  `NativeSandboxUnavailable` keeps propagating unchanged.
+- **The rest of § 5A's broker validation table** ("anything else" → `ReceiptRenderInvalidError`).
+  These parts are not implemented yet:
+  - **Unknown `reason`.** Accept the three defined `rejected` frames and refuse an unknown
+    `reason`. Today the reader refuses every `rejected` frame alike.
+  - **A `width` or `height` outside the render dimension gate.** Today the reader checks
+    only the 20,000,000-pixel bound.
+  - **A `page_count` that disagrees across launches.** Every response must report the same
+    `page_count`; today's single-launch helper checks only page count ≥ page number.
+  - **Raising `ReceiptRenderInvalidError`** in place of the base class.
+
+  Already in place from that row: an unknown `status`, a wrong key set or type, a
+  bomb-shaped or leftover-bearing `zlib`, a decompressed length that differs from
+  `raw_length` or from width × height, a digest mismatch, and a `page_number` that disagrees
+  with the launch.
+- **Step 43's remaining Done-when coverage:**
+  - a multi-page fictional fixture rendered end to end
+  - one test per refusal class
+  - the row-stride copy, covered by a test whose width forces padding
