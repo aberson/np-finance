@@ -92,7 +92,25 @@ committed test, using the same render settings.
 The `windows-native-sandbox` job's pytest step prints the readings from the
 `lpac_render_spike.*` JUnit testsuite properties. If a measurement fails or disagrees with
 the recorded verdict, pytest also prints the `LPAC_RENDER_SPIKE` summary line in its failure
-output. Both gating runs below were on 2026-10-10, and all three CI jobs succeeded in each.
+output. Every gating run below was on 2026-10-10. In each one the `windows-native-sandbox`
+job succeeded.
+
+### Run 38110978105 on commit `7cb5010`
+
+| render | ink coverage | glyph NCC | result |
+|---|---|---|---|
+| known-good: subject outside the LPAC | 0.9991 | 0.9549 | above both thresholds |
+| garbage: all-white page | 0.0 | 0.0 | below both thresholds |
+| garbage: box-glyph page | 0.4357 | 0.654 | below both thresholds |
+| **subject inside the real LPAC** | **0.9991** | **0.9549** | **pass** |
+
+- **Thresholds and verdict:** `threshold.ink=0.75` and `threshold.ncc=0.8`, verdict `pass`.
+- **LPAC render:** `1700x2200`, with `lpac_identical_to_known_good=True`. Every score
+  matches the earlier runs.
+- **Wall time:** `lpac_elapsed_s=15.92` against `lpac_wall_seconds_limit=15`. See the timing
+  note below.
+- **Other jobs:** `lint-type-test` succeeded. `shared-workflow` failed on an existing flaky
+  test outside this step, an exact float comparison in the shared-workflow queue tests.
 
 ### Run 38083898264 on commit `7981f69`
 
@@ -125,6 +143,24 @@ output. Both gating runs below were on 2026-10-10, and all three CI jobs succeed
   are the same pixels the dev box produced.
 - **Wall time:** the runner passed within the same 15 s `wall_seconds` ceiling. This run
   predates the `lpac_elapsed_s` property, so its elapsed time was not recorded.
+
+### Timing note: an open risk
+
+- **Readings so far.** The windows-2022 runner has recorded `lpac_elapsed_s` readings of
+  8.02 s, 8.95 s and 15.92 s.
+- **What the two numbers cover.** The broker's 15 s `wall_seconds` deadline starts just
+  before the worker launch. It covers launch, runtime staging and the wait for the response
+  frame. The recorded span is wider: it also includes the broker's frame validation and the
+  worker cleanup in `finally`.
+- **What 15.92 s means.** No deadline breach was raised, so the deadline was met, but with a
+  margin of at most a second or two.
+- **Why it matters for this measurement.** A slower runner can miss the deadline. The
+  measurement test then fails without a score, and the spike counts that as no measurement,
+  which is a failure.
+- **Why it matters for the full protocol.** The ceiling is fixed for this step and was not
+  changed. The cost of each launch against `wall_seconds` is an open risk for the full render
+  protocol, which launches once per page, so every page pays the launch and staging cost
+  under its own deadline.
 
 ## Scope boundary with the full render protocol
 

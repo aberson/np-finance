@@ -11,10 +11,10 @@ hand-written PDF syntax using the non-embedded standard Type1 ``/Helvetica``; th
 built at test time with pypdfium2 and embeds ``%WINDIR%\\Fonts\\arial.ttf`` read at test time.
 All fixture text is fictional.
 
-Each metric's threshold is pinned below and trusted only after calibration in the same test
-(workspace measurement-validity rule): the known-good anchor (the subject outside the LPAC)
-must score above it and both known-garbage anchors (an all-white page and a box-glyph page
-synthesized from the reference's glyph bounding boxes) below it.
+Each metric's threshold is pinned below, and a metric is trusted only after it is
+calibrated in the same test.  The known-good anchor (the subject outside the LPAC) must score
+above the threshold, and both known-garbage anchors (an all-white page and a box-glyph page
+synthesized from the reference's glyph bounding boxes) must score below it.
 """
 
 from __future__ import annotations
