@@ -54,9 +54,9 @@ GLYPH_NCC_THRESHOLD = 0.80
 # findings file, and a pass verdict requires its absence.
 RECORDED_VERDICT = "pass"
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_FINDINGS = _REPO_ROOT / "documentation" / "findings" / "step-41-lpac-render.md"
-_BLOCKED_FINDINGS = _REPO_ROOT / "documentation" / "findings" / "step-41-lpac-render-blocked.md"
+_ROOT = Path(__file__).resolve().parents[1]
+_FINDINGS = _ROOT / "documentation" / "findings" / "step-41-lpac-render.md"
+_BLOCKED_FINDINGS = _ROOT / "documentation" / "findings" / "step-41-lpac-render-blocked.md"
 _PROPERTY_PREFIX = "lpac_render_spike."
 _SUMMARY_PREFIX = "LPAC_RENDER_SPIKE "
 
