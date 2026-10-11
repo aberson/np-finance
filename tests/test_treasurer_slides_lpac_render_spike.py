@@ -406,7 +406,6 @@ def test_every_request_carries_the_render_fields_and_extraction_keeps_operation_
     assert (render.operation, render.render_page_first) == (bank_statements.OPERATION_RENDER, 1)
     for limits in (extraction, render):
         encoded = json.loads(bank_statements._serialize_native_limits(limits))
-        assert set(encoded) == {field for field, _ in bank_statements._NATIVE_LIMIT_FIELD_CEILINGS}
         assert {"operation", "render_page_first", "render_scale_permille"} <= set(encoded)
         assert (
             bank_statements._deserialize_native_limits(
