@@ -422,6 +422,7 @@ class BuildResult:
     bytes_written: int
     summary: ReportSummary
     receipt_linked_items: int = 0
+    text_output_path: Path | None = None
 
 
 def _object(
@@ -1584,17 +1585,67 @@ def render_html(report: ReimbursementReport, *, receipts: Mapping[str, Any] | No
     return rendered.rstrip() + "\n"
 
 
+def render_copy_text(report: ReimbursementReport) -> str:
+    """Six-line blocks of active A/C item subtotals, using the report's recommendations."""
+
+    def line(value: str) -> str:
+        return " ".join(value.split())
+
+    sections = [
+        f"As of {report.settings.as_of_date.isoformat()}. Active requests only.\n"
+        "Approved/Clarification are report recommendations, not payment authorization.\n"
+        "Each block: ID, Name, Payment Info, Verification #, Category, Amount.\n"
+        "Angle brackets mark missing information; amounts are subtotals by status/category."
+    ]
+    for status, heading in (("C", "Clarification"), ("A", "Approved")):
+        blocks = [f"# {heading}"]
+        for ticket in report.active_tickets:
+            groups: dict[str, list[Decimal | None]] = {}
+            for item in ticket.items:
+                if item.status == status:
+                    category = line(item.canonical_category) or "<Category>"
+                    groups.setdefault(category, []).append(item.effective_amount)
+            for category, amounts in groups.items():
+                known_total = sum((value for value in amounts if value is not None), Decimal("0"))
+                amount = (
+                    "<Amount>" if any(value is None for value in amounts) else f"{known_total:.2f}"
+                )
+                reference = ticket.ref
+                if ticket.form_label:
+                    reference += f" ({ticket.form_label})"
+                blocks.append(
+                    "\n".join(
+                        (
+                            line(reference),
+                            line(ticket.requestor_name),
+                            line(ticket.payment_method) or "<Payment Info>",
+                            line("; ".join(ticket.live.confirmations)) or "<Verification #>",
+                            category,
+                            amount,
+                        )
+                    )
+                )
+        sections.append("\n\n".join(blocks))
+    return "\n\n".join(sections) + "\n"
+
+
 def write_html_atomic(path: Path, html_text: str) -> None:
     """Atomically replace ``path`` with a complete UTF-8 HTML document."""
 
     if not html_text.lstrip().lower().startswith("<!doctype html>"):
         _fail("refusing to write an incomplete reimbursement report")
+    _write_text_atomic(path, html_text)
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    """Replace one complete UTF-8 output without exposing partial contents."""
+
     output = path.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{output.name}.", suffix=".tmp", dir=output.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(html_text)
+            handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, output)
@@ -1607,10 +1658,13 @@ def write_html_atomic(path: Path, html_text: str) -> None:
 
 
 def build_report(data_path: Path, output_path: Path) -> BuildResult:
-    """Load, validate, render, and atomically write one private reimbursement report."""
+    """Validate and render private HTML and copy text; each replacement is atomic."""
 
     from pta_finance import receipt_viewer
 
+    text_path = output_path.with_name(f"{output_path.stem}.copy.txt")
+    if text_path.resolve() in (data_path.resolve(), output_path.resolve()):
+        _fail("copy-text output must not overwrite the input bundle or HTML")
     report = load_bundle(data_path)
     receipts_path = data_path.with_suffix(".receipts.json")
     try:
@@ -1620,8 +1674,16 @@ def build_report(data_path: Path, output_path: Path) -> BuildResult:
     except receipt_viewer.ReceiptViewerError as exc:
         raise ReimbursementReportError(str(exc)) from exc
     html_text = render_html(report, receipts=receipts)
+    copy_text = render_copy_text(report)
     encoded = html_text.encode("utf-8")
     write_html_atomic(output_path, html_text)
+    try:
+        _write_text_atomic(text_path, copy_text)
+    except OSError as exc:
+        raise ReimbursementReportError(
+            f"HTML refreshed, but copy-text output failed at {text_path}; "
+            "any prior text file is unchanged. Retry report-reimbursements."
+        ) from exc
     return BuildResult(
         output_path=output_path.resolve(),
         sha256=hashlib.sha256(encoded).hexdigest(),
@@ -1630,4 +1692,5 @@ def build_report(data_path: Path, output_path: Path) -> BuildResult:
         receipt_linked_items=(
             sum(len(items) for items in receipts["items"].values()) if receipts else 0
         ),
+        text_output_path=text_path.resolve(),
     )

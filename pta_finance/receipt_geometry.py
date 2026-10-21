@@ -6,7 +6,8 @@ number:
 * :data:`NORMALIZATION` — how a producer turns a receipt image into a display page (long edge
   at most 2200 px, baseline JPEG at quality 85, flattened onto white), the fast-path ceilings
   an upload's header is checked against, and the budget the image decode child runs under.
-  The page values are the measured defaults in ``documentation/receipt-autofill-plan.md`` § 2
+  The page values are the measured defaults in
+  ``docs/plan-reference/receipt-autofill-contracts.md`` § 2
   and § 6.6; the decode budget is calibrated per § 5A and recorded in § 6.3. The PNG→JPEG
   threshold is zero by design, so it has no field: every page, whatever its source format or
   size, is re-encoded as JPEG, which is the variant that was measured.

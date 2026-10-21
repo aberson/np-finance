@@ -109,7 +109,7 @@ these files by hand.** (The exact rule is in `CLAUDE.md` §6 if you need it.)
   is fetched too and then ignored by the parser. That is deliberate — a narrower filter silently
   misses the submissions that never went through the form (emailed receipts, forwarded purchase
   confirmations, vendor threads, paper submissions announced by email). See
-  `documentation/gmail-ingest-plan.md` § Design Decision 8 for the evidence.
+  `docs/plans/master_plan.md` § Design Decision 8 for the evidence.
 - `--limit N` stops after N messages — a cheap first look at a big window.
 - `--out DIR` overrides the destination, but **leave it alone**: the default is the configured
   `[gmail] inbox_dir` *itself*, never a subdirectory, because the parser globs a directory
@@ -331,6 +331,23 @@ update-reimbursements   optionally run the first, refresh evidence, then run the
 All report data and HTML stay under gitignored `reports/output/`. The report command is fully
 offline: it does not load `config.toml`, Google credentials, Gmail, or Sheets.
 
+Both `report-reimbursements` and `update-reimbursements` also write
+`reports/output/reimbursement-queue-breakdown.copy.txt`. With a custom `--output`, the text
+file is beside the HTML as `<output-stem>.copy.txt`. It contains `# Clarification` and
+`# Approved` sections, with six lines per block: ID, Name, Payment Info, Verification #,
+Category, Amount. Blocks use active requests only and subtotal matching items by status and
+category; a mixed request can appear in both sections. Settled requests and declined,
+unreviewed, or informational item lines are omitted. The labels follow the HTML's item
+recommendations, including recommendations whose live decision is still UNREVIEWED.
+
+Payment information and confirmation references come from the validated bundle. Missing
+values remain angle-bracket placeholders; check numbers are never invented. If any amount
+in a subtotal is unknown, the amount is `<Amount>` rather than a misleading partial sum.
+Each output is replaced atomically, HTML first and text second. A text-write failure returns
+an error explaining that HTML refreshed while the prior text remains unchanged; rerun
+`report-reimbursements` to retry. A dry run writes neither output. These are generated files:
+copy the text elsewhere before editing it, because the next run replaces it.
+
 Click an item description in the queue to inspect its source receipt with a red outline around
 the matched lines. Receipt pages and verified locations are supplied in an optional private
 sidecar; see [Inspecting a source receipt](receipt-viewer.md) for setup and missing-receipt behavior.
@@ -370,8 +387,13 @@ The combined command performs these stages in order:
 4. Process candidate supplemental mail in a separate append-only lane. Exact RFC ancestry or an
    explicit private anchor may link it to a ticket; sender, name, subject, and prose similarity
    never do. Unlinked or ambiguous candidates remain visible in the report's unmatched queue.
-5. Validate the complete schema-v2 bundle and atomically replace
-   `reports/output/reimbursement-queue-breakdown.html`.
+5. With `[receipt_refresh]` configured, prepare uploaded receipt pages and optional local OCR
+   outlines before rendering. Preserve existing saved locations; label automatic suggestions for
+   human review and attach source-only pages for uncertain matches. This stage does not change
+   reimbursement decisions or amounts. Read the `.receipts.review.json` summary and CLI counts.
+   See [receipt setup](receipt-viewer.md) for trusted hosts, Chromium, and Tesseract configuration.
+6. Validate the complete schema-v2 bundle and receipt sidecar, then atomically replace
+   `reports/output/reimbursement-queue-breakdown.html` and generate the companion copy text.
 
 If an already-accounted email disappears or its evidence changes, the command stops before changing
 the bundle or HTML. Stored evidence and event metadata carry canonical record digests, including
@@ -603,5 +625,5 @@ yours (the second-mailbox case above). For new loads from your own mailbox, use 
 `fetch-mail` removes the manual export, but the **cron half is deliberately not built**: no OAuth
 token goes into CI. A refresh token for a personal mailbox stored in a public repo's Actions
 secrets would let a compromised workflow run read the entire inbox, and these rounds are hands-on
-anyway. Fetching stays **local-only** by design (`documentation/gmail-ingest-plan.md` § Design
+anyway. Fetching stays **local-only** by design (`docs/plans/master_plan.md` § Design
 Decision 7); revisit only as a deliberate, separate decision.

@@ -185,6 +185,10 @@ def test_report_reimbursements_is_offline_and_prints_only_aggregates(
     assert "$12.34 approved" in stdout
     assert "Fictional Requester" not in stdout
     assert "example.org" not in stdout
+    assert "copy text" in stdout
+    assert "Fictional Requester" in output_path.with_name("queue.copy.txt").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_update_reimbursements_dry_run_preserves_bundle_and_html(
@@ -202,6 +206,8 @@ def test_update_reimbursements_dry_run_preserves_bundle_and_html(
     output_path.write_text("prior report", encoding="utf-8")
     prior_bundle = bundle_path.read_bytes()
     prior_html = output_path.read_bytes()
+    text_path = output_path.with_name("queue.copy.txt")
+    text_path.write_text("prior copy text", encoding="utf-8")
     captured: dict[str, Any] = {}
 
     def plan(**kwargs: Any) -> tuple[dict[str, Any], reimbursement_pipeline.BundleMergeSummary]:
@@ -239,6 +245,7 @@ def test_update_reimbursements_dry_run_preserves_bundle_and_html(
     assert rc == 0
     assert bundle_path.read_bytes() == prior_bundle
     assert output_path.read_bytes() == prior_html
+    assert text_path.read_text(encoding="utf-8") == "prior copy text"
     assert captured == {
         "bundle_path": bundle_path,
         "source": source,

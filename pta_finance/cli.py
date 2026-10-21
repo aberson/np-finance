@@ -1058,6 +1058,8 @@ def _print_reimbursement_report_result(result: reimbursement_report.BuildResult)
         f"{summary.item_lines - result.receipt_linked_items} unlinked"
     )
     print(f"  output         : {result.output_path}")
+    if result.text_output_path is not None:
+        print(f"  copy text      : {result.text_output_path}")
     print(f"  sha256         : {result.sha256}")
 
 
@@ -1210,10 +1212,7 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
     try:
         result = reimbursement_report.build_report(Path(args.data), Path(args.output))
     except (OSError, reimbursement_report.ReimbursementReportError) as exc:
-        print(
-            "update-reimbursements: bundle refreshed, but report rendering failed; "
-            f"the prior HTML was preserved: {exc}"
-        )
+        print(f"update-reimbursements: bundle refreshed, but report output failed: {exc}")
         return 1
     _print_reimbursement_report_result(result)
     return 0

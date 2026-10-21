@@ -1,0 +1,2505 @@
+{
+  "schema_version": 1,
+  "project": "pta_finance",
+  "plan_path": "docs/plans/master_plan.md",
+  "plan_sha256": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+  "generated_at": "2026-10-14T17:17:33.950242+00:00",
+  "basis": "model",
+  "model_id": "codex-model-not-exposed",
+  "units": "hours",
+  "excluded_completed": [
+    {
+      "units": "1-15 except M3/M5; budget1-5; refresh1-6; shared32-36; receipt38-40; M1/M2/M4/M6/M7 and Gmail11/12/13",
+      "reason": "Source completion evidence retained; replay followups, M8 and future acceptance separately estimated."
+    }
+  ],
+  "notes": [
+    "Parser-derived IDs/source_digest to be normalized by coordinator.",
+    "Deferred effort covers planning, not unspecified future delivery.",
+    "Elapsed waits excluded from work/attention totals."
+  ],
+  "estimates": [
+    {
+      "step_id": "M3",
+      "title": "Monthly-report observation run (end-to-end)",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "M3",
+      "work_id": "work_a365a43bd79b54f0eabaf15ade0bf4d118c016b79573fc42f6459829877493ab",
+      "source_digest": "c0b5394e06e17bd5a18564cc21f65f1cfe1cf04c3f2e9e87246ec33c8aabeabf",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 67,
+        "line_end": 91
+      }
+    },
+    {
+      "step_id": "F1",
+      "title": "Retire the disconnected budget tabs",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 0.5,
+        "high": 2.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "BUDGET-6",
+      "work_id": "work_2663891946a585b9902bee4dbf26b2a1236bd0f3c5ac21298f776bf1c3eb127d",
+      "source_digest": "a14545a8392c289eb4f27127ae75321e91438b7c1e3b86c934685fa199651c25",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 92,
+        "line_end": 110
+      }
+    },
+    {
+      "step_id": "F2",
+      "title": "Point future edits at the one live tab",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 2.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "BUDGET-7",
+      "work_id": "work_73e592b56feeff51ec7de4221f43de1848c4c4532ac4066da6b186d6d28114e2",
+      "source_digest": "a1fed26ac49988d573276943ab3b1ad51cfa11dc02bdfe916d0ece06c6903428",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 111,
+        "line_end": 125
+      }
+    },
+    {
+      "step_id": "M5",
+      "title": "Refresh-token longevity check (wait)",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 0.25,
+        "high": 1.0
+      },
+      "attention_hours": {
+        "low": 0.5,
+        "high": 1.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "At least eight elapsed days after consent before actual longevity observation.",
+      "hold_reason": "",
+      "legacy_alias": "M5",
+      "work_id": "work_936a804058f988625b638691253ad91fea51273a48c100bc52ef2e0e73d0859c",
+      "source_digest": "350ae8a9a907583721b246db19ddc1b3793e2b5b9cf9f16e866c874e8a2e67cc",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "M4"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 126,
+        "line_end": 138
+      }
+    },
+    {
+      "step_id": "16",
+      "title": "Add bounded positional Tesseract fallback",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 24.0,
+        "high": 60.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Add bounded positional Tesseract fallback.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "16",
+      "work_id": "work_344573f6c1e4a8db1e8b7dfbbeaafd76601e4dbcb2ee2d4f436199c6eba5d6da",
+      "source_digest": "b8ae3677b043fdbe973222f9cb98375d89677ebe4254b9429b0ce56f6f9f6a21",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "Step 15"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 139,
+        "line_end": 178
+      }
+    },
+    {
+      "step_id": "17",
+      "title": "Select authoritative activity and balance intervals",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 28.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_344573f6c1e4a8db1e8b7dfbbeaafd76601e4dbcb2ee2d4f436199c6eba5d6da"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Select authoritative activity and balance intervals.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "17",
+      "work_id": "work_71a36c77a1d91228f6848bfce77be648931e7289812f1879e80b0a42814b327f",
+      "source_digest": "4280f0a9e048394b8816750738e7d99bba59bd0df211bce42ef1b5bb54d7e1ee",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 179,
+        "line_end": 202
+      }
+    },
+    {
+      "step_id": "18",
+      "title": "Classify, pair, adjust, and reconcile signed cash",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 36.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_71a36c77a1d91228f6848bfce77be648931e7289812f1879e80b0a42814b327f"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Classify, pair, adjust, and reconcile signed cash.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "18",
+      "work_id": "work_a43eba4b05518618acb4c192c144bbbd3048f6e9692ffc82813f888a0706fe88",
+      "source_digest": "41a82002a4d7e567bcc6e55e9d9bcfb1df48a80bffaeec1d2a6f894712b4d2dd",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 203,
+        "line_end": 230
+      }
+    },
+    {
+      "step_id": "19",
+      "title": "Read adopted goals and build deterministic summary facts",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 28.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_a43eba4b05518618acb4c192c144bbbd3048f6e9692ffc82813f888a0706fe88"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Read adopted goals and build deterministic summary facts.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "19",
+      "work_id": "work_171eabe4a4e05d78ad6a0a5dda8bc4e3618c5c0d34001800eb70ac500be041f3",
+      "source_digest": "d34b4f7e7c914a7edf1590f6d5226122b7c46db83e5f87d81740ba0b54d266d7",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 231,
+        "line_end": 256
+      }
+    },
+    {
+      "step_id": "20",
+      "title": "Encode the approved one-slide and template contract",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 32.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 4.0
+      },
+      "dependencies": [
+        "work_171eabe4a4e05d78ad6a0a5dda8bc4e3618c5c0d34001800eb70ac500be041f3"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Encode the approved one-slide and template contract.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "20",
+      "work_id": "work_c61187942936529e4a643196f12219590e64cf5f5e6d618bb5155241f4b3f31b",
+      "source_digest": "57423feb35ecd7602e04d1be1369d9d041f064b6c99c7f0311ab890e98c233dd",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 257,
+        "line_end": 281
+      }
+    },
+    {
+      "step_id": "21",
+      "title": "Create immutable runs and transaction-level fact/slide review",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 36.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_c61187942936529e4a643196f12219590e64cf5f5e6d618bb5155241f4b3f31b"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Create immutable runs and transaction-level fact/slide review.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "21",
+      "work_id": "work_8e13ba3bce48408f5fc204398841a2a32a62f550e5f330cdd2d3ac1f4eb25a7a",
+      "source_digest": "1fe16d74617673dc645ac3b9f1bf1cb9b905dc9b8cfb1bd6017c609654d39ad8",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 282,
+        "line_end": 311
+      }
+    },
+    {
+      "step_id": "22",
+      "title": "Add exact-scope OAuth and recoverable template bootstrap",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 20.0,
+        "high": 48.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [
+        "work_8e13ba3bce48408f5fc204398841a2a32a62f550e5f330cdd2d3ac1f4eb25a7a"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Add exact-scope OAuth and recoverable template bootstrap.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "22",
+      "work_id": "work_19fe7c40097221ef7712388e2211c00d911a78feb012a7e63ee107d1776270c7",
+      "source_digest": "d2dcbd54c27c385a278c544542b153b406c5bd4754104a49b6da724084f6a7b9",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 312,
+        "line_end": 341
+      }
+    },
+    {
+      "step_id": "23",
+      "title": "Copy and populate one approved candidate idempotently",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 20.0,
+        "high": 48.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 7.0
+      },
+      "dependencies": [
+        "work_19fe7c40097221ef7712388e2211c00d911a78feb012a7e63ee107d1776270c7"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Copy and populate one approved candidate idempotently.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "23",
+      "work_id": "work_0b4ae9684cce00f05c98f60fa0dd886324d2477f61b1bf477c05af9e55e9350c",
+      "source_digest": "e0125c88dcb7063c96a95caff993326c9c2159d714d3ff3d376a54c4233b4271",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 342,
+        "line_end": 372
+      }
+    },
+    {
+      "step_id": "24",
+      "title": "Wire CLI, privacy gates, packaging, docs, and local smoke",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 40.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 6.0
+      },
+      "dependencies": [
+        "work_0b4ae9684cce00f05c98f60fa0dd886324d2477f61b1bf477c05af9e55e9350c"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Wire CLI, privacy gates, packaging, docs, and local smoke.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "24",
+      "work_id": "work_5219df63b4bd0948e835dedc349d939c420117de3d6367b214d4727b6d2146b3",
+      "source_digest": "527b1139cd49841304c9d98aa753f2889d25cff5b6ebd45700a233962572f527",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 373,
+        "line_end": 403
+      }
+    },
+    {
+      "step_id": "25",
+      "title": "Run the private source-to-Google acceptance",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [
+        "work_5219df63b4bd0948e835dedc349d939c420117de3d6367b214d4727b6d2146b3"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "25",
+      "work_id": "work_0d3bb59c2d5b0931c88e418fb54eb74a6ce29077aeaf0489fd1088485ff1fda4",
+      "source_digest": "75a059c9bf23aa936a965e39d747bc2589195be8f0291e87f84f8dce15974430",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 404,
+        "line_end": 458
+      }
+    },
+    {
+      "step_id": "26",
+      "title": "Prepare a dated summary review packet",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 40.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Prepare a dated summary review packet.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "26",
+      "work_id": "work_e644baa707d19addcbce8fec9162d1925dbdd440382ae77c0f9a0af465cc1878",
+      "source_digest": "bc7cf4422fb7bb98a4cefa23bcb4db4fa81e9a607231fba80126c3a509e1039f",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none."
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 459,
+        "line_end": 475
+      }
+    },
+    {
+      "step_id": "27",
+      "title": "Render the accepted one-page HTML design",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 28.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 4.0
+      },
+      "dependencies": [
+        "work_e644baa707d19addcbce8fec9162d1925dbdd440382ae77c0f9a0af465cc1878"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Render the accepted one-page HTML design.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "27",
+      "work_id": "work_f714d417bee93c0b6774013dd5ca7a5cd12cefcc44a05fd9c0079ad6a10664c2",
+      "source_digest": "324beb6162f8b29640753bc5d687dc6a69a3f42bab505e0fb87a68f875c94aea",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 476,
+        "line_end": 490
+      }
+    },
+    {
+      "step_id": "28",
+      "title": "Preserve an approved one-page export",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 20.0,
+        "high": 48.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "dependencies": [
+        "work_f714d417bee93c0b6774013dd5ca7a5cd12cefcc44a05fd9c0079ad6a10664c2"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Preserve an approved one-page export.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "28",
+      "work_id": "work_fe1a0a669fc5a2342d7bcfc32a42e7422b00bd901f0430be6f81e3d9f424ac76",
+      "source_digest": "9730c6994cfca2d841c1f834d645939388f3f7d6a55f2d9046b2d84fa28fae59",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 491,
+        "line_end": 507
+      }
+    },
+    {
+      "step_id": "29",
+      "title": "Provide the monthly Python runner",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 20.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_fe1a0a669fc5a2342d7bcfc32a42e7422b00bd901f0430be6f81e3d9f424ac76"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Provide the monthly Python runner.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "29",
+      "work_id": "work_4ac3afa36f3a0a84243165fc71271109004910a705de53ffb9d139cceebcc40d",
+      "source_digest": "4c2218b546ad116f2974835fbb18bdb85e48f693f6f55baad64e3949aa27a8d1",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 508,
+        "line_end": 522
+      }
+    },
+    {
+      "step_id": "30",
+      "title": "Exercise one complete real-component cycle",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_4ac3afa36f3a0a84243165fc71271109004910a705de53ffb9d139cceebcc40d"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Exercise one complete real-component cycle.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "30",
+      "work_id": "work_17520b4067430b738d38473223a3dfa167a9d72956fa0e350d6fb8a2c16ed1e0",
+      "source_digest": "c4420b2a2f97fb0084d685b946bf08599b92a0c5e368bb4f87caf82b4109b173",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 523,
+        "line_end": 537
+      }
+    },
+    {
+      "step_id": "31",
+      "title": "Accept the workflow on the treasurer's Windows machine",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_17520b4067430b738d38473223a3dfa167a9d72956fa0e350d6fb8a2c16ed1e0"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "31",
+      "work_id": "work_9d89245a16d4b273dfcb53e92558846b8e6137234491f1768066cdfb3ae3ebde",
+      "source_digest": "19bacc7d0f6b8b5a67dedf27e6e23f70516f50b26994adf432d37625f693f010",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 538,
+        "line_end": 551
+      }
+    },
+    {
+      "step_id": "37",
+      "title": "Accept the live shared queue with both accounts",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "37",
+      "work_id": "work_3b23b3bb2a2d12f5bbad54c30fae0650913c949e99bc40c5a774b16a39add2f5",
+      "source_digest": "a6603b825cc86997871ad79d4e253632c2c572e07324b9b353bac344afe26aa7",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "36."
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 552,
+        "line_end": 570
+      }
+    },
+    {
+      "step_id": "41",
+      "title": "LPAC render spike — prove glyphs actually rasterize",
+      "status": "BLOCKED (2026-10-10, second run). The resume run also ended BLOCKED at its 3/3 iteration cap. review-deep returned NEEDS-WORK with no Block and one bugs Nit: the gating Windows test can time out against the 15 s `wall_seconds` deadline. That deadline covers launch, staging and the response wait, and windows-2022 runner spans were 8.02, 8.95, 15.92, 8.98 and 7.31 s. The scope dispute was resolved by the plan amendment `01d20b5`, after which plan-conformance passed. The spike verdict itself is pass on the dev box and in every CI run (the latest, 38116138438, is green on all three jobs). The DONE-gate full suite on `2bfae6e` is void: it failed only from host resource exhaustion (MemoryError, WinError 1450, and the sandbox worker unable to start) while another session's suite was running, and it must be re-run on a quiet host. The worktree is preserved on branch `build-step-1791658930` at `2bfae6e`, and the operator decides the timing risk.",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 16.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 4.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for LPAC render spike — prove glyphs actually rasterize.",
+      "manual_wait": "Operator timing-risk decision and quiet-host suite required; iteration cap remains.",
+      "hold_reason": "BLOCKED (2026-10-10, second run). The resume run also ended BLOCKED at its 3/3 iteration cap. review-deep returned NEEDS-WORK with no Block and one bugs Nit: the gating Windows test can time out against the 15 s `wall_seconds` deadline. That deadline covers launch, staging and the response wait, and windows-2022 runner spans were 8.02, 8.95, 15.92, 8.98 and 7.31 s. The scope dispute was resolved by the plan amendment `01d20b5`, after which plan-conformance passed. The spike verdict itself is pass on the dev box and in every CI run (the latest, 38116138438, is green on all three jobs). The DONE-gate full suite on `2bfae6e` is void: it failed only from host resource exhaustion (MemoryError, WinError 1450, and the sandbox worker unable to start) while another session's suite was running, and it must be re-run on a quiet host. The worktree is preserved on branch `build-step-1791658930` at `2bfae6e`, and the operator decides the timing risk.",
+      "legacy_alias": "41",
+      "work_id": "work_afd41fb572d6694e1545d9e7aa2ff88f8523f65bdbe4c03bc217bfb7e8922823",
+      "source_digest": "6eb131a929c1720a50ea82f4f4bfab227179026777739601ab852598c7ea5d5b",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "38"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 571,
+        "line_end": 585
+      }
+    },
+    {
+      "step_id": "42",
+      "title": "Record the PDF-boundary decision when the LPAC render path is blocked",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_afd41fb572d6694e1545d9e7aa2ff88f8523f65bdbe4c03bc217bfb7e8922823"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Record the PDF-boundary decision when the LPAC render path is blocked.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "42",
+      "work_id": "work_a93016b9af675c5292ff2f186f36bfd745068cbc6e9b0b58de20b4c956416425",
+      "source_digest": "473b1db9f01cb2d9abb47d2c21b9e010ce081fd524a207c80ce0a3fcf87e6e77",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 586,
+        "line_end": 601
+      }
+    },
+    {
+      "step_id": "43",
+      "title": "Render protocol across the attested boundary",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 40.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 6.0
+      },
+      "dependencies": [
+        "work_afd41fb572d6694e1545d9e7aa2ff88f8523f65bdbe4c03bc217bfb7e8922823",
+        "work_a93016b9af675c5292ff2f186f36bfd745068cbc6e9b0b58de20b4c956416425"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Render protocol across the attested boundary.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "43",
+      "work_id": "work_40c062e518c4b6a16faace86ae819635a322d9625b2ba9fa462614258cbe25ae",
+      "source_digest": "d59b429efd5f5c852b436d8b4341fb425ce89ce0fec3749990d1b699425166dd",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 602,
+        "line_end": 616
+      }
+    },
+    {
+      "step_id": "44",
+      "title": "PDF assets become display pages",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 28.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 4.0
+      },
+      "dependencies": [
+        "work_40c062e518c4b6a16faace86ae819635a322d9625b2ba9fa462614258cbe25ae"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for PDF assets become display pages.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "44",
+      "work_id": "work_f15ec7433d7e15bc25c835837946567657422b0667737005474e11fbefaacb2d",
+      "source_digest": "69b205c816ad9a1c01f8c7d8f4c6481a84508206b5e532dde27c05d96812e22e",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "39"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 617,
+        "line_end": 631
+      }
+    },
+    {
+      "step_id": "45",
+      "title": "Provenance, the unambiguity gate, and the sidecar merge",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 20.0,
+        "high": 48.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 6.0
+      },
+      "dependencies": [
+        "work_f15ec7433d7e15bc25c835837946567657422b0667737005474e11fbefaacb2d"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Provenance, the unambiguity gate, and the sidecar merge.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "45",
+      "work_id": "work_dced5a4b8514114e68b666c3b359cc63b30d4550c5ca7eea05e65a1269c411d6",
+      "source_digest": "17bb85c5ac3972fb1378581970f3249fa0742d7abf20594cd03189e0d8dc6299",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "40"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 632,
+        "line_end": 646
+      }
+    },
+    {
+      "step_id": "46",
+      "title": "The refresh stage, config block, and `link-receipts` verbs",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 36.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_dced5a4b8514114e68b666c3b359cc63b30d4550c5ca7eea05e65a1269c411d6"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for The refresh stage, config block, and `link-receipts` verbs.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "46",
+      "work_id": "work_783f729ab2361e89a0e41058d78b292fe4a4525a54919626efab0f69b231b12e",
+      "source_digest": "bb29fb87414a0d0646755d08799ff396c9db23e3600eddb3d5c3182364418d5c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 647,
+        "line_end": 663
+      }
+    },
+    {
+      "step_id": "47",
+      "title": "Integration through the production caller",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_783f729ab2361e89a0e41058d78b292fe4a4525a54919626efab0f69b231b12e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Integration through the production caller.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "47",
+      "work_id": "work_ef87f54eb25cacdecab99ef873150b694236d76d84a6b6d0dd314b7d452ec7a9",
+      "source_digest": "ab2a66e2f795b41f5b1602b12bdf3825e7c39500c13ba4c5eff2fcb5bc9d1b4c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 664,
+        "line_end": 678
+      }
+    },
+    {
+      "step_id": "48",
+      "title": "Documentation, policy amendments, and the full-suite gate",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 6.0,
+        "high": 16.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_ef87f54eb25cacdecab99ef873150b694236d76d84a6b6d0dd314b7d452ec7a9"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Documentation, policy amendments, and the full-suite gate.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "48",
+      "work_id": "work_33509e6f34a1c7b0bc6eda1faa2d3695a963a987116ef2825bf3b69f0b3cefdf",
+      "source_digest": "73cc77ac6fe139818c0f3aa7e3545ee80ac2a9483cffcf450a59f1b3aad50aab",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 679,
+        "line_end": 693
+      }
+    },
+    {
+      "step_id": "49",
+      "title": "Attended run against the real private evidence (M9)",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 2.0,
+        "high": 6.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [
+        "work_33509e6f34a1c7b0bc6eda1faa2d3695a963a987116ef2825bf3b69f0b3cefdf"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "49",
+      "work_id": "work_49cffa32ce957b8600e6c1efc65e1d31da23c0b99f0bff1a9a5ee56e5f60a336",
+      "source_digest": "8256d5ffc5f766856a5df21a0833e2d5954d110f8d218d5ad2104cb34d97128f",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 694,
+        "line_end": 855
+      }
+    },
+    {
+      "step_id": "51",
+      "title": "Propose actions from archived mail",
+      "status": "PAUSED — unfinished worktree; resume from [handoff](../phase10-build-handoff.md), never restart or discard it.",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Propose actions from archived mail.",
+      "manual_wait": null,
+      "hold_reason": "PAUSED — unfinished worktree; resume from [handoff](../phase10-build-handoff.md), never restart or discard it.",
+      "legacy_alias": "51",
+      "work_id": "work_8ea27cb6501767f49e253edc69c8066dfcbb1134658ffa67576727f11d5e5a80",
+      "source_digest": "8e82b9f7538b3aa23d4efa47523e84ac652acb49698da8253bcb0e1f764c9f88",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "Phase 9 Step 38 / #72"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 856,
+        "line_end": 871
+      }
+    },
+    {
+      "step_id": "52",
+      "title": "Preserve operator decisions across refreshes",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 28.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 4.0
+      },
+      "dependencies": [
+        "work_8ea27cb6501767f49e253edc69c8066dfcbb1134658ffa67576727f11d5e5a80"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Preserve operator decisions across refreshes.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "52",
+      "work_id": "work_db24e3a9bc0585706002ceb7319c5daf22fb9bfc1fe6209a361b3c227d3ed03d",
+      "source_digest": "8dd84dcd873ff7fdda784e98b0f48f4bf01e61d743c8c5df1ed30aa1617b6a07",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 872,
+        "line_end": 887
+      }
+    },
+    {
+      "step_id": "53",
+      "title": "Render the private action queue",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 10.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_db24e3a9bc0585706002ceb7319c5daf22fb9bfc1fe6209a361b3c227d3ed03d"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Render the private action queue.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "53",
+      "work_id": "work_c7e9e73768f20dd07518227b3743958ba8ef5810c75c605749a84cad8ae40748",
+      "source_digest": "245e94f15fb2920cdb9209c326c93b5742a67ef74ae5374d89b23717b0bd41e5",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 888,
+        "line_end": 903
+      }
+    },
+    {
+      "step_id": "54",
+      "title": "Surface actions in the reimbursement end-to-end run",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 20.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_c7e9e73768f20dd07518227b3743958ba8ef5810c75c605749a84cad8ae40748"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Surface actions in the reimbursement end-to-end run.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "54",
+      "work_id": "work_6c823272e09e0c60048b88ddb5669a191ef66e6221fe7dc1f4a757d096a952c6",
+      "source_digest": "c51acc8e01673cef080b9e751a3baef850f028c3e261f8a4782975176b268c7c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 904,
+        "line_end": 919
+      }
+    },
+    {
+      "step_id": "55",
+      "title": "Real-component archive-to-report smoke gate",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 20.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_6c823272e09e0c60048b88ddb5669a191ef66e6221fe7dc1f4a757d096a952c6"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Real-component archive-to-report smoke gate.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "55",
+      "work_id": "work_d2a4871d65a190b1114cee748bae993c0a04a0d91bcf453f645d4da29d8fdbd7",
+      "source_digest": "6b7c34c74a72da54db08b336a9b62400bbb1f24c94bbe56bcb03b6c4d2e5f08f",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 920,
+        "line_end": 935
+      }
+    },
+    {
+      "step_id": "56",
+      "title": "Attended private-archive acceptance",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_d2a4871d65a190b1114cee748bae993c0a04a0d91bcf453f645d4da29d8fdbd7"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Attended real-environment observation; worker time covers mechanical checks and evidence, attention covers financial/visual judgment.",
+      "manual_wait": "Private account/browser/source availability and operator judgment.",
+      "hold_reason": "",
+      "legacy_alias": "56",
+      "work_id": "work_786052fc8ff3fa64582b0b5dee58b41ca8a6d1140f2425cf913b63c837a660aa",
+      "source_digest": "690330da3611c84274f539488955cc7767a80d0aab5b231c057dc4d7e758a458",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 936,
+        "line_end": 948
+      }
+    },
+    {
+      "step_id": "F3",
+      "title": "Preserve generated-single payment context after settlement",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 20.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Preserve generated-single payment context after settlement.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "REPLAY-1",
+      "work_id": "work_32e003f9c3934f57b6b1df9f8308ca5d3dd0b6288fdbfa35586802c5a52601e2",
+      "source_digest": "33b5e1a11d633edfd31dc331b07fc3d61bbb7d4a23249d6b104d67b8cf631e2f",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 949,
+        "line_end": 958
+      }
+    },
+    {
+      "step_id": "F4",
+      "title": "Reconcile v1 payment amount with reviewed-effective totals",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 20.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_32e003f9c3934f57b6b1df9f8308ca5d3dd0b6288fdbfa35586802c5a52601e2"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Reconcile v1 payment amount with reviewed-effective totals.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "REPLAY-2",
+      "work_id": "work_cf04a4e663f1a2ecfc8c5cfcf9a677078573d03ec2d6b43f2da7f765c6d0d889",
+      "source_digest": "52013ab8eb7e4c2e23eb0f17d0cbe41add3e4a144bec2712cfa9a42298a94a59",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 959,
+        "line_end": 968
+      }
+    },
+    {
+      "step_id": "F5",
+      "title": "Replay historical Check and discrepancy histories",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 10.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_cf04a4e663f1a2ecfc8c5cfcf9a677078573d03ec2d6b43f2da7f765c6d0d889"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Replay historical Check and discrepancy histories.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "REPLAY-3",
+      "work_id": "work_15c5b993565e6b08fcf7010a567803cff719d4d8af6f8b5e5bd1350f7da880e7",
+      "source_digest": "fed3df4ae16c5b6c68e723dd8be86904949fb7ecdfa6cc454a0e3efa1aee3459",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 969,
+        "line_end": 978
+      }
+    },
+    {
+      "step_id": "F6",
+      "title": "Close second-mailbox handover coverage gap",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 2.0,
+        "high": 6.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Close second-mailbox handover coverage gap.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "MAIL-COVERAGE",
+      "work_id": "work_b7414be5d5d4aedf35707c5ffb140a9e45eecb1da9fabef663bf0139e2aba3c0",
+      "source_digest": "ccc16398f1184bc26280289e3fd9e2fe86021463cdb1fc5c2736d20e5332f99c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 979,
+        "line_end": 988
+      }
+    },
+    {
+      "step_id": "F7",
+      "title": "Engineer the approved shared-ticket lifecycle",
+      "status": "HELD",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 36.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 7.0
+      },
+      "dependencies": [
+        "work_3b23b3bb2a2d12f5bbad54c30fae0650913c949e99bc40c5a774b16a39add2f5"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Engineer the approved shared-ticket lifecycle.",
+      "manual_wait": null,
+      "hold_reason": "HELD",
+      "legacy_alias": "LIFECYCLE",
+      "work_id": "work_7a9ecd852cbf3b971415edef848dfe492fb25f54da8c48fb25ffcf60d6ce9ae2",
+      "source_digest": "ee8de8ce35a7b6a7a2da3bb9b133672d4a4b8ca202e0a80b3e9d8d782aef420a",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 989,
+        "line_end": 998
+      }
+    },
+    {
+      "step_id": "F8",
+      "title": "Roll reimbursement actuals into Budget Timeseries",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 32.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_15c5b993565e6b08fcf7010a567803cff719d4d8af6f8b5e5bd1350f7da880e7"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Roll reimbursement actuals into Budget Timeseries.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "TIMESERIES",
+      "work_id": "work_c40f5dbd87f71dd5a2522c6f38133e088036f9c06c8aca6b61acc4e0bba43321",
+      "source_digest": "2f2d95efa93920610ff14c61edc1232e241633284ade276649d2250648647cd8",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 999,
+        "line_end": 1008
+      }
+    },
+    {
+      "step_id": "F9",
+      "title": "Define explicit operator-review supersession",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 20.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 4.0
+      },
+      "dependencies": [
+        "work_15c5b993565e6b08fcf7010a567803cff719d4d8af6f8b5e5bd1350f7da880e7"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Define explicit operator-review supersession.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "SUPERSEDE",
+      "work_id": "work_07437c665aeb49bb9927d4d85c6f8696107b744c19c251e7586f7f10a055af46",
+      "source_digest": "b6bda7eb0844b9cc531d40b6396cfff8743f247d18fd9c6c6a42ca13ee4971ce",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1009,
+        "line_end": 1018
+      }
+    },
+    {
+      "step_id": "50",
+      "title": "Add local receipt proposal picker",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 40.0
+      },
+      "attention_hours": {
+        "low": 2.0,
+        "high": 5.0
+      },
+      "dependencies": [
+        "work_49cffa32ce957b8600e6c1efc65e1d31da23c0b99f0bff1a9a5ee56e5f60a336"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Add local receipt proposal picker.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "50",
+      "work_id": "work_2cb9175e3b0eef5bd17ce56c569db449dd0a6cb6c7dd55a7802073297494cade",
+      "source_digest": "0d1fba79607586f66ed3d2554c38bab898560c5b86e57c222eda631df29e5215",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1019,
+        "line_end": 1027
+      }
+    },
+    {
+      "step_id": "F10",
+      "title": "Consider verified receipt-page budget relief",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 32.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "dependencies": [
+        "work_49cffa32ce957b8600e6c1efc65e1d31da23c0b99f0bff1a9a5ee56e5f60a336"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Consider verified receipt-page budget relief.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "COMPACT",
+      "work_id": "work_e71729afe82255aa1407900085c59b377892a556541a31d2d67ec174100873bb",
+      "source_digest": "d94c4d95a7bcc7b2b1ad4a37548b90b68d806fbd871f48efdd42bc9aebe65dc6",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1028,
+        "line_end": 1037
+      }
+    },
+    {
+      "step_id": "F11",
+      "title": "Move image decode into attested LPAC boundary",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 20.0,
+        "high": 60.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [
+        "work_40c062e518c4b6a16faace86ae819635a322d9625b2ba9fa462614258cbe25ae"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Move image decode into attested LPAC boundary.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "LPAC-IMAGE",
+      "work_id": "work_130b8908438c06da09ae26df224284a0493daf35f4aadfa096df3ecd4cee0629",
+      "source_digest": "594be028c48c02d00f8069c6e4898a55a980602519387d07f5a6ac1b81d342cc",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1038,
+        "line_end": 1047
+      }
+    },
+    {
+      "step_id": "F12",
+      "title": "Plan direct MIME receipt attachment harvesting",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_49cffa32ce957b8600e6c1efc65e1d31da23c0b99f0bff1a9a5ee56e5f60a336"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Plan direct MIME receipt attachment harvesting.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "ATTACHMENTS",
+      "work_id": "work_03959559a1012aebb49d1d3ad00eed02bc72633f43a53713c3e61b397ca906db",
+      "source_digest": "ef43320318bdaf516247b037d631d90b5ccac496efaab791f3afb6fc09ea9566",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1048,
+        "line_end": 1057
+      }
+    },
+    {
+      "step_id": "F13",
+      "title": "Carry reciprocal cross-track issue notes",
+      "status": "PENDING",
+      "worker_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "attention_hours": {
+        "low": 0.5,
+        "high": 1.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.6,
+      "rationale": "Remaining implementation, strict negative paths, production-caller integration, independent review and repository gates for Carry reciprocal cross-track issue notes.",
+      "manual_wait": null,
+      "hold_reason": "",
+      "legacy_alias": "COORDINATION",
+      "work_id": "work_cbb8ad1a56139cee4ca6f2bd49642fccdd297a42f261c1122607214669437ba3",
+      "source_digest": "1c1732036d19f154836e8c22951f199abba04df0450e4aa4f8bc7e6b7f064bd6",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": true,
+      "confidence_note": "Original qualitative rating medium; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1058,
+        "line_end": 1067
+      }
+    },
+    {
+      "step_id": "F14",
+      "title": "Retain decode CPU spread exception for ratification",
+      "status": "HELD",
+      "worker_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "attention_hours": {
+        "low": 0.5,
+        "high": 1.5
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Retain decode CPU spread exception for ratification.",
+      "manual_wait": null,
+      "hold_reason": "HELD",
+      "legacy_alias": "CALIBRATION",
+      "work_id": "work_b1954c1545a167857eac5efabd4552aed39f4e07a8df04d5d0ead884159779b3",
+      "source_digest": "d1b3db59557c449d74cf40ca6b4cacf969f4c39307ab9233cc0d04142f4a472b",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1068,
+        "line_end": 1077
+      }
+    },
+    {
+      "step_id": "W2",
+      "title": "Core financial story",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 28.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "dependencies": [
+        "work_0d3bb59c2d5b0931c88e418fb54eb74a6ce29077aeaf0489fd1088485ff1fda4"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Core financial story.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W2",
+      "work_id": "work_1fbb36c587bdbfa9eb053057a477787759a92aa006c633f89c9fabca3f157a54",
+      "source_digest": "755527847e075b8a73b18b989507bedfd19db9e6beaf43acb2622e7b3fac92bd",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1078,
+        "line_end": 1086
+      }
+    },
+    {
+      "step_id": "W3",
+      "title": "Operational rigor",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 36.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 7.0
+      },
+      "dependencies": [
+        "work_1fbb36c587bdbfa9eb053057a477787759a92aa006c633f89c9fabca3f157a54"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Operational rigor.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W3",
+      "work_id": "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e",
+      "source_digest": "caa6626e8007207a56e08057a6ab01cb22ce99cf0aaf008ff8a464d276cc8620",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1087,
+        "line_end": 1095
+      }
+    },
+    {
+      "step_id": "F15",
+      "title": "Historical comparisons",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Historical comparisons.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-HISTORY",
+      "work_id": "work_d88e0cabc005a41ffe793f4f0f57c38fef506ccf5837363dc449e4018a91f593",
+      "source_digest": "083509b3bb0f4eac8ad22ed0d2e82957c1ef576ac8a4013bd345297cadeb5075",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1096,
+        "line_end": 1105
+      }
+    },
+    {
+      "step_id": "F16",
+      "title": "Reserve and sustainability views",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Reserve and sustainability views.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-RESERVES",
+      "work_id": "work_d00e996208b2a2a7bcf7fedcbd84aef1a227d82a8a89eb4584542566b8d6cbca",
+      "source_digest": "074a9791df42ee2a009059eba1b4c2eeb31bb1151c18fce532db1525139c8def",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1106,
+        "line_end": 1115
+      }
+    },
+    {
+      "step_id": "F17",
+      "title": "Reimbursement commitments",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Reimbursement commitments.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-COMMITMENTS",
+      "work_id": "work_23260a2e8106f1968f98795200f4f5b0520fa85368a00724cd2c81b116633806",
+      "source_digest": "9afd18629a8fa7e34d648212a18cac83eec6246428abf758f1a107482ac13a99",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1116,
+        "line_end": 1125
+      }
+    },
+    {
+      "step_id": "F18",
+      "title": "Budget-versus-actual comparisons",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Budget-versus-actual comparisons.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-VARIANCE",
+      "work_id": "work_1f09b70230c3e2ed21915bb056103692193023217da98de93946db98d95b8835",
+      "source_digest": "33449b92cdc2bb91334df0b842b9842b0baffe6d4d9a794f6d8c7b644672f76c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1126,
+        "line_end": 1135
+      }
+    },
+    {
+      "step_id": "F19",
+      "title": "Appendix generation",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Appendix generation.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-APPENDIX",
+      "work_id": "work_d8339da0e606c38a33f28fd3f647f7400395561bed5737afdf6e37eb6246a6a8",
+      "source_digest": "c06ff1e042849ea0d0ac70761772ad92b0ca411e1d195d4e4ae4597861434794",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1136,
+        "line_end": 1145
+      }
+    },
+    {
+      "step_id": "F20",
+      "title": "Additional graphics beyond accepted waves",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Additional graphics beyond accepted waves.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-GRAPHICS",
+      "work_id": "work_b303a0bfa8263b68ab83b2a145aba09bd6a26ef6825dc25ea5afc81ddac3a424",
+      "source_digest": "8c4f4beff15fd3724b449a86f15f1b168e481fb4e56a452e6d3073961231f04e",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1146,
+        "line_end": 1155
+      }
+    },
+    {
+      "step_id": "F21",
+      "title": "Themes and organization profiles",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Themes and organization profiles.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-THEMES",
+      "work_id": "work_56f91e790533e5b47a94efefd8fb37c96f02f879a7eaac13e91b7f41ef2d202c",
+      "source_digest": "dbaa4f2e701e9cc95a87aecdd4efe0bd1ab8cc083a7c9e5aba994681a002732f",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1156,
+        "line_end": 1165
+      }
+    },
+    {
+      "step_id": "F22",
+      "title": "CSV/QFX/OFX bank adapters",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: CSV/QFX/OFX bank adapters.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-IMPORT",
+      "work_id": "work_b0655cc1127fa34ff86e633e4cd8476915e7e3380e4ff1dbd2646cc8f375475b",
+      "source_digest": "65bf52a4162faeb5b1f0476cd614cad42073cd5fa20951de7979d00b4066094d",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1166,
+        "line_end": 1175
+      }
+    },
+    {
+      "step_id": "F23",
+      "title": "Insert into a larger presentation",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Insert into a larger presentation.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-INSERT",
+      "work_id": "work_7461ddb0b6849e747982b6a4ee68f5b074251b008a92c61a574bad4cfe964c69",
+      "source_digest": "5382c6e824411cc90d0c62bc50691dadcd739d08c8f3464b3d3f731b4b0c8043",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1176,
+        "line_end": 1185
+      }
+    },
+    {
+      "step_id": "F24",
+      "title": "Scheduling, separately authorized and observed",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Scheduling, separately authorized and observed.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-SCHEDULE",
+      "work_id": "work_b6865964792dc5774eb14ea271b9617b911ed661596a49e9acd87d9338a5eb5a",
+      "source_digest": "54dac05aa0663f865afc6561cb56c2d469e2e3a8f1061fd9283d436fc5bee7ab",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1186,
+        "line_end": 1195
+      }
+    },
+    {
+      "step_id": "F25",
+      "title": "Sharing and publishing with separate explicit permissions",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Sharing and publishing with separate explicit permissions.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-SHARE",
+      "work_id": "work_8d7cf9db39371ae7d7d0ff64a70005495bafbb16f864856e25c7d321c9be231f",
+      "source_digest": "4d837a7c2827a3a9bdaf24322bc35673a5fa32ef1691c8bb71e646efbad9ad6e",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1196,
+        "line_end": 1205
+      }
+    },
+    {
+      "step_id": "F26",
+      "title": "Assisted narrative from validated facts",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 12.0
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 3.0
+      },
+      "dependencies": [
+        "work_3a7145058bf248c0a46b9240997d1e6a5d5926a06a63248e8f8969aa0d47e50e"
+      ],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Assisted narrative from validated facts.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "W4-NARRATIVE",
+      "work_id": "work_85514edc7d76e60aa29530883f0c9d95e69000b69cfb00558859a3b1b69d0bcc",
+      "source_digest": "b1b6af3702c5c09bde86e2bb758d332c930e9100230780d2d7ed8d90510fec37",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1206,
+        "line_end": 1215
+      }
+    },
+    {
+      "step_id": "F27",
+      "title": "Apps Script nag emails/calendar triggers, Chrome-editable configuration, Google sign-in allowlist plumbing and flexible Vega-Lite charts; live private Drive report upload, concurrent-modification check and Markdown/plain-text report variants",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 40.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Apps Script nag emails/calendar triggers, Chrome-editable configuration, Google sign-in allowlist plumbing and flexible Vega-Lite charts; live private Drive report upload, concurrent-modification check and Markdown/plain-text report variants.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "ROOT-CLOUD",
+      "work_id": "work_fe7033c32fc14cc2e5a7da79696164435f81a5ec905b12d1c90f3cb932d7920f",
+      "source_digest": "1ed3a592d8e32fe13c7b4ad7cfeeb9a6999a4ba909207d38ac35c172abfec50c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1216,
+        "line_end": 1225
+      }
+    },
+    {
+      "step_id": "F28",
+      "title": "Broader admin UI (React or HtmlService unresolved) beyond the bounded accepted Cloud Run workflow",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 12.0,
+        "high": 32.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 7.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Broader admin UI (React or HtmlService unresolved) beyond the bounded accepted Cloud Run workflow.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "ROOT-ADMIN",
+      "work_id": "work_717a94e7c29b2e3e211511c4de8ece8f8031189edd90e7937d4079c158b422b9",
+      "source_digest": "eda3a0694d11e00438b917052b9e8e9516beab4385d51838de49996e2e18a2a9",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1226,
+        "line_end": 1235
+      }
+    },
+    {
+      "step_id": "F29",
+      "title": "One-year-ahead forecasting, bank-CSV/QuickBooks import, model-assisted narrative and board-ramp wiki (LLM and people-friendly)",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 16.0,
+        "high": 40.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 8.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: One-year-ahead forecasting, bank-CSV/QuickBooks import, model-assisted narrative and board-ramp wiki (LLM and people-friendly).",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "ROOT-POWER",
+      "work_id": "work_9d79e0c1d359f59769235677d7807a2537460de0ff6bcbdc9c097cf7d447a374",
+      "source_digest": "4e8391794ee395961764cdafa8e966625e04472b5f20077cf38b8a39e6aa1295",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1236,
+        "line_end": 1245
+      }
+    },
+    {
+      "step_id": "F30",
+      "title": "Unattended receipt ingestion and linked Drive-file fetch remain deferred",
+      "status": "DEFERRED",
+      "worker_hours": {
+        "low": 8.0,
+        "high": 24.0
+      },
+      "attention_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "dependencies": [],
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "rationale": "Bounded design/decision estimate only; later implementation needs re-estimation. Scope: Unattended receipt ingestion and linked Drive-file fetch remain deferred.",
+      "manual_wait": null,
+      "hold_reason": "DEFERRED",
+      "legacy_alias": "ROOT-MAIL",
+      "work_id": "work_96606308575525231a54f76da06e95b7865cd09b01ac4341c09c90277988cc22",
+      "source_digest": "5d2064ac7dbb62a474e707557b08b0eb7a09cb8d61aacd9241713dbecee08e0c",
+      "plan_path": "docs/plans/master_plan.md",
+      "estimated_at": "2026-10-14T17:17:33.950242Z",
+      "enabled": false,
+      "confidence_note": "Original qualitative rating low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
+        "locator": "pta_finance/docs/plans/master_plan.md",
+        "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
+        "line_start": 1246,
+        "line_end": 1276
+      }
+    }
+  ],
+  "identity_note": "work_id and source_digest come from Observatory normalization and forecast.fingerprint; raw plan SHA is separate.",
+  "compatibility": "Rows validate as ForecastEstimate. Portable worksheet only: production ForecastConfig is currently restricted to dev-observatory and 100 estimates; no saved forecast was modified.",
+  "assumptions": "Forward remaining effort in hours, including implementation and its checks/review. Operator attention is separate. Elapsed waits, service quotas and hardware availability are not labor. These are model forecasts, not measured history. Held rows remain disabled.",
+  "validated_at": "2026-10-14T17:53:49.095544Z"
+}

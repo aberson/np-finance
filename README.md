@@ -125,6 +125,11 @@ uv run pta-finance report-reimbursements
 
 The Sheet ledger and private review report are separate. Refreshing the report does not update
 Sheets or send email. Add `--fetch-since` to `update-reimbursements` to fetch mail first.
+Configure `[receipt_refresh]` to attach future receipt images and suggested red outlines during
+updates; uncertain matches remain visibly review-needed. See [receipt setup](docs/receipt-viewer.md).
+Both report commands also write `reports/output/reimbursement-queue-breakdown.copy.txt`,
+with copyable six-line blocks for active Approved and Clarification item subtotals.
+These labels follow the report recommendations; they do not record a payment approval.
 
 </details>
 
@@ -179,14 +184,10 @@ mapping, the reimbursement review queue, and click-to-view source receipts in th
 The reimbursement report prints linked and unlinked receipt counts. A claim with paid approved
 lines and declined lines can close with both outcomes visible in its case history.
 
-**Phase 9 Step 38 complete** — issues #72 closed. The receipt-viewer browser CI gate is repaired:
-[PR #93](https://github.com/aberson/pta_finance/pull/93) passed all three jobs. The full local suite
-passed 1,253 tests with 3 expected skips, 0 type errors, and 0 lint violations. Automatic receipt
-filling remains planned. The [Phase 10 action queue](documentation/non-reimbursement-action-queue-plan.md)
-is paused during Step 51; see the [resume handoff](documentation/phase10-build-handoff.md).
+**Receipt autofill is partially built:** Steps38-40 delivered the browser gate repair, bounded image normalization and allowlisted fetcher. Step41 remains blocked on timing-risk disposition and a quiet-host full-suite gate; automatic end-to-end filling and attended acceptance remain pending. The [master plan](docs/plans/master_plan.md) records those boundaries. The Phase10 action queue is paused during Step51; its [resume handoff](docs/phase10-build-handoff.md) preserves the unfinished work.
 
 **In progress:** turning the treasurer snapshot prototype into an automatic slide workflow.
-The [slide plan](documentation/treasurer-summary-wave-1-plan.md) tracks the remaining work.
+The [slide plan](docs/plans/master_plan.md) tracks the remaining work.
 
 **Optional collaboration proof:** the `web` extra adds an authenticated service for fixed
 fictional requests, shared comments, and a reviewer-to-processor handoff. The reviewer approves
@@ -198,13 +199,13 @@ histories, current workflow counts, title/reference search, status/owner filters
 links. Reload or return to the queue to see shared changes. The queue build passed its tests,
 independent reviews, and feature/main CI; its cloud image passed inspection. Hosted queue
 acceptance (M8) remains pending. Ticket creation follows M8 and a separate engineering plan.
-See the [delivery evidence](documentation/shared-request-queue-sync.md) and [shared-workflow runbook](docs/shared-workflow-proof.md)
+See the [delivery evidence](docs/shared-request-queue-sync.md) and [shared-workflow runbook](docs/shared-workflow-proof.md)
 for startup, packaging, and the cloud acceptance procedures.
 
 **Not built yet:** an admin web app, automatic reimbursement totals in the budget, or live
 Drive receipt retrieval and report upload. Existing spreadsheet dashboards are specific to the
-workbook. See the [project plan](plan.md) and
-[known review limitations](documentation/reimbursement-refresh-plan.md) for details.
+workbook. See the [project plan](docs/plans/master_plan.md) and
+[known review limitations](docs/plans/master_plan.md) for details.
 
 Real configuration, credentials, emails, and financial reports stay in private local files
 excluded from Git. The tool does not require an AI model.

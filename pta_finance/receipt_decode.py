@@ -5,8 +5,8 @@ Run only as ``python -I -m pta_finance.receipt_decode``, one fresh process per a
 this module only for the wire constants, the strict line parser and :func:`scaled_size`, the
 one size/scale derivation both sides use.
 
-The protocol (``documentation/receipt-autofill-plan.md`` § 5A, "The image decode child request
-and response"):
+The protocol (``docs/plan-reference/receipt-autofill-contracts.md`` § 5A,
+"The image decode child request and response"):
 
 1. The broker spawns this child, puts it in its limits (a Windows Job Object), and writes one
    request line carrying every value the child applies.

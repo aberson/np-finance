@@ -11,7 +11,7 @@ and Firestore emulator transactions. **M6 on Cloud Run passed on 2026-09-12.** S
 deployed checks proved Google sign-in, cloud IAM, image inspection and revision persistence;
 the operator accepted the proof. Exact identities, configuration and receipts remain private.
 This is a functional proof, not an adoption claim. **M7 / Step 35 hosted acceptance passed**;
-see the [M7 closeout](../documentation/shared-workflow-proof-sync.md#m7-closeout--2026-09-13-utc).
+see the [M7 closeout](shared-workflow-proof-sync.md#m7-closeout--2026-09-13-utc).
 Queue code has local verification; **M8 / Step 37 remains pending**. Its prepared procedure is below.
 The M6 procedure is retained for repeat execution.
 

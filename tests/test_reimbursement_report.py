@@ -5,6 +5,7 @@ import hashlib
 import html
 import json
 import re
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -465,6 +466,93 @@ def test_build_report_writes_atomically_and_returns_result(tmp_path: Path) -> No
     assert result.receipt_linked_items == 0
     assert output.startswith(b"<!doctype html>")
     assert not list(output_path.parent.glob(f".{output_path.name}.*.tmp"))
+    assert result.text_output_path == output_path.with_name("queue.copy.txt").resolve()
+    assert result.text_output_path.read_text(
+        encoding="utf-8"
+    ) == reimbursement_report.render_copy_text(reimbursement_report.load_bundle(data_path))
+
+
+def test_copy_text_splits_mixed_status_and_category_without_exporting_closed_cases(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "bundle.json"
+    _write_bundle(path, _bundle())
+    report = reimbursement_report.load_bundle(path)
+    text = reimbursement_report.render_copy_text(report)
+    clarification, approved = text.split("# Approved\n\n")
+    assert "not payment authorization" in text
+    assert "NEW-02\nFictional Person 2\nCheck\n<Verification #>\nEquipment\n7.00" in clarification
+    assert (
+        "NEW-02\nFictional Person 2\nCheck\n<Verification #>\nClassroom Supplies\n5.00" in approved
+    )
+    assert (
+        "NEW-01\nFictional Person 1\nZelle\n<Verification #>\nClassroom Supplies\n10.00" in approved
+    )
+    assert "NEW-03" not in text
+    assert "P-001" not in text
+
+
+def test_copy_text_totals_categories_preserves_unknowns_and_keeps_fields_on_one_line(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "bundle.json"
+    _write_bundle(path, _bundle())
+    report = reimbursement_report.load_bundle(path)
+    ticket = report.tickets[0]
+    item = ticket.items[0]
+    ticket = replace(
+        ticket,
+        form_label="Form 2",
+        requestor_name="Fictional\r\nPerson",
+        payment_method="Check\nOffice",
+        live=replace(ticket.live, confirmations=("EXAMPLE-123",)),
+        items=(
+            replace(item, source_amount=Decimal("0.10")),
+            replace(item, item_key="two", reviewed_amount=Decimal("0.20")),
+            replace(item, item_key="three", canonical_category="Other", source_amount=Decimal("5")),
+            replace(item, item_key="four", canonical_category="", source_amount=None, status="C"),
+            replace(
+                item, item_key="five", canonical_category="", source_amount=Decimal("1"), status="C"
+            ),
+            replace(item, item_key="six", status="D"),
+            replace(item, item_key="seven", status="-"),
+        ),
+    )
+    text = reimbursement_report.render_copy_text(replace(report, tickets=(ticket,)))
+    assert (
+        "NEW-01 (Form 2)\nFictional Person\nCheck Office\nEXAMPLE-123\nClassroom Supplies\n0.30"
+        in text
+    )
+    assert "EXAMPLE-123\nOther\n5.00" in text
+    assert "EXAMPLE-123\n<Category>\n<Amount>" in text
+    assert text.count("NEW-01 (Form 2)") == 3
+
+
+def test_copy_text_failure_reports_partial_output_and_preserves_prior_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "bundle.json"
+    output = tmp_path / "queue.html"
+    copy_path = tmp_path / "queue.copy.txt"
+    _write_bundle(path, _bundle())
+    copy_path.write_text("prior text", encoding="utf-8")
+    original = reimbursement_report.os.replace
+
+    def fail_text(source: str, target: Path) -> None:
+        if target == copy_path.resolve():
+            raise PermissionError("synthetic locked text output")
+        original(source, target)
+
+    monkeypatch.setattr(reimbursement_report.os, "replace", fail_text)
+    with pytest.raises(
+        reimbursement_report.ReimbursementReportError,
+        match="HTML refreshed, but copy-text output failed",
+    ):
+        reimbursement_report.build_report(path, output)
+    assert output.read_text(encoding="utf-8").startswith("<!doctype html>")
+    assert copy_path.read_text(encoding="utf-8") == "prior text"
+    assert not list(tmp_path.glob(".*.tmp"))
 
 
 def test_paid_approved_and_declined_lines_can_close_claim(tmp_path: Path) -> None:

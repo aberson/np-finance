@@ -116,7 +116,7 @@ mail_samples/       gitignored — fetched .eml + legacy Takeout .mbox, side by 
 snapshots/          gitignored — safe CSV + exact tagged userEnteredValue .raw.json backups
 config.toml         gitignored private config; config.example.toml ships fake values
                     (incl. optional [receipt_mapping] and [gmail] blocks)
-documentation/      committed feature plans (e.g. gmail-ingest-plan.md)
+docs/               public guides and supporting contracts; plans/master_plan.md owns all execution/status
 docs/               operator guides, light/dark SVG workflows, fictional report screenshots,
                     and an editable fictional treasurer-snapshot.pptx example
 deployment/         committed shared-workflow deployment assets (deployment/shared-workflow)
@@ -212,7 +212,7 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
 fictional tests are unfinished in a preserved worktree, not merged to main. Focused and static
 checks passed; the Step 51 full suite was interrupted and independent review has not run.
 Fix subject-only evidence drift before review. Steps 52–55 and attended Step 56 remain pending;
-the [resume handoff](documentation/phase10-build-handoff.md) has the exact worktree and gates.
+the [resume handoff](docs/phase10-build-handoff.md) has the exact worktree and gates.
 
 **Phase 9 Step 38 (#72) is complete.** PR #93 passed all three CI jobs; the full post-merge
 local suite passed 1,253 tests with 3 expected skips.
@@ -223,25 +223,21 @@ Chromium and asserts that both receipt-viewer viewports run without skips. The t
 remain separate. The defect began at `7eb0c4f`; the preceding green
 run was `b1e0a2c`.
 
-**Phase 9 receipt autofill remains planned.** Step 38 repaired the CI browser gate; Steps 39–49
-cover the autofill feature under umbrella #71 and step issues #73–#83. The scoped plan is in
-[documentation/receipt-autofill-plan.md](documentation/receipt-autofill-plan.md). **No autofill
-feature code exists yet.** It adds a fill stage to `update-reimbursements` that fetches each
-ticket's own uploaded receipt assets from a configured host allowlist. It rasterizes PDFs through
-the existing attested Windows LPAC worker, auto-links only single-asset tickets with `box: null`,
-and stages ambiguous tickets into a proposals file an operator confirms. Red outlines stay human.
+**Phase 9 receipt autofill is partially built.** Steps38-40 are DONE, including the bounded image decode child, shared process_limits wrapper and allowlisted asset fetcher. Step41 is BLOCKED after its second3/3 iteration cap on2026-10-10: glyph measurements pass, but Windows timing risk needs operator disposition and the full gate needs a quiet-host rerun. Preserve its candidate. Steps42-49 remain pending/conditional; the remaining Phase 9 plan is not complete. A separate configured CLI integration shipped on 2026-10-21: allowlisted uploads, isolated image normalization, bounded sandboxed Chromium PDF pages, and conservative local OCR suggestions now run before HTML rendering. This does not mark the blocked Step 41 candidate or Steps 42-49 complete. The [master plan](docs/plans/master_plan.md) owns status and sequencing; [supporting contracts](docs/plan-reference/receipt-autofill-contracts.md) preserve exact schemas. Human red outlines and existing receipt fingerprints remain unchanged.
 
-**Receipt viewer shipped and backfilled (2026-09-14; current links refreshed 2026-09-23).** Queue items open their source receipt
-with red outlines from an optional private sidecar (`reimbursement-report.receipts.json`). As
-measured on 2026-09-14 the private backfill linked 147 of 227 items across 43 of 49 tickets (164
-embedded pages). **As of 2026-09-23 the bundle holds 235 items with 155 linked and 80 unlinked**
-after a private manual backfill of eight recent items. The sidecar is still an input nothing
-regenerates, so future items stay "Receipt not linked" until Phase 9 ships. Of the older 80, 69
-were adjudicated as having no locatable invoice and 11 are structural (paper totals, blank form
-rows, duplicate/reissue markers, one absent vendor upload). Backfill tooling and audits live under
-gitignored `reports/output/.work/receipt-backfill/`.
+**Receipt viewer and configured end-to-end preparation (2026-10-21).** Queue items open
+source receipts with red outlines from the private `reimbursement-report.receipts.json` sidecar.
+The current bundle has 303 items: 218 linked across 260 embedded pages (217 reviewed annotations and one automatic
+source-only suggestion) and 85 unlinked older or
+structural lines. All active purchase lines are linked; the remaining active unlinked entry is a
+replacement-check placeholder. Original uploads and prior annotations are retained privately.
+With `[receipt_refresh]` configured, `update-reimbursements` prepares future uploaded sources before
+rendering, preserves saved locations, labels automatic OCR suggestions for review, and attaches
+source-only pages when no unique line match is available. It writes a separate review/refusal
+summary and enforces the existing image budgets. See [docs/receipt-viewer.md](docs/receipt-viewer.md).
+Private backfill proofs and backups live under `reports/output/.work/receipt-link-20261021/`.
 
-**Shared workflow Step 32 delivered (2026-09-12 UTC).** The optional comments-only service passed local HTTP/browser/emulator and installed-wheel checks, the complete main-checkout suite, six independent reviews, and feature CI. Step 33/M6 subsequently passed actual cloud observations and operator acceptance on 2026-09-12. The private record satisfies the Phase B entry gate. Handoff behavior now has local implementation and automated coverage; M7 / Step 35 cloud acceptance now passes; all fifteen observations and the operator wording judgment are recorded privately. See the [delivery record](documentation/shared-workflow-proof-sync.md#step-32-delivery--2026-09-12-utc).
+**Shared workflow Step 32 delivered (2026-09-12 UTC).** The optional comments-only service passed local HTTP/browser/emulator and installed-wheel checks, the complete main-checkout suite, six independent reviews, and feature CI. Step 33/M6 subsequently passed actual cloud observations and operator acceptance on 2026-09-12. The private record satisfies the Phase B entry gate. Handoff behavior now has local implementation and automated coverage; M7 / Step 35 cloud acceptance now passes; all fifteen observations and the operator wording judgment are recorded privately. See the [delivery record](docs/shared-workflow-proof-sync.md#step-32-delivery--2026-09-12-utc).
 
 **README refresh accepted (2026-09-08).** Public examples show the real reimbursement renderer
 with fictional data and an editable native PowerPoint snapshot. The snapshot is a presentation
@@ -274,7 +270,7 @@ string/number/boolean/empty types. Snapshot directories are claimed atomically a
 a suffix instead of overwriting an older set. Formatting/comments are not captured; Sheets version
 history remains the primary recovery path, and there is no automated JSON restore command.
 **The reimbursement refresh generator has shipped**
-(`documentation/reimbursement-refresh-plan.md`, closeout issue #24): `report-reimbursements` rebuilds the private HTML
+(`docs/plans/master_plan.md`, closeout issue #24): `report-reimbursements` rebuilds the private HTML
 offline from one strict schema-v2 bundle, while `update-reimbursements` optionally fetches mail,
 refreshes stable-keyed original submissions plus supplemental email events, appends only genuinely
 new submissions as unreviewed, supplies non-authoritative item-level recommendations, and renders.
@@ -284,9 +280,9 @@ changes or disappears. Neither command sends mail or writes Sheets. **Strict pay
 (`01f7bff`, merge `aa9b1b1`): schema-v2 anchors carry `payment_links` (two exact Zelle grammars,
 per-ticket reference-digest bindings, atomic quarantine) and `operator_payments`; three fail-closed
 majors from the landing review remain open as the next fix step (see
-`documentation/reimbursement-refresh-plan.md` § 2026-09-06 amendment). The Step 36 delivery gate
+`docs/plan-reference/reimbursement-refresh-contracts.md` § 2026-09-06 amendment; master REPLAY-1 through REPLAY-3). The Step 36 delivery gate
 has **1,231 collected tests** with dev/slides/web installed and the local Firestore emulator running: 1,228 passed and 3 unchanged existing skips in both candidate and main; all 281 web cases pass without skips. Strict package mypy, Ruff, packaging/privacy checks, installed-wheel browser smoke and six fresh independent lenses pass, as did all three CI jobs **at that time** — that 1,231 figure predates `7eb0c4f`, which added the receipt-viewer suite, and the resulting CI failure was repaired by Step 38 (PR #93 all three jobs green; full main suite: 1,253 passed, 3 expected skips). Hosted handoff acceptance passed M7 / Step 35. The M8 image from delivered source `7f07ba3` passed actual cloud build and inspection; deployment and two-account acceptance remain pending in M8 / Step 37. Resume from private image and baseline receipts; do not repeat completed build steps.
-**The Gmail read-only ingest connector has also shipped** (`documentation/gmail-ingest-plan.md`,
+**The Gmail read-only ingest connector has also shipped** (`docs/plans/master_plan.md`,
 tracking span #15–#22; deferred #18 and its umbrella #22 remain open): `gmail_source.py` + the
 `fetch-mail` CLI replace the manual Google Takeout export —
 user OAuth pinned to `gmail.readonly` (exact-equality-tested, re-checked at runtime), a date-scoped
@@ -295,7 +291,7 @@ filename is `<sanitised Message-ID stem>-<8 hex of sha256(full raw message bytes
 over the **whole message**, never over the Message-ID (amended 2026-08-25 after five extraction/
 truncation collision vectors; the Message-ID supplies the readable stem only). Files land **beside**
 the `.mbox` archives in `mail_samples/` so ONE `map-receipts` run dedups both
-(`documentation/gmail-ingest-plan.md` § Design Decision 10). `fetch-mail` prints counts only — never
+(`docs/plan-reference/gmail-ingest-contracts.md` § Design Decision 10). `fetch-mail` prints counts only — never
 a subject, sender, or message id. **The cron half is deliberately NOT built:** no OAuth token goes
 into CI (a personal-mailbox refresh token in a public repo's Actions secrets would expose the whole
 inbox), so fetching is local-only and hands-on and the monthly workflow still does reports only

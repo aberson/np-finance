@@ -1,0 +1,4 @@
+
+# Exact plan originals: preserve bytes across Windows checkouts.
+/docs/archived-plans/** -text
+/docs/completed/** -text

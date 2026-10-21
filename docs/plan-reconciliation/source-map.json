@@ -1,0 +1,107 @@
+{
+  "project": "pta_finance",
+  "head": "29856f63a19d8f02a5b3b5f8dfc7bcb519345d1c",
+  "initial_status": "",
+  "captured_at": "2026-10-14T17:13:36.008517+00:00",
+  "sources": [
+    {
+      "source": "plan.md",
+      "destination": "docs/archived-plans/plan.md",
+      "sha256": "56e00a0ce173b06e32524dbb0400d94ce73c5f75e3c2ec4ef6410e27f3a9942f",
+      "bytes": 79012,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/fy27-budget-adoption-plan.md",
+      "destination": "docs/archived-plans/documentation__fy27-budget-adoption-plan.md",
+      "sha256": "4f29dcd5522dfb9b019cce5d6f4743b7620545c3990b1a4eba7717789ef72ab7",
+      "bytes": 12478,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/gmail-ingest-plan.md",
+      "destination": "docs/archived-plans/documentation__gmail-ingest-plan.md",
+      "sha256": "0bbc8022712ffc5adb9449ee72aa2af6181575bd0fd488a5844f7905d3b69b4a",
+      "bytes": 35856,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/non-reimbursement-action-queue-plan.md",
+      "destination": "docs/archived-plans/documentation__non-reimbursement-action-queue-plan.md",
+      "sha256": "7cb245d5e70a1c5a3b7b8e3cada6684655fb63b46431bc8bc29114f92b0c1dcd",
+      "bytes": 32218,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/receipt-autofill-plan.md",
+      "destination": "docs/archived-plans/documentation__receipt-autofill-plan.md",
+      "sha256": "7933a836c9616d539d24d3764cec6335b36d61fbb55f2f1830fd99b0e1888d4f",
+      "bytes": 228279,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/reimbursement-board-summary-plan.md",
+      "destination": "docs/archived-plans/documentation__reimbursement-board-summary-plan.md",
+      "sha256": "edd3a561824fdbf31c21f906648d12ed2b274754ffd8441494d5f5b3f76feb8b",
+      "bytes": 50592,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/reimbursement-refresh-plan.md",
+      "destination": "docs/archived-plans/documentation__reimbursement-refresh-plan.md",
+      "sha256": "2260e1829c20586b57efb4f1524c512e2953db06a2c991e43746c3a71787d5aa",
+      "bytes": 18511,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/shared-request-queue-plan.md",
+      "destination": "docs/archived-plans/documentation__shared-request-queue-plan.md",
+      "sha256": "68589e0f029ac69050ee0332a60d5a4504fec71c3f55795d412171e4f60eb9c1",
+      "bytes": 42857,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/shared-workflow-proof-plan.md",
+      "destination": "docs/completed/documentation__shared-workflow-proof-plan.md",
+      "sha256": "f7e182c1d4a0130d1569e483e5abe081d9516e0503b9cc5d9d024d8954ba7e22",
+      "bytes": 70348,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/treasurer-slides-plan.md",
+      "destination": "docs/archived-plans/documentation__treasurer-slides-plan.md",
+      "sha256": "d773ac58a951cd2df1b29a996b4d2c574c032642ec5c7a4445f76e1dc8d68ace",
+      "bytes": 8662,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/treasurer-summary-wave-1-plan.md",
+      "destination": "docs/archived-plans/documentation__treasurer-summary-wave-1-plan.md",
+      "sha256": "22aa0dd4c46795c86aea4543fe9631a01dadf5f6c5affb53b901173471864be3",
+      "bytes": 94372,
+      "git_status": "",
+      "tracked": true
+    },
+    {
+      "source": "documentation/shared-ticket-lifecycle-design.md",
+      "destination": "docs/archived-plans/documentation__shared-ticket-lifecycle-design.md",
+      "sha256": "13aced450ced46ceb362a8e3d7387867943962c6a58eca907e0dc12595bc4393",
+      "bytes": 9364,
+      "git_status": "",
+      "tracked": true
+    }
+  ],
+  "exceptions": [
+    "doc/ is ignored private application input, not project documentation; preserved without reading contents or exposing names."
+  ]
+}

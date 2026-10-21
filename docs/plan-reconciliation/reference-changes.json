@@ -1,0 +1,20 @@
+[
+  "CLAUDE.md",
+  "README.md",
+  "docs/loading-receipts.md",
+  "docs/phase10-build-handoff.md",
+  "docs/reimbursement-board-summary-proposal.html",
+  "docs/reimbursement-board-summary-review.md",
+  "docs/reimbursement-board-summary-sync.md",
+  "docs/reimbursement-board-summary-wrap.md",
+  "docs/shared-request-queue-proposal.html",
+  "docs/shared-request-queue-review.md",
+  "docs/shared-request-queue-wrap.md",
+  "docs/shared-workflow-proof-proposal.html",
+  "docs/shared-workflow-proof-review.md",
+  "docs/shared-workflow-proof-sync.md",
+  "docs/shared-workflow-proof-wrap.md",
+  "docs/shared-workflow-proof.md",
+  "pta_finance/receipt_decode.py",
+  "pta_finance/receipt_geometry.py"
+]

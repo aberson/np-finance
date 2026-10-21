@@ -19,7 +19,8 @@ from typing import TypedDict
 
 import pytest
 
-from pta_finance import reimbursement_events, reimbursement_pipeline, reimbursement_report
+from pta_finance import cli, reimbursement_events, reimbursement_pipeline, reimbursement_report
+from pta_finance.config import Config
 
 _CUTOFF = date(2030, 9, 1)
 _AS_OF = date(2030, 9, 10)
@@ -308,6 +309,58 @@ def _base_bundle() -> dict[str, object]:
 
 def _write_bundle(path: Path) -> None:
     path.write_text(json.dumps(_base_bundle(), ensure_ascii=False), encoding="utf-8")
+
+
+def test_end_to_end_refresh_writes_copy_text_from_real_mail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_config: Config,
+) -> None:
+    source = tmp_path / "mail"
+    source.mkdir()
+    _write_eml(
+        source / "request.eml",
+        message_id="<copy-text@example.invalid>",
+        received="Tue, 03 Sep 2030 12:00:00 +0000",
+        receipt_label="Upload receipt",
+    )
+    bundle = tmp_path / "bundle.json"
+    output = tmp_path / "queue.html"
+    _write_bundle(bundle)
+    category_map = _write_category_map(tmp_path)
+    monkeypatch.setattr(cli, "_load", lambda _args: fake_config)
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("local refresh must not contact Google")
+
+    monkeypatch.setattr(cli, "SheetsClient", forbidden)
+    monkeypatch.setattr(cli.gmail_source, "build_service", forbidden)
+    args = [
+        "update-reimbursements",
+        "--source",
+        str(source),
+        "--data",
+        str(bundle),
+        "--category-map",
+        str(category_map),
+        "--output",
+        str(output),
+        "--received-since",
+        "2030-09-01",
+        "--as-of",
+        "2030-09-10",
+    ]
+    assert cli.main(args) == 0
+    text = output.with_name("queue.copy.txt").read_text(encoding="utf-8")
+    assert "Morgan Example\nCheck\n<Verification #>\nProgram Supplies\n12.50" in text
+    assert "Quinn Example" not in text
+    before = (bundle.read_bytes(), output.read_bytes(), text)
+    assert cli.main(args) == 0
+    assert (
+        bundle.read_bytes(),
+        output.read_bytes(),
+        output.with_name("queue.copy.txt").read_text(encoding="utf-8"),
+    ) == before
 
 
 def _refresh_kwargs(
