@@ -42,6 +42,7 @@ from pta_finance import (
     models,
     receipt_ingest,
     receipt_map,
+    receipt_refresh,
     reimbursement_pipeline,
     reimbursement_report,
     report_source,
@@ -1154,8 +1155,9 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
             "subject_filter": args.subject_filter,
             "anchors_path": Path(args.anchors) if args.anchors else None,
         }
+        planned: dict[str, Any] | None = None
         if args.dry_run:
-            _planned, summary = reimbursement_pipeline.plan_bundle_refresh(**refresh_kwargs)
+            planned, summary = reimbursement_pipeline.plan_bundle_refresh(**refresh_kwargs)
         else:
             summary = reimbursement_pipeline.refresh_bundle(**refresh_kwargs)
     except (
@@ -1177,6 +1179,30 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
         f"{summary.supplemental_events} event(s), {summary.unmatched_evidence} unmatched, "
         f"{summary.supplemental_excluded_by_cutoff} cutoff-excluded"
     )
+    try:
+        receipt_kwargs: dict[str, Any] = {
+            "bundle_path": Path(args.data),
+            "source": source,
+            "config": config.receipt_refresh,
+            "dry_run": args.dry_run,
+        }
+        if planned is not None and config.receipt_refresh is not None:
+            receipt_kwargs["report"] = reimbursement_report._load_data(planned)
+        receipt_summary = receipt_refresh.refresh_receipts(**receipt_kwargs)
+    except (OSError, receipt_refresh.ReceiptRefreshError) as exc:
+        print(f"update-reimbursements: receipt preparation failed: {exc}")
+        return 1
+    if receipt_summary.configured:
+        print(
+            f"  receipt prep  : {receipt_summary.linked} linked, "
+            f"{receipt_summary.marked} automatic mark(s), "
+            f"{receipt_summary.review_needed} review-needed, "
+            f"{receipt_summary.refused_assets} refused asset(s)"
+        )
+        for detail in receipt_summary.detail:
+            print(f"    - {detail}")
+    else:
+        print("  receipt prep  : not configured; automatic receipt preparation skipped")
     if args.dry_run:
         print("update-reimbursements [dry-run]: no bundle or report files written")
         return 0

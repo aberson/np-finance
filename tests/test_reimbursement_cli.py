@@ -7,16 +7,20 @@ not allowed to load config or Gmail at all.
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import json
 from datetime import date
 from decimal import Decimal
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
 import pytest
+from PIL import Image
 
-from pta_finance import cli, reimbursement_pipeline, reimbursement_report
-from pta_finance.config import Config
+from pta_finance import cli, receipt_assets, reimbursement_pipeline, reimbursement_report
+from pta_finance.config import Config, ReceiptRefresh
 
 
 def _bundle() -> dict[str, object]:
@@ -282,9 +286,20 @@ def test_update_reimbursements_refreshes_then_reports_without_sheets(
             summary=_report_summary(),
         )
 
+    def prepare(**kwargs: Any) -> cli.receipt_refresh.RefreshSummary:
+        events.append("receipt-prep")
+        assert kwargs == {
+            "bundle_path": bundle_path,
+            "source": source,
+            "config": fake_config.receipt_refresh,
+            "dry_run": False,
+        }
+        return cli.receipt_refresh.RefreshSummary(False, 0, 0, 0, 0, 0)
+
     monkeypatch.setattr(cli, "_load", lambda _args: fake_config)
     monkeypatch.setattr(cli.reimbursement_pipeline, "refresh_bundle", refresh)
     monkeypatch.setattr(cli.reimbursement_pipeline, "plan_bundle_refresh", _forbidden)
+    monkeypatch.setattr(cli.receipt_refresh, "refresh_receipts", prepare)
     monkeypatch.setattr(cli.reimbursement_report, "build_report", report)
     _ban_google(monkeypatch)
 
@@ -308,12 +323,114 @@ def test_update_reimbursements_refreshes_then_reports_without_sheets(
 
     stdout = capsys.readouterr().out
     assert rc == 0
-    assert events == ["refresh", "report"]
+    assert events == ["refresh", "receipt-prep", "report"]
     assert output_path.read_text(encoding="utf-8") == "rendered private report"
     assert "1 new, 2 unchanged" in stdout
     assert "5 evidence, 3 event(s), 2 unmatched, 7 cutoff-excluded" in stdout
     assert "1 active, 0 settled" in stdout
     assert "Fictional Requester" not in stdout
+
+
+def test_update_reimbursements_prepares_real_page_sidecar_and_render(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake_config: Config,
+) -> None:
+    """CLI wiring gate: parsed mail -> fetch seam -> decode child -> validator -> HTML."""
+
+    message_id = "<Fictional.CLI.Raw@Example.ORG>"
+    review_key = "submission:v1:" + hashlib.sha256(message_id.encode()).hexdigest()
+    value = _bundle()
+    ticket = value["tickets"][0]  # type: ignore[index]
+    ticket["review_key"] = review_key  # type: ignore[index]
+    value["provenance"]["accounted_review_keys"] = [review_key]  # type: ignore[index]
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(value), encoding="utf-8")
+    source = tmp_path / "mail"
+    source.mkdir()
+    message = EmailMessage()
+    message["Subject"] = "Example Reimbursement Form got a new submission"
+    message["From"] = "forms@example.org"
+    message["To"] = "treasurer@example.org"
+    message["Date"] = "Wed, 21 Oct 2026 09:00:00 -0700"
+    message["Message-ID"] = message_id
+    message.set_content(
+        """Example Reimbursement Form got a new submission
+Requestor First and Last Name:
+Fictional Requester
+1. Date:
+2026-08-01
+1. Event or Budget Category:
+Classroom Supplies
+1. Description:
+Fictional classroom supplies
+1. Amount:
+12.34
+Total Amount $:
+12.34
+Choose Payment Type:
+Check
+PDF:
+https://uploads.example.org/fictional.png
+"""
+    )
+    (source / "submission.eml").write_bytes(message.as_bytes())
+    cached = tmp_path / "cached.png"
+    Image.new("RGB", (320, 180), "white").save(cached, format="PNG")
+    payload = cached.read_bytes()
+    asset = receipt_assets.AssetResult(
+        "https://uploads.example.org/fictional.png",
+        "fictional-key",
+        receipt_assets.ASSET_ID.prefix + hashlib.sha256(payload).hexdigest(),
+        "png",
+        cached,
+        len(payload),
+        "cached",
+        "",
+    )
+    receipt_config = ReceiptRefresh(
+        ("uploads.example.org",), tmp_path / "cache", tmp_path / "receipt-pages"
+    )
+    configured = dataclasses.replace(fake_config, receipt_refresh=receipt_config)
+    monkeypatch.setattr(cli, "_load", lambda _args: configured)
+    monkeypatch.setattr(
+        cli.reimbursement_pipeline, "refresh_bundle", lambda **_kwargs: _merge_summary()
+    )
+    monkeypatch.setattr(cli.reimbursement_pipeline, "plan_bundle_refresh", _forbidden)
+    monkeypatch.setattr(
+        cli.receipt_refresh.receipt_assets,
+        "fetch_assets",
+        lambda *_args, **_kwargs: [asset],
+    )
+    _ban_google(monkeypatch)
+    output = tmp_path / "queue.html"
+    rc = cli.main(
+        [
+            "update-reimbursements",
+            "--source",
+            str(source),
+            "--category-map",
+            str(tmp_path / "category-map.csv"),
+            "--data",
+            str(bundle_path),
+            "--output",
+            str(output),
+            "--received-since",
+            "2026-06-01",
+            "--as-of",
+            "2026-08-04",
+        ]
+    )
+    stdout = capsys.readouterr().out
+    sidecar = json.loads(bundle_path.with_suffix(".receipts.json").read_text("utf-8"))
+    assert rc == 0
+    assert sidecar["items"][0]["review_key"] == review_key
+    assert sidecar["items"][0]["match_method"] == "automatic-ticket-source-v1"
+    assert sidecar["items"][0]["regions"][0]["box"] is None
+    assert output.read_text("utf-8").startswith("<!doctype html>")
+    assert "automatic suggestion" in output.read_text("utf-8")
+    assert "1 linked, 0 automatic mark(s), 1 review-needed" in stdout
 
 
 @pytest.mark.parametrize(

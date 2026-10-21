@@ -22,10 +22,33 @@ Locations live in an optional private JSON file beside the report bundle. Replac
 stage of `update-reimbursements` pick it up automatically. Existing bundles need no migration.
 Both commands print how many item lines have a validated receipt link and how many remain unlinked.
 
-This version uses **verified saved locations**. It does not perform OCR, download receipts during
-rendering, or automatically match newly submitted items. An operator or an assistant inspecting the
-original receipt prepares the locations. For a PDF, first export each relevant page as a PNG or
-JPEG; retain the original PDF privately. Do not use a reconstructed receipt or crop away its context.
+`update-reimbursements` can prepare future uploads when private config contains a
+`[receipt_refresh]` block. It uses an allowlisted cache, isolated image normalization, and optional
+local OCR. Every OCR outline is labelled **automatic suggested match** and must be checked by a
+person. A ticket-level source page without a unique match has no outline and is recorded as
+review-needed. Existing saved entries are preserved. `report-reimbursements` remains entirely
+offline and never fetches, decodes, or OCRs anything.
+
+Preparation writes its review/refusal summary beside the sidecar as
+`reimbursement-report.receipts.review.json`. Read that file and the aggregate CLI counts after
+each configured refresh, especially when the fixed 100 MiB embedded-page budget is nearly full.
+
+Copy the commented `[receipt_refresh]` example from `config.example.toml` into private
+`config.toml`, replacing its example hosts with the upload hosts you trust. Keep `pages_dir`
+inside the report bundle's directory. PDF preparation needs Playwright and its full Chromium
+browser (`uv sync --extra dev`, then `uv run playwright install chromium`). OCR additionally
+needs a local Tesseract installation and `tesseract_path`; without it, pages are attached for
+manual matching. Preview with `update-reimbursements --dry-run` before the normal command.
+No additional receipt command is needed on later configured runs.
+
+Generated sidecar item objects add `match_method: "automatic-ocr-v1"` for suggested outlines
+or `match_method: "automatic-ticket-source-v1"` for unmarked source pages. Omit that field only
+for locations checked against the original receipt. Automatic preparation never changes an
+item's reimbursement decision or amount.
+
+Manually prepared entries use **verified saved locations**. An operator or assistant inspecting
+the original receipt prepares those locations. Retain original uploads privately; do not use a
+reconstructed receipt or crop away its context.
 
 The file has this structure (the hashes below must be replaced with real computed digests):
 

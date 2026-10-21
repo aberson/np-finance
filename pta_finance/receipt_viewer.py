@@ -201,7 +201,12 @@ def load_receipts(path: Path, report: ReimbursementReport) -> dict[str, Any]:
     items: dict[str, dict[str, Any]] = {}
     used_pages: set[str] = set()
     for value in _array(raw["items"]):
-        entry = _object(value, {"review_key", "item_key", "item_sha256", "regions"})
+        if not isinstance(value, dict) or set(value) not in (
+            {"review_key", "item_key", "item_sha256", "regions"},
+            {"review_key", "item_key", "item_sha256", "regions", "match_method"},
+        ):
+            raise ReceiptViewerError("receipt sidecar has invalid object fields")
+        entry = value
         review_key, item_key = _text(entry["review_key"]), _text(entry["item_key"])
         if (review_key, item_key) not in known:
             raise ReceiptViewerError("receipt location references an unknown review item")
@@ -221,7 +226,13 @@ def load_receipts(path: Path, report: ReimbursementReport) -> dict[str, Any]:
             used_pages.add(page_id)
         if not regions:
             raise ReceiptViewerError("receipt item needs at least one source page")
-        ticket_items[item_key] = {"regions": regions}
+        match_method = entry.get("match_method")
+        if match_method is not None and match_method not in (
+            "automatic-ocr-v1",
+            "automatic-ticket-source-v1",
+        ):
+            raise ReceiptViewerError("receipt match_method is unsupported")
+        ticket_items[item_key] = {"regions": regions, "match_method": match_method}
     if used_pages != set(pages):
         raise ReceiptViewerError("receipt sidecar contains unreferenced pages")
     return {"pages": pages, "items": items}

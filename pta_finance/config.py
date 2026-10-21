@@ -28,6 +28,7 @@ __all__ = [
     "Google",
     "Gmail",
     "ReceiptMapping",
+    "ReceiptRefresh",
     "Config",
     "load_config",
 ]
@@ -114,6 +115,21 @@ class ReceiptMapping:
 
 
 @dataclass(frozen=True)
+class ReceiptRefresh:
+    """Optional local receipt preparation settings.
+
+    Paths are resolved relative to the private config file.  Tool paths are optional: image
+    receipts can still be prepared without Chromium, and pages can still be linked without OCR.
+    """
+
+    allowlist: tuple[str, ...]
+    cache_path: Path
+    pages_path: Path
+    tesseract_path: Path | None = None
+    chromium_path: Path | None = None
+
+
+@dataclass(frozen=True)
 class Config:
     organization: Organization
     contacts: Contacts
@@ -125,6 +141,7 @@ class Config:
     gmail: Gmail | None = None
     # Optional section: absent preserves the legacy all-history receipt mapping behavior.
     receipt_mapping: ReceiptMapping | None = None
+    receipt_refresh: ReceiptRefresh | None = None
 
 
 def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
@@ -244,6 +261,7 @@ def load_config(path: Path) -> Config:
     # without the block loads unchanged and `Config.gmail` is None.
     gmail = _load_gmail(data.get("gmail"), path.parent)
     receipt_mapping = _load_receipt_mapping(data.get("receipt_mapping"))
+    receipt_refresh = _load_receipt_refresh(data.get("receipt_refresh"), path.parent)
 
     return Config(
         organization=organization,
@@ -254,6 +272,7 @@ def load_config(path: Path) -> Config:
         google=google,
         gmail=gmail,
         receipt_mapping=receipt_mapping,
+        receipt_refresh=receipt_refresh,
     )
 
 
@@ -305,3 +324,37 @@ def _load_receipt_mapping(raw: Any) -> ReceiptMapping | None:
     else:
         raise ConfigError(dotted, f"{dotted} must be an ISO date (YYYY-MM-DD)")
     return ReceiptMapping(received_since=received_since)
+
+
+def _load_receipt_refresh(raw: Any, base_dir: Path) -> ReceiptRefresh | None:
+    """Parse the OPTIONAL receipt preparation block; absent means no network or OCR work."""
+
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ConfigError(
+            "receipt_refresh",
+            "expected a [receipt_refresh] table (or omit the section entirely)",
+        )
+    allowlist = _require_str_list(raw, "allowlist", "receipt_refresh.allowlist")
+    cache_dir = _require_str(raw, "cache_dir", "receipt_refresh.cache_dir")
+    pages_dir = _require_str(raw, "pages_dir", "receipt_refresh.pages_dir")
+
+    def optional_path(name: str) -> Path | None:
+        value = raw.get(name)
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value:
+            raise ConfigError(
+                f"receipt_refresh.{name}",
+                f"expected a non-empty string for receipt_refresh.{name}",
+            )
+        return _resolve_path(value, base_dir)
+
+    return ReceiptRefresh(
+        allowlist=allowlist,
+        cache_path=_resolve_path(cache_dir, base_dir),
+        pages_path=_resolve_path(pages_dir, base_dir),
+        tesseract_path=optional_path("tesseract_path"),
+        chromium_path=optional_path("chromium_path"),
+    )

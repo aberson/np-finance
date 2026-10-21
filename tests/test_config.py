@@ -110,6 +110,34 @@ def test_absolute_sa_path_preserved(tmp_path: Path) -> None:
     assert cfg.google.service_account_path == abs_path
 
 
+def test_optional_receipt_refresh_resolves_private_paths(tmp_path: Path) -> None:
+    text = (
+        _FULL_CONFIG
+        + """
+[receipt_refresh]
+allowlist = ["uploads.example.org", ".cdn.example.org"]
+cache_dir = "private/cache"
+pages_dir = "private/pages"
+tesseract_path = "tools/tesseract.exe"
+chromium_path = "tools/chromium.exe"
+"""
+    )
+    refresh = load_config(_write(tmp_path, text)).receipt_refresh
+    assert refresh is not None
+    assert refresh.allowlist == ("uploads.example.org", ".cdn.example.org")
+    assert refresh.cache_path == (tmp_path / "private/cache").resolve()
+    assert refresh.pages_path == (tmp_path / "private/pages").resolve()
+    assert refresh.tesseract_path == (tmp_path / "tools/tesseract.exe").resolve()
+    assert refresh.chromium_path == (tmp_path / "tools/chromium.exe").resolve()
+
+
+def test_present_receipt_refresh_requires_allowlist_and_directories(tmp_path: Path) -> None:
+    text = _FULL_CONFIG + '\n[receipt_refresh]\nallowlist = []\ncache_dir = "cache"\n'
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(tmp_path, text))
+    assert caught.value.field == "receipt_refresh.pages_dir"
+
+
 # --------------------------------------------------------------------------------------
 # The OPTIONAL [gmail] section (feature-plan Design Decision 5). Every test above loads a
 # config with NO [gmail] block, which is itself the regression guard: making the section

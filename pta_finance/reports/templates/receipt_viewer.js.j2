@@ -51,10 +51,13 @@
     get('prev').disabled = index === 0;
     get('next').disabled = index === pageIds.length - 1;
     const unmarked = regions.some(region => region.page_id === id && !region.box);
+    const automatic = regions.some(region => region.match_method) || false;
     get('status').textContent = boxes.length
-      ? 'The red outline marks the source of this claim. Compare the receipt with the submitted amount.' +
+      ? (automatic ? 'Automatic suggested match: the red outline was produced by OCR and has not been human verified. '
+                   : 'The red outline marks the source of this claim. ') + 'Compare the receipt with the submitted amount.' +
         (unmarked ? ' Some locations on this page have not been marked.' : '')
-      : 'Source receipt available. The exact item location has not been marked on this page.';
+      : (automatic ? 'Automatic ticket-level source suggestion: the exact item location was not matched and needs human review.'
+                   : 'Source receipt available. The exact item location has not been marked on this page.');
     picture.alt = source.label;
     focusOnLoad = true;
     picture.src = source.src;
@@ -75,7 +78,7 @@
       opener = button;
       const {receiptId, itemLabel, itemAmount, ticketRef} = button.dataset;
       const entry = Object.hasOwn(data.items, receiptId) ? data.items[receiptId] : null;
-      regions = entry ? entry.regions : [];
+      regions = entry ? entry.regions.map(region => ({...region, match_method: entry.match_method})) : [];
       pageIds = [...new Set(regions.map(region => region.page_id))];
       index = 0;
       get('title').textContent = itemLabel;

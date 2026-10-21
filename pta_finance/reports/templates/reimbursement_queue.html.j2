@@ -71,7 +71,7 @@
       <tbody>
       {% for category, items in ticket.item_groups %}
         <tr class="grp"><td colspan="5">Category &middot; {{ category }}</td></tr>
-        {% for item in items %}<tr><td>{{ iso_date(item.effective_date) }}</td><td class="nm"><button type="button" class="receipt-item" data-receipt-id="{{ receipt_id(ticket, item) }}" data-item-label="{{ item.effective_item }}" data-item-amount="{{ money(item.effective_amount) }}" data-ticket-ref="{{ ticket.ref }}" aria-haspopup="dialog">{{ item.effective_item }}<span class="receipt-hint">{% if receipts['items'].get(receipt_id(ticket, item)) %}View source receipt{% else %}Receipt not linked{% endif %}</span></button></td><td class="amt">{{ money(item.effective_amount) }}</td><td>{{ chip(item.status) }}</td><td class="wy">{{ item.why }}</td></tr>{% endfor %}
+        {% for item in items %}{% set receipt = receipts['items'].get(receipt_id(ticket, item)) %}<tr><td>{{ iso_date(item.effective_date) }}</td><td class="nm"><button type="button" class="receipt-item" data-receipt-id="{{ receipt_id(ticket, item) }}" data-item-label="{{ item.effective_item }}" data-item-amount="{{ money(item.effective_amount) }}" data-ticket-ref="{{ ticket.ref }}" aria-haspopup="dialog">{{ item.effective_item }}<span class="receipt-hint">{% if receipt %}View source receipt{% if receipt.match_method %} · automatic suggestion{% endif %}{% else %}Receipt not linked{% endif %}</span></button></td><td class="amt">{{ money(item.effective_amount) }}</td><td>{{ chip(item.status) }}</td><td class="wy">{{ item.why }}</td></tr>{% endfor %}
       {% endfor %}
       </tbody>
     </table></div>
