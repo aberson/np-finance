@@ -12,11 +12,15 @@ holds for the optional ``[gmail]`` block's OAuth client-secrets and token files.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+from pta_finance.main_reports.models import SOURCE_KINDS, is_valid_source_alias
 
 __all__ = [
     "ConfigError",
@@ -29,6 +33,13 @@ __all__ = [
     "Gmail",
     "ReceiptMapping",
     "ReceiptRefresh",
+    "ColumnBinding",
+    "CoverageDeclaration",
+    "SourceBinding",
+    "CrosswalkTarget",
+    "CrosswalkEntry",
+    "CategoryCrosswalk",
+    "MainReports",
     "Config",
     "load_config",
 ]
@@ -130,6 +141,84 @@ class ReceiptRefresh:
 
 
 @dataclass(frozen=True)
+class ColumnBinding:
+    """Where one adapter field lives in a configured header signature.
+
+    ``label`` is matched against the LAST header row; ``group`` (a forward-filled first-row
+    heading, for two-row headers) and ``occurrence`` (1-based among equal labels) disambiguate
+    repeated labels. Field names themselves are owned by ``main_reports.sources``.
+    """
+
+    label: str
+    group: str | None = None
+    occurrence: int | None = None
+
+
+@dataclass(frozen=True)
+class CoverageDeclaration:
+    """Evidence that a source is complete from ``start`` through ``end`` (both inclusive)."""
+
+    start: date
+    end: date
+    evidence: str
+
+    @property
+    def end_exclusive(self) -> date:
+        return self.end + timedelta(days=1)
+
+
+@dataclass(frozen=True)
+class SourceBinding:
+    """One private, explicit binding of a CFO workbook tab to a source adapter kind."""
+
+    alias: str
+    kind: str
+    tab: str
+    header_signature: tuple[tuple[str, ...], ...]
+    tab_id: int | None = None
+    columns: tuple[tuple[str, ColumnBinding], ...] = ()
+    coverage: tuple[CoverageDeclaration, ...] = ()
+
+
+@dataclass(frozen=True)
+class CrosswalkTarget:
+    category: str
+    share: Decimal
+
+
+@dataclass(frozen=True)
+class CrosswalkEntry:
+    """A documented map from one CFO category to budget categories (shares sum to 1)."""
+
+    source_category: str
+    targets: tuple[CrosswalkTarget, ...]
+    note: str
+
+
+@dataclass(frozen=True)
+class CategoryCrosswalk:
+    version: int
+    entries: tuple[CrosswalkEntry, ...]
+
+
+@dataclass(frozen=True)
+class MainReports:
+    """The OPTIONAL ``[main_reports]`` block: CFO workbook bindings for the Main Report Set.
+
+    The CFO workbook is read through a separate, explicitly read-only client; our own
+    workbook (``[sheets]``) and credentials (``[google]``) are unchanged. Real workbook IDs,
+    tab bindings and coverage evidence live only in the private config.
+    """
+
+    source_spreadsheet_id: str
+    output_dir: str
+    output_path: Path
+    assumptions_tab: str
+    sources: tuple[SourceBinding, ...]
+    crosswalk: CategoryCrosswalk | None = None
+
+
+@dataclass(frozen=True)
 class Config:
     organization: Organization
     contacts: Contacts
@@ -142,6 +231,8 @@ class Config:
     # Optional section: absent preserves the legacy all-history receipt mapping behavior.
     receipt_mapping: ReceiptMapping | None = None
     receipt_refresh: ReceiptRefresh | None = None
+    # Optional section: absent keeps every legacy command unchanged.
+    main_reports: MainReports | None = None
 
 
 def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
@@ -262,6 +353,7 @@ def load_config(path: Path) -> Config:
     gmail = _load_gmail(data.get("gmail"), path.parent)
     receipt_mapping = _load_receipt_mapping(data.get("receipt_mapping"))
     receipt_refresh = _load_receipt_refresh(data.get("receipt_refresh"), path.parent)
+    main_reports = _load_main_reports(data.get("main_reports"), path.parent)
 
     return Config(
         organization=organization,
@@ -273,6 +365,7 @@ def load_config(path: Path) -> Config:
         gmail=gmail,
         receipt_mapping=receipt_mapping,
         receipt_refresh=receipt_refresh,
+        main_reports=main_reports,
     )
 
 
@@ -311,19 +404,9 @@ def _load_receipt_mapping(raw: Any) -> ReceiptMapping | None:
         )
 
     dotted = "receipt_mapping.received_since"
-    value = _require(raw, "received_since", dotted)
-    if isinstance(value, date) and not isinstance(value, datetime):
-        received_since = value
-    elif isinstance(value, str):
-        try:
-            received_since = date.fromisoformat(value)
-        except ValueError as exc:
-            raise ConfigError(dotted, f"{dotted} must be an ISO date (YYYY-MM-DD)") from exc
-        if received_since.isoformat() != value:
-            raise ConfigError(dotted, f"{dotted} must be an ISO date (YYYY-MM-DD)")
-    else:
-        raise ConfigError(dotted, f"{dotted} must be an ISO date (YYYY-MM-DD)")
-    return ReceiptMapping(received_since=received_since)
+    return ReceiptMapping(
+        received_since=_config_date(_require(raw, "received_since", dotted), dotted)
+    )
 
 
 def _load_receipt_refresh(raw: Any, base_dir: Path) -> ReceiptRefresh | None:
@@ -357,4 +440,284 @@ def _load_receipt_refresh(raw: Any, base_dir: Path) -> ReceiptRefresh | None:
         pages_path=_resolve_path(pages_dir, base_dir),
         tesseract_path=optional_path("tesseract_path"),
         chromium_path=optional_path("chromium_path"),
+    )
+
+
+def _optional_table(raw: Any, dotted: str) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ConfigError(dotted, f"expected a [{dotted}] table")
+    return raw
+
+
+def _optional_str(section: dict[str, Any], key: str, dotted: str, default: str) -> str:
+    if key not in section:
+        return default
+    return _require_str(section, key, dotted)
+
+
+_OUTPUT_DIR_FIELD = "main_reports.output_dir"
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    """Filesystem identity of two EXISTING paths; an unverifiable comparison fails closed."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        raise ConfigError(
+            _OUTPUT_DIR_FIELD, f"{_OUTPUT_DIR_FIELD} location could not be verified"
+        ) from None
+
+
+def _existing_ancestors(path: Path) -> list[Path]:
+    """``path`` (if it exists) and every existing ancestor, nearest first."""
+    return [item for item in (path, *path.parents) if item.exists()]
+
+
+def _normcased_parts(path: Path) -> tuple[str, ...]:
+    return tuple(os.path.normcase(part) for part in path.parts)
+
+
+def _lexically_within(child: Path, parent: Path) -> bool:
+    parent_parts = _normcased_parts(parent)
+    return _normcased_parts(child)[: len(parent_parts)] == parent_parts
+
+
+def _private_output_path(raw: str, base_dir: Path) -> Path:
+    r"""Resolve ``main_reports.output_dir``; refuse a location that could be committed.
+
+    Captures hold raw CFO cell values, so the directory must sit under the project's
+    gitignored ``reports/output/`` or entirely outside the project directory (the directory
+    holding ``config.toml``). One structural invariant decides it:
+
+    * ``real_candidate`` is the path resolved like every config path (:func:`_resolve_path`)
+      and then FULLY (``Path.resolve`` follows existing symlinks/junctions and keeps the
+      non-existent tail). A ``reports`` or ``reports/output`` link/junction pointing anywhere
+      else therefore resolves to that other location.
+    * The project root or any ancestor of it is refused.
+    * The candidate is inside the project when an existing ancestor is the project by
+      FILESYSTEM IDENTITY (:func:`os.path.samefile`, volume + file identity on Windows) — so
+      ``..``, ``\\?\``, ``//?/``, ``\\.\``, UNC admin-share, case and 8.3 aliases all count.
+      The resolved form must agree (lexically within the resolved project); if the two checks
+      disagree the location is unverifiable and refused (fail closed).
+    * Inside the project, ``real_candidate`` relative to the project must start with exactly
+      ``reports/output`` (case-normalized per component).
+
+    An identity check that raises also fails closed. Loading config never creates anything
+    (dry-run performs no local writes).
+    """
+    real_project = base_dir.resolve()
+    real_candidate = _resolve_path(raw, base_dir).resolve()
+    if not real_candidate.is_absolute():  # e.g. a drive-relative "a:b" resolves to "a:b"
+        raise ConfigError(_OUTPUT_DIR_FIELD, f"{_OUTPUT_DIR_FIELD} must be an absolute location")
+    message = (
+        f"{_OUTPUT_DIR_FIELD} must be under reports/output/ (gitignored) or outside "
+        "the project directory"
+    )
+    if _lexically_within(real_project, real_candidate) or (
+        real_candidate.exists()
+        and any(_same_file(real_candidate, item) for item in (real_project, *real_project.parents))
+    ):
+        raise ConfigError(_OUTPUT_DIR_FIELD, message)  # the project root or one of its ancestors
+    by_identity = any(
+        _same_file(item, real_project) for item in _existing_ancestors(real_candidate)
+    )
+    by_resolved_form = _lexically_within(real_candidate, real_project)
+    if by_identity != by_resolved_form:
+        raise ConfigError(_OUTPUT_DIR_FIELD, f"{_OUTPUT_DIR_FIELD} location could not be verified")
+    if not by_identity:
+        return real_candidate
+    tail = _normcased_parts(real_candidate)[len(real_project.parts) :]
+    if tail[:2] != (os.path.normcase("reports"), os.path.normcase("output")):
+        raise ConfigError(_OUTPUT_DIR_FIELD, message)
+    return real_candidate
+
+
+def _config_date(value: Any, dotted: str) -> date:
+    """An ISO ``YYYY-MM-DD`` config date (native TOML date or exact ISO string)."""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError as exc:
+            raise ConfigError(dotted, f"{dotted} must be an ISO date (YYYY-MM-DD)") from exc
+        if parsed.isoformat() == value:
+            return parsed
+    raise ConfigError(dotted, f"{dotted} must be an ISO date (YYYY-MM-DD)")
+
+
+def _load_header_signature(raw: Any, dotted: str) -> tuple[tuple[str, ...], ...]:
+    if not isinstance(raw, list) or not all(
+        isinstance(row, list) and all(isinstance(cell, str) for cell in row) for row in raw
+    ):
+        raise ConfigError(dotted, f"{dotted} must be a list of header rows (lists of strings)")
+    return tuple(tuple(row) for row in raw)
+
+
+def _load_column_binding(raw: Any, dotted: str) -> ColumnBinding:
+    if isinstance(raw, str) and raw:
+        return ColumnBinding(label=raw)
+    if not isinstance(raw, dict):
+        raise ConfigError(dotted, f"{dotted} must be a header label or a label table")
+    unknown = set(raw) - {"label", "group", "occurrence"}
+    if unknown:
+        raise ConfigError(dotted, f"{dotted} has unsupported keys: {sorted(unknown)}")
+    label = _require_str(raw, "label", f"{dotted}.label")
+    group = raw.get("group")
+    if group is not None and (not isinstance(group, str) or not group):
+        raise ConfigError(f"{dotted}.group", f"expected a non-empty string for {dotted}.group")
+    occurrence = raw.get("occurrence")
+    if occurrence is not None and (
+        isinstance(occurrence, bool) or not isinstance(occurrence, int) or occurrence < 1
+    ):
+        raise ConfigError(f"{dotted}.occurrence", f"{dotted}.occurrence must be a positive integer")
+    return ColumnBinding(label=label, group=group, occurrence=occurrence)
+
+
+def _load_coverage(raw: Any, dotted: str) -> tuple[CoverageDeclaration, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ConfigError(dotted, f"{dotted} must be a list of start/end/evidence tables")
+    out: list[CoverageDeclaration] = []
+    for index, item in enumerate(raw):
+        item_dotted = f"{dotted}[{index}]"
+        if not isinstance(item, dict):
+            raise ConfigError(item_dotted, f"{item_dotted} must be a table")
+        start = _config_date(
+            _require(item, "start", f"{item_dotted}.start"), f"{item_dotted}.start"
+        )
+        end = _config_date(_require(item, "end", f"{item_dotted}.end"), f"{item_dotted}.end")
+        if end < start:
+            raise ConfigError(item_dotted, f"{item_dotted} ends before it starts")
+        if end >= date.max:
+            raise ConfigError(f"{item_dotted}.end", f"{item_dotted}.end must be before 9999-12-31")
+        evidence = _require_str(item, "evidence", f"{item_dotted}.evidence")
+        out.append(CoverageDeclaration(start=start, end=end, evidence=evidence))
+    return tuple(out)
+
+
+def _load_source_binding(alias: str, raw: Any) -> SourceBinding:
+    dotted = f"main_reports.sources.{alias}"
+    if not is_valid_source_alias(alias):
+        raise ConfigError(dotted, f"{dotted} must be a lowercase ASCII slug (source alias)")
+    if not isinstance(raw, dict):
+        raise ConfigError(dotted, f"expected a [{dotted}] table")
+    kind = _require_str(raw, "kind", f"{dotted}.kind")
+    if kind not in SOURCE_KINDS:
+        raise ConfigError(f"{dotted}.kind", f"{dotted}.kind must be one of {list(SOURCE_KINDS)}")
+    tab = _require_str(raw, "tab", f"{dotted}.tab")
+    tab_id = raw.get("tab_id")
+    if tab_id is not None and (isinstance(tab_id, bool) or not isinstance(tab_id, int)):
+        raise ConfigError(f"{dotted}.tab_id", f"{dotted}.tab_id must be an integer sheet id")
+    signature = _load_header_signature(
+        _require(raw, "header_signature", f"{dotted}.header_signature"),
+        f"{dotted}.header_signature",
+    )
+    columns_raw = _optional_table(raw.get("columns"), f"{dotted}.columns")
+    columns = tuple(
+        (name, _load_column_binding(value, f"{dotted}.columns.{name}"))
+        for name, value in sorted(columns_raw.items())
+    )
+    coverage = _load_coverage(raw.get("coverage"), f"{dotted}.coverage")
+    return SourceBinding(
+        alias=alias,
+        kind=kind,
+        tab=tab,
+        header_signature=signature,
+        tab_id=tab_id,
+        columns=columns,
+        coverage=coverage,
+    )
+
+
+def _load_crosswalk(raw: Any) -> CategoryCrosswalk | None:
+    if raw is None:
+        return None
+    dotted = "main_reports.crosswalk"
+    if not isinstance(raw, dict):
+        raise ConfigError(dotted, f"expected a [{dotted}] table")
+    version = _require_int(raw, "version", f"{dotted}.version")
+    if version < 1:
+        raise ConfigError(f"{dotted}.version", f"{dotted}.version must be >= 1")
+    entries_raw = raw.get("entries", [])
+    if not isinstance(entries_raw, list):
+        raise ConfigError(f"{dotted}.entries", f"{dotted}.entries must be an array of tables")
+    entries: list[CrosswalkEntry] = []
+    seen: set[str] = set()
+    for index, item in enumerate(entries_raw):
+        item_dotted = f"{dotted}.entries[{index}]"
+        if not isinstance(item, dict):
+            raise ConfigError(item_dotted, f"{item_dotted} must be a table")
+        source_category = _require_str(item, "source_category", f"{item_dotted}.source_category")
+        if source_category in seen:
+            raise ConfigError(
+                f"{item_dotted}.source_category", f"{item_dotted} repeats a source_category"
+            )
+        seen.add(source_category)
+        note = _require_str(item, "note", f"{item_dotted}.note")
+        targets_raw = _require(item, "targets", f"{item_dotted}.targets")
+        if not isinstance(targets_raw, list) or not targets_raw:
+            raise ConfigError(f"{item_dotted}.targets", f"{item_dotted}.targets must be non-empty")
+        targets: list[CrosswalkTarget] = []
+        for t_index, target in enumerate(targets_raw):
+            t_dotted = f"{item_dotted}.targets[{t_index}]"
+            if not isinstance(target, dict):
+                raise ConfigError(t_dotted, f"{t_dotted} must be a table")
+            category = _require_str(target, "category", f"{t_dotted}.category")
+            share_raw = _require_str(target, "share", f"{t_dotted}.share")
+            try:
+                share = Decimal(share_raw)
+            except InvalidOperation as exc:
+                raise ConfigError(f"{t_dotted}.share", f"{t_dotted}.share must be decimal") from exc
+            if not share.is_finite() or share <= 0:
+                raise ConfigError(f"{t_dotted}.share", f"{t_dotted}.share must be positive")
+            targets.append(CrosswalkTarget(category=category, share=share))
+        if sum((t.share for t in targets), Decimal(0)) != Decimal(1):
+            raise ConfigError(f"{item_dotted}.targets", f"{item_dotted} shares must sum to 1")
+        entries.append(
+            CrosswalkEntry(source_category=source_category, targets=tuple(targets), note=note)
+        )
+    return CategoryCrosswalk(version=version, entries=tuple(entries))
+
+
+def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
+    """Parse the OPTIONAL ``[main_reports]`` section; ``None`` when absent.
+
+    Structural validation only (types, aliases, kinds, dates, crosswalk shares). Header
+    signatures and column bindings are resolved against the adapter field definitions by
+    ``main_reports.sources`` before any workbook read.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ConfigError(
+            "main_reports", "expected a [main_reports] table (or omit the section entirely)"
+        )
+    source_spreadsheet_id = _require_str(
+        raw, "source_spreadsheet_id", "main_reports.source_spreadsheet_id"
+    )
+    output_dir = _optional_str(
+        raw, "output_dir", "main_reports.output_dir", "reports/output/main-report-runs"
+    )
+    assumptions_tab = _optional_str(
+        raw, "assumptions_tab", "main_reports.assumptions_tab", "Assumptions"
+    )
+    sources_raw = _require(raw, "sources", "main_reports.sources")
+    if not isinstance(sources_raw, dict) or not sources_raw:
+        raise ConfigError(
+            "main_reports.sources", "main_reports.sources must contain at least one binding"
+        )
+    sources = tuple(
+        _load_source_binding(alias, value) for alias, value in sorted(sources_raw.items())
+    )
+    return MainReports(
+        source_spreadsheet_id=source_spreadsheet_id,
+        output_dir=output_dir,
+        output_path=_private_output_path(output_dir, base_dir),
+        assumptions_tab=assumptions_tab,
+        sources=sources,
+        crosswalk=_load_crosswalk(raw.get("crosswalk")),
     )

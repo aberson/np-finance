@@ -54,6 +54,7 @@ __all__ = [
     "MEASURE_PROPOSED",
     "MEASURE_ACTUAL",
     "TIMESERIES_COLUMNS",
+    "row_measure",
     "read_timeseries",
     "to_inputs",
 ]
@@ -146,6 +147,15 @@ def _cell(row: Mapping[str, str], key: str) -> str:
     return str(value).strip()
 
 
+def row_measure(row: Mapping[str, str]) -> str:
+    """The row's ``measure`` normalized for comparison (stripped, casefolded).
+
+    The single rule for recognizing :data:`MEASURE_PROPOSED` / :data:`MEASURE_ACTUAL` rows,
+    shared by :func:`to_inputs` and the Main Report Set adopted-budget capture.
+    """
+    return _cell(row, MEASURE).casefold()
+
+
 def to_inputs(
     rows: Iterable[Mapping[str, str]],
     *,
@@ -179,7 +189,7 @@ def to_inputs(
         if fy is not None and row_fy != fy:
             continue
 
-        measure = _cell(row, MEASURE).casefold()
+        measure = row_measure(row)
         raw_category = _cell(row, RAW_CATEGORY)
         grade = _cell(row, GRADE)
         amount = _cell(row, AMOUNT)

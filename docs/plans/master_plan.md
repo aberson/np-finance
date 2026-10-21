@@ -1276,7 +1276,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 57: Import the three CFO feeds with provenance
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-21)
 - **Type:** code
 - **Problem:** Implement private config bindings and read-only source adapters for the inspected Wells Fargo, WIX, and PayPal tabs. Capture dated snapshots, validate schemas and source coverage, retain exact money and original values, and detect source changes. Keep adopted budget targets and source-native dates separate from annual synthetic report rows. Retire bank PDF extraction from this new reporting path, retaining historical files and receipt processing.
 - **Issue:** #96

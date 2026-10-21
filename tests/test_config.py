@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -235,3 +237,412 @@ def test_malformed_receipt_mapping_cutoff_names_field(tmp_path: Path, value: str
 
     assert exc_info.value.field == "receipt_mapping.received_since"
     assert "receipt_mapping.received_since" in str(exc_info.value)
+
+
+# --------------------------------------------------------------------------------------
+# The OPTIONAL [main_reports] section: private CFO workbook bindings (structure only here;
+# adapter column resolution is tested in test_main_report_sources.py).
+# --------------------------------------------------------------------------------------
+
+_MAIN_REPORTS_SECTION = """
+[main_reports]
+source_spreadsheet_id = "fake-cfo-workbook-id"
+output_dir = "reports/output/runs"
+
+[main_reports.sources.bank-checking]
+kind = "bank"
+tab = "Bank Checking"
+tab_id = 1001
+header_signature = [["DATE", "DESCRIPTION", "AMOUNT"]]
+coverage = [
+  { start = "2030-01-01", end = "2030-01-31", evidence = "example-statement-index" },
+  { start = 2030-02-01, end = 2030-02-28, evidence = "example-statement-index-2" },
+]
+
+[main_reports.sources.wix]
+kind = "wix"
+tab = "Store Transactions"
+header_signature = [["Payment", ""], ["Provider Payment ID", "Status"]]
+
+[main_reports.sources.wix.columns]
+transaction_status = { label = "Status", group = "Payment" }
+order_id = "Order Number"
+quantity = { label = "Qty", occurrence = 2 }
+
+[main_reports.crosswalk]
+version = 2
+
+[[main_reports.crosswalk.entries]]
+source_category = "Example Fundraiser"
+targets = [{ category = "Fundraiser Income", share = "0.75" },
+           { category = "Spirit Wear", share = "0.25" }]
+note = "documented split"
+"""
+
+
+def test_missing_main_reports_section_yields_none(tmp_path: Path) -> None:
+    assert load_config(_write(tmp_path, _FULL_CONFIG)).main_reports is None
+
+
+def test_main_reports_section_parses_bindings(tmp_path: Path) -> None:
+    cfg = load_config(_write(tmp_path, _FULL_CONFIG + _MAIN_REPORTS_SECTION))
+    main = cfg.main_reports
+    assert main is not None
+    assert main.source_spreadsheet_id == "fake-cfo-workbook-id"
+    assert main.output_path == (tmp_path / "reports" / "output" / "runs").resolve()
+    assert main.assumptions_tab == "Assumptions"
+    assert [s.alias for s in main.sources] == ["bank-checking", "wix"]
+
+    bank, wix = main.sources
+    assert (bank.kind, bank.tab, bank.tab_id) == ("bank", "Bank Checking", 1001)
+    assert bank.header_signature == (("DATE", "DESCRIPTION", "AMOUNT"),)
+    assert [(c.start, c.end, c.end_exclusive) for c in bank.coverage] == [
+        (date(2030, 1, 1), date(2030, 1, 31), date(2030, 2, 1)),
+        (date(2030, 2, 1), date(2030, 2, 28), date(2030, 3, 1)),
+    ]
+    assert wix.tab_id is None
+    columns = dict(wix.columns)
+    assert (columns["transaction_status"].label, columns["transaction_status"].group) == (
+        "Status",
+        "Payment",
+    )
+    assert columns["order_id"].label == "Order Number" and columns["order_id"].group is None
+    assert columns["quantity"].occurrence == 2
+
+    assert main.crosswalk is not None and main.crosswalk.version == 2
+    (entry,) = main.crosswalk.entries
+    assert [(t.category, t.share) for t in entry.targets] == [
+        ("Fundraiser Income", Decimal("0.75")),
+        ("Spirit Wear", Decimal("0.25")),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "field"),
+    [
+        (
+            'source_spreadsheet_id = "fake-cfo-workbook-id"\n',
+            "",
+            "main_reports.source_spreadsheet_id",
+        ),
+        (
+            "[main_reports.sources.wix]\n",
+            "[main_reports.sources.Bad_Alias]\n",
+            "main_reports.sources.Bad_Alias",
+        ),
+        (
+            'output_dir = "reports/output/runs"',
+            'output_dir = "docs/runs"',
+            "main_reports.output_dir",
+        ),
+        (
+            'output_dir = "reports/output/runs"',
+            'output_dir = "reports/../docs"',
+            "main_reports.output_dir",
+        ),
+        ('kind = "bank"', 'kind = "ledger"', "main_reports.sources.bank-checking.kind"),
+        ("tab_id = 1001", 'tab_id = "1001"', "main_reports.sources.bank-checking.tab_id"),
+        (
+            'header_signature = [["DATE", "DESCRIPTION", "AMOUNT"]]',
+            'header_signature = ["DATE", "DESCRIPTION"]',
+            "main_reports.sources.bank-checking.header_signature",
+        ),
+        (
+            'start = "2030-01-01", end = "2030-01-31"',
+            'start = "2030-01-31", end = "2030-01-01"',
+            "main_reports.sources.bank-checking.coverage[0]",
+        ),
+        (
+            'end = "2030-01-31"',
+            'end = "2030/01/31"',
+            "main_reports.sources.bank-checking.coverage[0].end",
+        ),
+        (
+            ', evidence = "example-statement-index" }',
+            " }",
+            "main_reports.sources.bank-checking.coverage[0].evidence",
+        ),
+        (
+            "occurrence = 2",
+            "occurrence = 0",
+            "main_reports.sources.wix.columns.quantity.occurrence",
+        ),
+        ('share = "0.25"', 'share = "0.20"', "main_reports.crosswalk.entries[0].targets"),
+        ('share = "0.25"', 'share = "-0.25"', "main_reports.crosswalk.entries[0].targets[1].share"),
+    ],
+)
+def test_main_reports_section_fails_fast_naming_field(
+    tmp_path: Path, old: str, new: str, field: str
+) -> None:
+    text = _FULL_CONFIG + _MAIN_REPORTS_SECTION
+    assert old in text
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(tmp_path, text.replace(old, new, 1)))
+    assert caught.value.field == field
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        "{project}/reports/output/../../docs",  # absolute with '..' (lexically "under" output)
+        "{project}/reports/output/..",
+        "{project}/docs",
+        "reports/output/../../docs",  # relative with '..'
+        "./reports/../docs/runs",
+    ],
+)
+def test_main_reports_output_dir_cannot_escape_into_the_project(
+    tmp_path: Path, spelling: str
+) -> None:
+    raw = spelling.format(project=tmp_path.resolve().as_posix())
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f'output_dir = "{raw}"'
+    )
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(tmp_path, text))
+    assert caught.value.field == "main_reports.output_dir"
+
+
+def _alias_spellings_of_docs(project: Path) -> dict[str, str]:
+    """Every known spelling of ``<project>/docs`` (structural regression for the guard)."""
+    windows = str(project)
+    drive, rest = os.path.splitdrive(windows)
+    return {
+        "plain-absolute": f"{windows}\\docs",
+        "relative-dotdot": "reports/output/../../docs",
+        "extended-backslash": f"\\\\?\\{windows}\\docs",
+        "extended-forward": f"//?/{project.as_posix()}/docs",
+        "device": f"\\\\.\\{windows}\\docs",
+        "unc-admin-share": f"\\\\localhost\\{drive.rstrip(':')}$" + f"{rest}\\docs",
+    }
+
+
+# Derived from the one table of spellings, so a new spelling can never go unexercised.
+_ALIAS_NAMES = tuple(_alias_spellings_of_docs(Path("C:/example-project")))
+
+
+@pytest.mark.parametrize(
+    "layout", ["docs-exists", "docs-absent", "private-root-exists", "reports-only"]
+)
+@pytest.mark.parametrize("alias", _ALIAS_NAMES)
+def test_main_reports_output_dir_guard_uses_filesystem_identity(
+    tmp_path: Path, alias: str, layout: str
+) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    if layout == "docs-exists":
+        (project / "docs").mkdir()
+    elif layout == "private-root-exists":
+        (project / "reports" / "output").mkdir(parents=True)
+    elif layout == "reports-only":
+        (project / "reports").mkdir()
+    raw = _alias_spellings_of_docs(project)[alias]
+    if alias == "unc-admin-share" and not Path(raw).parent.exists():
+        pytest.skip("UNC admin share \\\\localhost\\<drive>$ is not reachable on this host")
+    # TOML literal string (single quotes): backslashes are taken verbatim.
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f"output_dir = '{raw}'"
+    )
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(project, text))
+    assert caught.value.field == "main_reports.output_dir"
+
+
+@pytest.mark.parametrize("inside", [True, False], ids=["under-reports-output", "outside"])
+def test_main_reports_output_dir_guard_accepts_private_and_outside_paths(
+    tmp_path: Path, inside: bool
+) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    target = project / "reports" / "output" / "x" if inside else tmp_path / "elsewhere" / "x"
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f"output_dir = '{target}'"
+    )
+    main = load_config(_write(project, text)).main_reports
+    assert main is not None and main.output_path == target.resolve()
+
+
+@pytest.mark.parametrize(
+    ("layout", "raw"),
+    [
+        ("empty-project", "reports/output/runs"),
+        ("reports-only", "reports/output/runs"),
+        ("empty-project", "reports/output"),
+        ("reports-only", "{project}\\reports\\output\\runs"),
+    ],
+)
+def test_loading_config_never_creates_the_private_output_directory(
+    tmp_path: Path, layout: str, raw: str
+) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    if layout == "reports-only":
+        (project / "reports").mkdir()
+    before = sorted(path.relative_to(project) for path in project.rglob("*"))
+    value = raw.format(project=project)
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f"output_dir = '{value}'"
+    )
+    config_path = _write(project, text)
+    main = load_config(config_path).main_reports
+    assert main is not None
+    assert main.output_path == (project / Path(value)).resolve()
+    assert not (project / "reports" / "output").exists()
+    after = sorted(path.relative_to(project) for path in project.rglob("*") if path != config_path)
+    assert after == before  # nothing created (dry-run performs no local writes)
+
+
+@pytest.mark.parametrize("raw", ["reports", "reports/outputs/x", "reports/other/output", "."])
+def test_absent_private_root_tail_must_start_with_reports_output(tmp_path: Path, raw: str) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f"output_dir = '{raw}'"
+    )
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(project, text))
+    assert caught.value.field == "main_reports.output_dir"
+    assert not (project / "reports").exists()
+
+
+def test_main_reports_absolute_output_dir_under_private_root_is_normalized(
+    tmp_path: Path,
+) -> None:
+    raw = f"{tmp_path.resolve().as_posix()}/reports/output/x/../runs"
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f'output_dir = "{raw}"'
+    )
+    main = load_config(_write(tmp_path, text)).main_reports
+    assert main is not None
+    assert main.output_path == (tmp_path / "reports" / "output" / "runs").resolve()
+    assert ".." not in main.output_path.parts
+
+
+def test_main_reports_output_dir_may_live_outside_the_project(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    outside = (tmp_path / "private-drive" / "runs").resolve()
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f'output_dir = "{outside.as_posix()}"'
+    )
+    main = load_config(_write(project, text)).main_reports
+    assert main is not None and main.output_path == outside
+
+
+# --------------------------------------------------------------------------------------
+# output_dir guard: existing reports/output, ancestors, fail-closed, links
+# --------------------------------------------------------------------------------------
+
+
+def _config_with_output_dir(project: Path, value: str) -> Path:
+    text = (_FULL_CONFIG + _MAIN_REPORTS_SECTION).replace(
+        'output_dir = "reports/output/runs"', f"output_dir = '{value}'"
+    )
+    return _write(project, text)
+
+
+def _project_with_private_root(tmp_path: Path) -> Path:
+    project = (tmp_path / "project").resolve()
+    (project / "reports" / "output").mkdir(parents=True)
+    return project
+
+
+@pytest.mark.parametrize("raw", ["reports/output/x", "{project}\\reports\\output\\x\\y"])
+def test_existing_private_root_accepts_paths_below_it(tmp_path: Path, raw: str) -> None:
+    project = _project_with_private_root(tmp_path)
+    value = raw.format(project=project)
+    main = load_config(_config_with_output_dir(project, value)).main_reports
+    assert main is not None and main.output_path == (project / Path(value)).resolve()
+
+
+@pytest.mark.parametrize("raw", ["reports/outputs/x", "reports/x", "reports", "docs"])
+def test_existing_private_root_rejects_siblings(tmp_path: Path, raw: str) -> None:
+    project = _project_with_private_root(tmp_path)
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_output_dir(project, raw))
+    assert caught.value.field == "main_reports.output_dir"
+
+
+@pytest.mark.parametrize("raw", ["..", ".", "{parent}", "{project}"])
+def test_output_dir_may_not_be_the_project_or_an_ancestor(tmp_path: Path, raw: str) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    value = raw.format(parent=project.parent, project=project)
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_output_dir(project, value))
+    assert caught.value.field == "main_reports.output_dir"
+
+
+def test_output_dir_identity_check_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    config_path = _config_with_output_dir(project, str(tmp_path / "elsewhere"))
+
+    def unverifiable(a: object, b: object) -> bool:
+        raise OSError("identity unavailable")
+
+    monkeypatch.setattr(os.path, "samefile", unverifiable)
+    with pytest.raises(ConfigError) as caught:
+        load_config(config_path)
+    assert caught.value.field == "main_reports.output_dir"
+    assert "could not be verified" in str(caught.value)
+
+
+def _make_directory_link(link: Path, target: Path) -> None:
+    """A junction on Windows (no privilege needed), a symlink elsewhere; skip if neither."""
+    try:
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+        return
+    except (ImportError, AttributeError, OSError):
+        pass
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"cannot create a directory junction or symlink on this host: {exc}")
+
+
+@pytest.mark.parametrize("raw", ["reports/output/x", "reports/output"])
+def test_private_root_linked_into_tracked_docs_is_rejected(tmp_path: Path, raw: str) -> None:
+    project = (tmp_path / "project").resolve()
+    (project / "docs").mkdir(parents=True)
+    (project / "reports").mkdir()
+    _make_directory_link(project / "reports" / "output", project / "docs")
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_output_dir(project, raw))
+    assert caught.value.field == "main_reports.output_dir"
+
+
+# --------------------------------------------------------------------------------------
+# output_dir guard: a ``reports`` junction into tracked ``docs/`` is refused
+# --------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("output_present", [False, True], ids=["output-absent", "output-present"])
+@pytest.mark.parametrize("raw", ["reports/output/x", "reports/output"])
+def test_reports_linked_into_tracked_docs_is_rejected(
+    tmp_path: Path, output_present: bool, raw: str
+) -> None:
+    project = (tmp_path / "project").resolve()
+    (project / "docs").mkdir(parents=True)
+    if output_present:
+        (project / "docs" / "output").mkdir()  # so <project>/reports/output exists via the link
+    _make_directory_link(project / "reports", project / "docs")
+    before = sorted(path.name for path in (project / "docs").rglob("*"))
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_output_dir(project, raw))
+    assert caught.value.field == "main_reports.output_dir"
+    assert sorted(path.name for path in (project / "docs").rglob("*")) == before  # no writes
+
+
+def test_output_dir_that_resolves_to_a_relative_location_is_rejected(tmp_path: Path) -> None:
+    if Path("a:/").exists():
+        pytest.skip("drive a: exists on this host, so a:b resolves to an absolute path")
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_output_dir(project, "a:b"))
+    assert caught.value.field == "main_reports.output_dir"

@@ -47,5 +47,74 @@ service_account_file = "secrets/service-account.json"
 # token_file          = "secrets/gmail-token.json"           # written at first consent
 # inbox_dir           = "mail_samples"                       # fetched .eml land here
 
+# [main_reports]                             # optional - Main Report Set CFO workbook sources
+# Read through a SEPARATE client limited to the spreadsheets.readonly scope; share the CFO
+# workbook read-only with the service account. Legacy commands ignore this section.
+# source_spreadsheet_id = "<cfo-workbook-spreadsheet-id>"
+# output_dir = "reports/output/main-report-runs"   # under reports/output/ or outside the project
+# assumptions_tab = "Assumptions"                  # our own workbook's Assumptions tab
+#
+# One table per source alias (lowercase ASCII slug). Every kind must be bound:
+# bank, wix, paypal (transaction feeds; may repeat per account) and pnl, budget_tracker,
+# category_mapping, credit_card (controls; once each). header_signature is the COMPLETE
+# expected header row list, validated exactly on every capture when non-empty (pnl and
+# budget_tracker may use []). tab_id (sheet gid) is optional and, when set, must match.
+# coverage end dates are inclusive and need private evidence.
+#
+# [main_reports.sources.bank-checking]
+# kind = "bank"
+# tab = "Bank Checking"
+# tab_id = 1001
+# header_signature = [["DATE", "DESCRIPTION", "AMOUNT", "CHECK #", "STATUS", "CATEGORY",
+#                      "OVERRIDE CATEGORY", "FINAL CATEGORY"]]
+# coverage = [{ start = "2030-01-01", end = "2030-06-30", evidence = "statement-index-2030" }]
+#
+# [main_reports.sources.wix]                   # two header rows: group headings, then labels
+# kind = "wix"
+# tab = "Store Transactions"
+# header_signature = [
+#   ["Payment", "", "", "", "", "", "", "", "", "Transaction", "", "", "Order", "", ""],
+#   ["Provider Payment ID", "Payment Date", "Transaction Date", "Time Zone", "Currency",
+#    "Amount", "Processing Fee", "Service Fee", "Net", "Status", "Refund Amount",
+#    "Payment Provider", "Order ID", "Product Name", "Quantity"],
+# ]
+# coverage = [{ start = "2030-01-01", end = "2030-06-30", evidence = "store-export-2030-06" }]
+# [main_reports.sources.wix.columns]           # override a default label / disambiguate repeats
+# transaction_status = { label = "Status", group = "Transaction" }
+#
+# [main_reports.sources.paypal]
+# kind = "paypal"
+# tab = "Processor Transactions"
+# header_signature = [["Date", "Time", "TimeZone", "Name", "Type", "Status", "Currency",
+#                      "Gross", "Fee", "Net", "Transaction ID", "Reference Txn ID",
+#                      "Item Title", "Quantity", "Balance Impact"]]
+#
+# [main_reports.sources.pnl]
+# kind = "pnl"
+# tab = "Profit & Loss"
+# header_signature = []                        # formula-driven control grid (not validated)
+#
+# [main_reports.sources.budget-tracker]
+# kind = "budget_tracker"
+# tab = "Budget Tracker"
+# header_signature = []
+#
+# [main_reports.sources.category-mapping]
+# kind = "category_mapping"
+# tab = "Category Mapping"
+# header_signature = [["Keyword", "Target Category"]]
+#
+# [main_reports.sources.credit-card]           # captured only; content or a new header = warning
+# kind = "credit_card"
+# tab = "Credit Card Transactions"
+# header_signature = [["Date", "Description", "Amount"]]
+#
+# [main_reports.crosswalk]                     # versioned CFO category -> budget category map
+# version = 1
+# [[main_reports.crosswalk.entries]]
+# source_category = "Example Fundraiser"
+# targets = [{ category = "Fundraiser Income", share = "1" }]
+# note = "one-to-one"
+
 # [llm]            # Phase 4
 # api_key_env = "ANTHROPIC_API_KEY"
