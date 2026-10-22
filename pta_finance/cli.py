@@ -14,6 +14,7 @@ Wired subcommands:
     ingest-receipts / map-receipts  Phase 4 - parse those .eml/.mbox files into ledger rows
     report-reimbursements  render the private queue from its validated local bundle
     update-reimbursements  optional mail fetch -> local evidence refresh -> private report
+    end-to-end-run         capture sources -> refresh evidence -> five reports -> publish
 
 The LIVE data flow sources ``report`` / ``analyze`` from the operator-maintained "Budget
 Timeseries" tab and writes only ``report_log``; ``check`` / ``init-sheet`` / ``snapshot``
@@ -50,6 +51,7 @@ from pta_finance import (
     schema,
 )
 from pta_finance.config import Config, load_config
+from pta_finance.main_reports import runner
 from pta_finance.sheets import SheetsClient
 
 
@@ -1079,6 +1081,13 @@ def _cmd_report_reimbursements(args: argparse.Namespace) -> int:
     return 0
 
 
+def _reimbursement_source(args: argparse.Namespace, *, config: Config) -> Path:
+    """The complete mail archive: ``--source``, else the configured Gmail inbox or samples."""
+    if args.source:
+        return Path(args.source)
+    return gmail_source.inbox_dir(config) if config.gmail is not None else Path("mail_samples")
+
+
 def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None) -> int:
     """Run optional Gmail acquisition, local evidence refresh, then offline report rendering.
 
@@ -1098,11 +1107,7 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
     config = _load(args)
     start_month = _receipt_start_month(args, config=config)
     received_since, cutoff_source = _receipt_received_cutoff(args, config=config)
-    source = (
-        Path(args.source)
-        if args.source
-        else (gmail_source.inbox_dir(config) if config.gmail is not None else Path("mail_samples"))
-    )
+    source = _reimbursement_source(args, config=config)
     as_of = args.as_of or date.today()
 
     if args.fetch_since is not None:
@@ -1216,6 +1221,51 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
         return 1
     _print_reimbursement_report_result(result)
     return 0
+
+
+def _cmd_end_to_end_run(args: argparse.Namespace, *, service: Any = None) -> int:
+    """Capture every source, refresh reimbursements, build all five reports, then publish.
+
+    Delegates to :func:`pta_finance.main_reports.runner.run` (the production caller). The
+    request is checked before configuration is read: ``--dry-run`` refuses the ``--fetch-*``
+    and ``--adjustments-file`` options, and fetch options need ``--fetch-since``. Exit 0 means
+    a validated set was published (or the dry run validated), 1 an operational failure that
+    kept the previous publication's pointer, 2 invalid arguments or configuration, 130 an
+    interrupt (recorded by the runner; no traceback is printed). ``service`` is the Gmail
+    test seam, as for ``update-reimbursements``.
+    """
+    adjustments_file = Path(args.adjustments_file) if args.adjustments_file else None
+    config_path = Path(args.config)
+    try:
+        window = runner.mail_window(
+            args.fetch_since, args.fetch_until, args.fetch_query, args.fetch_limit
+        )
+        runner.check_request(
+            dry_run=args.dry_run, mail_window=window, adjustments_file=adjustments_file
+        )
+        config = runner.load_run_config(config_path)
+    except runner.RunnerError as exc:
+        print(f"end-to-end-run: {exc}")
+        return exc.exit_code
+    received_since, _cutoff_source = _receipt_received_cutoff(args, config=config)
+    options = runner.RunOptions(
+        as_of=args.as_of,
+        config_dir=config_path.resolve().parent,
+        bundle_path=Path(args.data),
+        source=_reimbursement_source(args, config=config),
+        category_map_path=Path(args.category_map),
+        anchors_path=Path(args.anchors) if args.anchors else None,
+        subject_filter=args.subject_filter,
+        received_since=received_since,
+        dry_run=args.dry_run,
+        adjustments_file=adjustments_file,
+        mail_window=window,
+    )
+    try:
+        return runner.run(options, config, mail_service=service).exit_code
+    except KeyboardInterrupt:
+        print(f"end-to-end-run: interrupted (exit {runner.EXIT_INTERRUPTED})")
+        return runner.EXIT_INTERRUPTED
 
 
 def _cmd_sync_budget(args: argparse.Namespace) -> int:
@@ -1758,11 +1808,116 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_arg(p_reimbursement_update)
     p_reimbursement_update.set_defaults(func=_cmd_update_reimbursements)
 
+    p_end_to_end = sub.add_parser(
+        "end-to-end-run",
+        help=(
+            "capture the CFO sources, refresh reimbursements, build the five-report Main "
+            "Report Set and publish it after validation"
+        ),
+    )
+    p_end_to_end.add_argument(
+        "--as-of",
+        type=_received_since_arg,
+        required=True,
+        metavar="YYYY-MM-DD",
+        help="reporting as-of date (inclusive) for every report of the run",
+    )
+    p_end_to_end.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "read and validate the live Sheets and local evidence; write no files, tokens, "
+            "or Sheets cells (refuses --fetch-* and --adjustments-file)"
+        ),
+    )
+    p_end_to_end.add_argument(
+        "--adjustments-file",
+        default=None,
+        metavar="PATH",
+        help=(
+            "private adjustments JSON to record in our Assumptions journal before the reports "
+            "are built (the only Sheets write; reruns record nothing twice)"
+        ),
+    )
+    p_end_to_end.add_argument(
+        "--source",
+        default=None,
+        help=(
+            "complete top-level .eml/.mbox archive "
+            "(default: configured Gmail inbox or mail_samples)"
+        ),
+    )
+    p_end_to_end.add_argument(
+        "--category-map",
+        default="reports/output/category_map.csv",
+        help="category-map CSV (default: reports/output/category_map.csv)",
+    )
+    p_end_to_end.add_argument(
+        "--data",
+        default="reports/output/reimbursement-report.json",
+        help="private structured report bundle (default: reports/output/reimbursement-report.json)",
+    )
+    p_end_to_end.add_argument(
+        "--anchors",
+        default=None,
+        help=(
+            "strict private anchor/override JSON (default: reimbursement-anchors.json beside "
+            "--data when present)"
+        ),
+    )
+    p_end_to_end.add_argument(
+        "--subject-filter",
+        default=None,
+        help="only recognize reimbursement forms whose subject contains this substring",
+    )
+    end_to_end_received = p_end_to_end.add_mutually_exclusive_group()
+    end_to_end_received.add_argument(
+        "--received-since",
+        type=_received_since_arg,
+        metavar="YYYY-MM-DD",
+        help="inclusive email Date-header cutoff; overrides private config",
+    )
+    end_to_end_received.add_argument(
+        "--all-received",
+        action="store_true",
+        help="disable the configured reimbursement received-date cutoff for this run",
+    )
+    p_end_to_end.add_argument(
+        "--fetch-since",
+        type=_received_since_arg,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="optionally acquire Gmail from this inclusive date before the local refresh",
+    )
+    p_end_to_end.add_argument(
+        "--fetch-until",
+        type=_received_since_arg,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="first Gmail date not acquired (exclusive)",
+    )
+    p_end_to_end.add_argument(
+        "--fetch-query",
+        default=None,
+        help="optional raw Gmail search terms appended to the acquisition window",
+    )
+    p_end_to_end.add_argument(
+        "--fetch-limit",
+        type=int,
+        default=None,
+        help="stop Gmail acquisition after this many messages",
+    )
+    _add_config_arg(p_end_to_end)
+    p_end_to_end.set_defaults(func=_cmd_end_to_end_run)
+
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point. Returns a process exit code (0 = ok, 1 = error)."""
+    """CLI entry point. Returns a process exit code: 0 = ok, 1 = error, 2 = invalid arguments
+    or configuration (``end-to-end-run``; argparse errors exit 2 too), 130 = interrupted
+    ``end-to-end-run``.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     if getattr(args, "command", None) is None:

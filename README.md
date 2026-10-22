@@ -133,6 +133,29 @@ These labels follow the report recommendations; they do not record a payment app
 
 </details>
 
+### Produce the Main Report Set
+
+One command builds five private reports from the same captured inputs: the reimbursement queue,
+a reimbursement summary, a budget snapshot and a fundraising summary for the school year, and a
+calendar-year CFO P&L summary. It reads the CFO workbook read-only, refreshes reimbursements as
+`update-reimbursements` does, applies recorded adjustments, and publishes the new set only after
+every report checks out. A failed run leaves the previous set in place.
+
+Check first; the dry run validates everything and writes nothing:
+
+```powershell
+uv run pta-finance end-to-end-run --as-of 2030-08-15 --dry-run
+```
+
+Then build and publish:
+
+```powershell
+uv run pta-finance end-to-end-run --as-of 2030-08-15
+```
+
+Open `reports/output/main-report-set.html`. Setup, adjustments and recovery are in the
+[Main Report Set guide](docs/main-report-set.md).
+
 ## Get started
 
 Day-to-day budget editing happens in Google Sheets. Initial setup and report updates need
@@ -175,6 +198,7 @@ Private Drive upload is not built yet.
 | Connect Google and run the tool | [Setup guide](SETUP.md) |
 | Load receipts and refresh the review queue | [Receipt guide](docs/loading-receipts.md) |
 | Check the receipt behind a queue item | [Receipt viewer guide](docs/receipt-viewer.md) |
+| Build and publish the five-report Main Report Set | [Main Report Set guide](docs/main-report-set.md) |
 | Ask an AI assistant for help | [Example prompts](docs/ask-an-ai-assistant.md) |
 
 ## Project status
@@ -182,7 +206,9 @@ Private Drive upload is not built yet.
 **Ready to use:** budget updates, financial analysis, HTML reports, Gmail downloads, receipt
 mapping, the reimbursement review queue, and click-to-view source receipts in that queue.
 The reimbursement report prints linked and unlinked receipt counts. A claim with paid approved
-lines and declined lines can close with both outcomes visible in its case history.
+lines and declined lines can close with both outcomes visible in its case history. The
+`end-to-end-run` command builds and publishes the five-report Main Report Set; its first live
+regeneration is still pending.
 
 **Receipt autofill is partially built:** Steps38-40 delivered the browser gate repair, bounded image normalization and allowlisted fetcher. Step41 remains blocked on timing-risk disposition and a quiet-host full-suite gate; automatic end-to-end filling and attended acceptance remain pending. The [master plan](docs/plans/master_plan.md) records those boundaries. The Phase10 action queue is paused during Step51; its [resume handoff](docs/phase10-build-handoff.md) preserves the unfinished work.
 

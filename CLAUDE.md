@@ -57,6 +57,7 @@ uv run pta-finance fetch-mail --since <date> --dry-run    # counts; MAY mint sec
 uv run pta-finance ingest-receipts --source mail_samples --profile --originals-only  # no writes
 uv run pta-finance map-receipts --source mail_samples                                # no writes
 uv run pta-finance update-reimbursements --dry-run       # validates local refresh; no bundle/HTML/Sheet writes
+uv run pta-finance end-to-end-run --as-of <date> --dry-run  # reads both workbooks + bundle; no writes
 ```
 
 These write. Each comment names exactly what:
@@ -70,6 +71,8 @@ uv run pta-finance fetch-mail --since <date>              # .eml into [gmail] in
 uv run pta-finance map-receipts --source mail_samples --write-tab Reimbursements  # replaces it
 uv run pta-finance report-reimbursements                  # atomically replaces private HTML (+ receipt sidecar if present); no Sheet
 uv run pta-finance update-reimbursements --fetch-since <date>  # .eml + private bundle + HTML; no Sheet
+uv run pta-finance end-to-end-run --as-of <date>          # private bundle + main-report-runs/<id>/ + pointer/copies; no Sheet
+uv run pta-finance end-to-end-run --as-of <date> --adjustments-file <json>  # same + journal rows in OUR Assumptions tab
 ```
 
 Every live-Sheet writing verb above snapshots first, except `check` (it deletes its own probe row).
@@ -106,6 +109,8 @@ pta_finance/        package (flat layout): config, ids, schema, models, sheets,
                     budget_import (LEGACY one-shot budget loader),
                     shared_workflow/ (optional [web] proof — app, auth, catalog, config, and
                     packaged fictional bundles; NOT a top-level dir, it lives in the package),
+                    main_reports/ (Main Report Set: read-only CFO sources, reconcile,
+                    adjustments journal, facts, render/export, runner = end-to-end-run),
                     analytics/, reports/(templates/)
 tests/              fake-org fixtures + mocked gspread; test_smoke_pipeline.py is the wiring gate
 .github/            last-run.txt (scheduler keepalive) + workflows/ci.yml (PR gate)
@@ -201,12 +206,29 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
   after attestation, tests with fictional fixtures, and fails closed before a statement read on
   non-Windows hosts. It is not yet an operator command or Google Slides workflow; later Wave 1
   steps add OCR, finance facts, review, and presentation creation.
+- **Main Report Set** (`main_reports/`, CLI `end-to-end-run`; guide
+  [docs/main-report-set.md](docs/main-report-set.md)): `runner.run` takes the local writer lock,
+  captures the CFO workbook through a `spreadsheets.readonly` client, refreshes the reimbursement
+  bundle/receipts with the same components as `update-reimbursements`, records journal rows only
+  for an explicit `--adjustments-file` (then recaptures), stages bundle + sidecar + pages byte
+  for byte into an immutable `<output_dir>/<run-id>/`, renders five reports, validates the set
+  and manifest, then atomically replaces the single pointer `main-report-set.html` (the folder
+  above `output_dir`, same private-path guard) and refreshes compatibility copies one by one
+  (per-copy results, `partial` state, exit 1, pointer kept). Every failure before the switch
+  (typed, unexpected or Ctrl+C) leaves every published file unchanged and writes a value-free
+  `failed-runs/<run-id>.json` (stage, code, error type only, journal writes, bundle digests
+  before/after the in-place refresh); Ctrl+C exits 130. `--dry-run` writes nothing and refuses
+  mail/adjustment options. No bank PDF extraction, scheduler, mail sending or CFO workbook write.
 - **Access:** Sheet/Drive access uses a Google **service account** (the Sheet + Drive folder are
   shared with its email); its JSON key is gitignored locally and supplied as a base64 GitHub
   Actions secret in CI. Optional Gmail fetching uses a separate OAuth Desktop-app client plus a
   user refresh token. Those Gmail credentials are also gitignored and deliberately never enter CI.
 
 ## 6. Current state
+
+**Phase CFO Step 62 (#101) adds `end-to-end-run`** (runner, CLI, guide, bounded CLI smoke with
+fake workbooks and real renderers/publication). Step 63 — the live regeneration against the real
+CFO workbook — has not run; no live Main Report Set exists yet.
 
 **Phase 10 action queue is paused during Step 51 (#87).** The standalone archive scanner and
 fictional tests are unfinished in a preserved worktree, not merged to main. Focused and static

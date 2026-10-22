@@ -1,11 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex,nofollow">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
-  <meta name="pta-run-id" content="{{ page.run_id }}">
+{% include 'main_reports/head.html.j2' %}
   <title>{{ page.title }} · {{ page.period.label }}</title>
   <style>
 {% include 'main_reports/style.css.j2' %}

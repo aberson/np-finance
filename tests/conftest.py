@@ -316,6 +316,21 @@ class FakeClient:
         return self._spreadsheet
 
 
+def require_chromium() -> Any:
+    """Skip exactly as the receipt viewer browser test does when Chromium is not installed;
+    otherwise return the Playwright sync API module."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    with playwright.sync_playwright() as driver:
+        try:
+            browser = driver.chromium.launch(channel="chromium")
+        except playwright.Error as exc:
+            if "Executable doesn't exist at" in str(exc):
+                pytest.skip("Playwright Chromium executable is not installed")
+            raise
+        browser.close()
+    return playwright
+
+
 class RecordingSleep:
     """A no-op ``sleep`` that records the delays it was asked to wait."""
 

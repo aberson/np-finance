@@ -31,7 +31,8 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import gspread
-from gspread.exceptions import APIError
+from google.auth.exceptions import RefreshError, TransportError
+from gspread.exceptions import APIError, GSpreadException
 from gspread.utils import ValueInputOption, absolute_range_name, rowcol_to_a1
 
 from pta_finance import schema
@@ -40,11 +41,30 @@ if TYPE_CHECKING:
     from pta_finance.config import Config
 
 __all__ = [
+    "SHEETS_FAILURES",
     "SchemaError",
     "SheetsClient",
+    "http_status",
+    "is_transient_status",
 ]
 
 T = TypeVar("T")
+
+# The failures a Sheets read or write can raise, caught as one set by every caller that
+# maps them to its own typed error (the one owner of this set):
+# * ``OSError``: transport, including every ``requests.exceptions.RequestException``;
+# * ``ValueError``: malformed metadata or a malformed service-account key;
+# * ``GSpreadException``: any gspread error (``APIError``, ``WorksheetNotFound``, ...);
+# * ``RefreshError`` / ``TransportError``: google.auth credential refresh and auth transport.
+# Their text can carry workbook identifiers, so callers report :func:`http_status` and the
+# type name only.
+SHEETS_FAILURES: tuple[type[BaseException], ...] = (
+    OSError,
+    ValueError,
+    GSpreadException,
+    RefreshError,
+    TransportError,
+)
 
 # HTTP statuses that are transient and worth retrying with backoff.
 _RETRYABLE_STATUSES = frozenset({429, 500, 503})
@@ -148,18 +168,29 @@ class SchemaError(Exception):
         )
 
 
-def _status_of(err: APIError) -> int | None:
-    """Best-effort HTTP status code from a gspread :class:`APIError`.
+def is_transient_status(status: int | None) -> bool:
+    """Whether an HTTP status is one this client treats as transient (retried with backoff)."""
+    return status in _RETRYABLE_STATUSES
 
-    Prefers the underlying ``requests.Response.status_code``; falls back to the
-    parsed JSON ``error.code`` (which gspread mirrors the HTTP status into).
+
+def http_status(error: BaseException) -> int | None:
+    """Best-effort HTTP status code of a Sheets failure (gspread or requests), if any.
+
+    Prefers the underlying ``requests.Response.status_code``; falls back to the parsed
+    JSON ``error.code`` (which gspread mirrors the HTTP status into). ``None`` when the
+    failure carries no status at all.
     """
-    response = getattr(err, "response", None)
+    response = getattr(error, "response", None)
     status = getattr(response, "status_code", None)
     if isinstance(status, int):
         return status
-    code = getattr(err, "code", None)
+    code = getattr(error, "code", None)
     return code if isinstance(code, int) else None
+
+
+def _status_of(err: APIError) -> int | None:
+    """The HTTP status of a gspread :class:`APIError` (see :func:`http_status`)."""
+    return http_status(err)
 
 
 def _is_duplicate_title_error(err: APIError) -> bool:
@@ -263,12 +294,30 @@ class SheetsClient:
             try:
                 return fn()
             except APIError as err:
-                status = _status_of(err)
                 attempt += 1
-                if status not in _RETRYABLE_STATUSES or attempt >= self._max_retries:
+                if not is_transient_status(_status_of(err)):
                     raise
-                delay = self._base_delay * (2**attempt) + random.uniform(0, self._jitter)
-                self._sleep(delay)
+                delay = self.backoff_delay(attempt)
+                if delay is None:
+                    raise
+                self.pause(delay)
+
+    def backoff_delay(self, attempt: int) -> float | None:
+        """This client's retry policy after ``attempt`` failed attempts of one call.
+
+        ``None`` once ``max_retries`` attempts are spent; otherwise the backoff
+        ``base_delay * 2**attempt + uniform(0, jitter)`` seconds. The single owner of the
+        retry numbers: a caller that sends its own attempts (``write_raw_ranges`` with
+        ``retry=False``) paces them with this and :meth:`pause`.
+        """
+        if attempt >= self._max_retries:
+            return None
+        delay: float = self._base_delay * (2**attempt) + random.uniform(0, self._jitter)
+        return delay
+
+    def pause(self, seconds: float) -> None:
+        """Wait between attempts with this client's (injectable) sleep."""
+        self._sleep(seconds)
 
     # --- reads --------------------------------------------------------------
 
@@ -497,12 +546,20 @@ class SheetsClient:
             lambda: ws.append_rows(values, value_input_option=ValueInputOption.user_entered)
         )
 
-    def write_raw_ranges(self, tab: str, ranges: Mapping[str, Sequence[Sequence[str]]]) -> None:
+    def write_raw_ranges(
+        self,
+        tab: str,
+        ranges: Mapping[str, Sequence[Sequence[str]]],
+        *,
+        retry: bool = True,
+    ) -> None:
         """Write exact A1 ranges in ONE ``batch_update`` with ``RAW`` value input.
 
         ``RAW`` stores every value as the literal text given: a value beginning with ``=`` stays
         text (never a formula) and dates/amounts are never coerced. Only the named ranges are
         touched (never a clear or a full-tab write). One request; a no-op when empty.
+        ``retry=False`` sends the write exactly once (no hidden 429/500/503 retry), for a caller
+        that owns its retries and must see every attempt; the worksheet lookup still retries.
         """
         if not ranges:
             return
@@ -510,11 +567,14 @@ class SheetsClient:
         requests = [
             {"range": a1, "values": [list(row) for row in rows]} for a1, rows in ranges.items()
         ]
-        self._with_retry(
-            lambda: ws.batch_update(
-                copy.deepcopy(requests), value_input_option=ValueInputOption.raw
-            )
-        )
+
+        def send() -> object:
+            return ws.batch_update(copy.deepcopy(requests), value_input_option=ValueInputOption.raw)
+
+        if retry:
+            self._with_retry(send)
+        else:
+            send()
 
     def ensure_grid_size(self, tab: str, rows: int, cols: int) -> tuple[int, int]:
         """Grow ``tab``'s grid to at least ``rows`` x ``cols`` by appending empty rows/columns.

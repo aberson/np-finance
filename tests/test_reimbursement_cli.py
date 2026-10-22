@@ -21,6 +21,7 @@ from PIL import Image
 
 from pta_finance import cli, receipt_assets, reimbursement_pipeline, reimbursement_report
 from pta_finance.config import Config, ReceiptRefresh
+from tests.conftest import _FULL_CONFIG
 
 
 def _bundle() -> dict[str, object]:
@@ -493,3 +494,62 @@ def test_report_failure_preserves_prior_html(
     assert output_path.read_text(encoding="utf-8") == "prior complete report"
     assert "report-reimbursements:" in stdout
     assert "Fictional Requester" not in stdout
+
+
+def test_reimbursement_commands_stay_independent_of_the_main_report_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Without --source, update-reimbursements still reads the configured Gmail inbox, and
+    neither reimbursement command reaches the Main Report Set runner or its outputs."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        _FULL_CONFIG
+        + "\n[gmail]\n"
+        + 'client_secrets_file = "secrets/gmail-client-secret.json"\n'
+        + 'token_file = "secrets/gmail-token.json"\n'
+        + 'inbox_dir = "inbox"\n',
+        encoding="utf-8",
+    )
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(_bundle()), encoding="utf-8")
+    output_path = tmp_path / "queue.html"
+    refreshed: dict[str, Any] = {}
+
+    def refresh(**kwargs: Any) -> reimbursement_pipeline.BundleMergeSummary:
+        refreshed.update(kwargs)
+        return _merge_summary()
+
+    monkeypatch.setattr(cli.reimbursement_pipeline, "refresh_bundle", refresh)
+    monkeypatch.setattr(cli.reimbursement_pipeline, "plan_bundle_refresh", _forbidden)
+    for name in ("run", "check_request"):
+        monkeypatch.setattr(cli.runner, name, _forbidden)
+    monkeypatch.setattr(cli.runner.render, "write", _forbidden)
+    _ban_google(monkeypatch)
+
+    rc = cli.main(
+        [
+            "update-reimbursements",
+            "--config",
+            str(config_path),
+            "--data",
+            str(bundle_path),
+            "--category-map",
+            str(tmp_path / "category-map.csv"),
+            "--output",
+            str(output_path),
+            "--as-of",
+            "2026-08-04",
+        ]
+    )
+    assert rc == 0
+    assert refreshed["source"] == (tmp_path / "inbox").resolve()
+    assert refreshed["start_month"] == 1
+    assert "Fictional Requester" in output_path.read_text(encoding="utf-8")
+
+    rc = cli.main(
+        ["report-reimbursements", "--data", str(bundle_path), "--output", str(output_path)]
+    )
+    assert rc == 0
+    assert not (tmp_path / "reports").exists()
+    assert not (tmp_path / "main-report-set.html").exists()
+    assert "Fictional Requester" not in capsys.readouterr().out

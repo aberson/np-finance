@@ -14,6 +14,7 @@ from gspread.exceptions import APIError
 from gspread.utils import ValueInputOption, rowcol_to_a1
 
 from pta_finance import schema
+from pta_finance import sheets as sheets_module
 from pta_finance.config import Config
 from pta_finance.sheets import SchemaError, SheetsClient
 from tests.conftest import (
@@ -606,3 +607,62 @@ def test_ensure_grid_size_never_shrinks_a_wider_or_taller_tab(fake_config: Confi
     assert client.ensure_grid_size(_TXN, 20, 12) == (0, 0)
     assert ws.add_rows_calls == [] and ws.add_cols_calls == []
     assert (ws.row_count, ws.col_count) == (1000, 26)
+
+
+@pytest.mark.parametrize("status", [429, 500, 503])
+def test_write_raw_ranges_without_retry_sends_exactly_once(
+    fake_config: Config, status: int
+) -> None:
+    """A caller that owns its retries sees the first retryable failure itself."""
+    ws = FakeWorksheet([["a"]], fail_first={"batch_update": [make_api_error(status)]})
+    sleep = RecordingSleep()
+    client = _client(fake_config, ws, sleep=sleep)
+
+    with pytest.raises(APIError):
+        client.write_raw_ranges(_TXN, {"A5": [["x"]]}, retry=False)
+    assert ws.batch_update_calls == [] and sleep.calls == []
+
+    ws._fail_first["batch_update"] = [make_api_error(status)]
+    client.write_raw_ranges(_TXN, {"A5": [["x"]]})  # the default still retries for others
+    assert len(ws.batch_update_calls) == 1 and len(sleep.calls) == 1
+
+
+def test_backoff_delay_doubles_adds_the_jitter_draw_and_stops_at_the_cap(
+    fake_config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    draws: list[tuple[float, float]] = []
+
+    def draw(low: float, high: float) -> float:
+        draws.append((low, high))
+        return 0.375  # a non-zero jitter draw
+
+    monkeypatch.setattr(sheets_module.random, "uniform", draw)
+    client = _client(fake_config, FakeWorksheet([]), base_delay=1.0, jitter=0.5, max_retries=3)
+    assert [client.backoff_delay(n) for n in (1, 2, 3)] == [2.375, 4.375, None]
+    assert draws == [(0, 0.5), (0, 0.5)]
+
+
+def test_transient_statuses_and_http_status_have_one_owner() -> None:
+    assert [sheets_module.is_transient_status(s) for s in (429, 500, 503)] == [True] * 3
+    assert not sheets_module.is_transient_status(None)
+    assert not sheets_module.is_transient_status(502)
+
+    class _CodedError(Exception):
+        code = 503  # no response object: the parsed error code is used
+
+    assert sheets_module.http_status(make_api_error(429)) == 429
+    assert sheets_module.http_status(_CodedError()) == 503
+    assert sheets_module.http_status(ConnectionError("lost")) is None
+
+
+def test_http_status_prefers_the_response_status_over_the_parsed_code() -> None:
+    error = make_api_error(503)
+    error.code = 429  # the parsed JSON code disagrees with the HTTP response
+    assert sheets_module.http_status(error) == 503
+
+
+def test_http_status_ignores_a_non_integer_code() -> None:
+    class _TextCodedError(Exception):
+        code = "503"  # not an int: never trusted as a status
+
+    assert sheets_module.http_status(_TextCodedError()) is None

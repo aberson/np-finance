@@ -92,6 +92,16 @@ jobs:
           assert len(main) > len(browser), 'Main Report Set content tests were not collected'
           assert all((case.find('skipped') is not None) == (case.attrib['name'] in browser)
                      for case in main), 'Main Report Set content was skipped or browser cases ran'
+          runs = [case for case in everything
+                  if case.attrib['classname'] == 'tests.test_main_report_runner']
+          run_browser = {case.attrib['name'] for case in runs
+                         if case.attrib['name'].startswith('test_chromium_')}
+          assert run_browser == {
+              'test_chromium_end_to_end_run_publishes_real_exports_within_the_bound',
+          }, 'Main Report Set runner browser cases changed'
+          assert len(runs) > len(run_browser), 'Main Report Set runner tests were not collected'
+          assert all((case.find('skipped') is not None) == (case.attrib['name'] in run_browser)
+                     for case in runs), 'Main Report Set runner content was skipped or browser cases ran'
           PY
           uv run pytest -q tests/test_treasurer_slides_bank_statements_native.py -k "extractor_never_reads_a_pdf_if_the_sandbox_cannot_start"
 
@@ -166,6 +176,16 @@ jobs:
           }
           assert {case.attrib['name'] for case in cases} == expected
           assert all(case.find('skipped') is None for case in cases), 'Main Report Set browser coverage was omitted'
+          PY
+      - name: Main Report Set end-to-end browser smoke
+        run: |
+          uv run pytest -q tests/test_main_report_runner.py -k test_chromium_ --junitxml=main-report-runner-browser-results.xml
+          uv run python - <<'PY'
+          from xml.etree import ElementTree
+          cases = list(ElementTree.parse('main-report-runner-browser-results.xml').getroot().iter('testcase'))
+          expected = {'test_chromium_end_to_end_run_publishes_real_exports_within_the_bound'}
+          assert {case.attrib['name'] for case in cases} == expected
+          assert all(case.find('skipped') is None for case in cases), 'Main Report Set runner browser coverage was omitted'
           PY
       - name: Full-package strict mypy
         run: uv run mypy --strict pta_finance

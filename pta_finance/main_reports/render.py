@@ -13,6 +13,10 @@ sections 5, 6E and 10). Into one caller-provided run directory it writes:
   (:mod:`pta_finance.main_reports.export`);
 * the private report index ``main-report-set.html`` linking all five.
 
+:func:`pointer_page` renders the current-run pointer the runner publishes beside the runs
+folder. Every page carries :data:`CONTENT_SECURITY_POLICY` and the identity tags from
+:func:`run_id_meta` / :func:`input_set_meta`, which the runner checks before publishing.
+
 Every page names its period and basis, the as-of date, the run ID, source freshness and
 the adjustment, discrepancy and finding counts. Unknown amounts render as ``Unknown`` (never
 ``0.00``); an observed zero renders as ``$0.00``. Budget comparisons stay in the school-year
@@ -41,6 +45,7 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from markupsafe import Markup
 
 from pta_finance import reimbursement_report
 from pta_finance.main_reports import export, facts
@@ -78,8 +83,15 @@ __all__ = [
     "BRIDGE_TITLES",
     "ADOPTED_BUDGET_KIND",
     "RENDER_ERROR_CODES",
+    "CONTENT_SECURITY_POLICY",
+    "RUN_ID_META_NAME",
+    "INPUT_SET_META_NAME",
+    "POINTER_TEMPLATE",
     # functions
     "format_money",
+    "run_id_meta",
+    "input_set_meta",
+    "pointer_page",
     "write",
     # types
     "RenderError",
@@ -131,6 +143,17 @@ BRIDGE_TITLES: Mapping[str, str] = {
 }
 if set(BRIDGE_TITLES) != set(facts.BRIDGE_NAMES):  # pragma: no cover - import-time invariant
     raise RuntimeError("render bridge titles must match facts.BRIDGE_NAMES")
+
+# Every page's restrictive policy: no script, no network, inline styles and data: images only.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; "
+    "form-action 'none'"
+)
+# Identity meta tags every rendered page (and the current-run pointer) carries.
+RUN_ID_META_NAME = "pta-run-id"
+INPUT_SET_META_NAME = "pta-input-set"
+# The current-run pointer page published beside the runs folder.
+POINTER_TEMPLATE = "pointer.html.j2"
 
 # Freshness kind of our own adopted budget (the Assumptions capture keeps its own alias/kind).
 ADOPTED_BUDGET_KIND = "adopted_budget"
@@ -984,14 +1007,30 @@ _BASES: Mapping[str, str] = {
 # --------------------------------------------------------------------------------------
 
 
+def run_id_meta(run_id: str) -> Markup:
+    """The exact ``<meta>`` tag naming a page's run (escaped)."""
+    return Markup('<meta name="{}" content="{}">').format(RUN_ID_META_NAME, run_id)
+
+
+def input_set_meta(input_sha256: str) -> Markup:
+    """The exact ``<meta>`` tag naming the captured input set a page was rendered from."""
+    return Markup('<meta name="{}" content="{}">').format(INPUT_SET_META_NAME, input_sha256)
+
+
 def _environment() -> Environment:
-    return Environment(
+    environment = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
         autoescape=True,
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    environment.globals.update(
+        csp=Markup(CONTENT_SECURITY_POLICY),
+        run_id_meta=run_id_meta,
+        input_set_meta=input_set_meta,
+    )
+    return environment
 
 
 def _render(environment: Environment, template: str, **values: Any) -> str:
@@ -1171,6 +1210,40 @@ def write(
         run_id=context.run_id,
         artifacts=tuple(sorted(artifacts, key=_path_of)),
         export_sandboxed=sandboxed,
+    )
+
+
+def pointer_page(
+    *,
+    run_id: str,
+    input_sha256: str,
+    as_of: date,
+    published_at: datetime,
+    run_link: str,
+    manifest_name: str,
+) -> str:
+    """The current-run pointer: one small page linking every report of the published run.
+
+    ``run_link`` is the run folder relative to the pointer (POSIX). Rendered through the same
+    autoescaping environment, policy and identity tags as every report page.
+    """
+    files = [
+        ("Main Report Set index", INDEX_HTML),
+        (REPORT_TITLES[_QUEUE], QUEUE_HTML),
+        (f"{REPORT_TITLES[_QUEUE]} copy text", QUEUE_COPY_TEXT),
+        *((REPORT_TITLES[name], f"{name}.html") for name in SUMMARY_NAMES),
+        ("Run manifest", manifest_name),
+    ]
+    return _render(
+        _environment(),
+        POINTER_TEMPLATE,
+        page={
+            "run_id": run_id,
+            "input_sha": input_sha256,
+            "as_of": _long(as_of),
+            "published": _timestamp(published_at),
+        },
+        links=[{"title": title, "href": f"{run_link}/{name}"} for title, name in files],
     )
 
 

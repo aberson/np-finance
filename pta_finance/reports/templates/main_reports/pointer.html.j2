@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include 'main_reports/head.html.j2' %}
+  <title>Main Report Set · current run</title>
+  <style>
+{% include 'main_reports/style.css.j2' %}
+  </style>
+</head>
+<body>
+<main class="sheet">
+  <header class="mast">
+    <div class="brandmark" aria-hidden="true">$</div>
+    <div>
+      <div class="eyebrow">Private Main Report Set</div>
+      <h1>Current published run</h1>
+      <p class="sub">As of {{ page.as_of }} · published {{ page.published }}</p>
+    </div>
+  </header>
+  <div class="meta">
+    <div><div class="k">Run</div><div class="v mono">{{ page.run_id }}</div></div>
+    <div><div class="k">Input set</div><div class="v mono">{{ page.input_sha }}</div></div>
+  </div>
+  <section id="reports">
+    <div class="cap"><h2>Reports of this run</h2><p>Every report was rendered from that one captured input set. Earlier runs stay in their own folders; the compatibility copies beside this page are refreshed after it.</p></div>
+    <ul>{% for link in links %}<li><a href="{{ link.href }}">{{ link.title }}</a></li>{% endfor %}</ul>
+  </section>
+  <footer class="foot"><span class="private">Private financial report.</span> This page is the single current-run pointer.</footer>
+</main>
+</body>
+</html>

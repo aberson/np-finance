@@ -1356,7 +1356,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 62: Wire the end-to-end command and bounded smoke gate
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-22)
 - **Type:** code
 - **Problem:** Add `pta-finance end-to-end-run --as-of YYYY-MM-DD` with optional existing mail fetch-window flags and dry-run behavior. Reuse reimbursement refresh/receipt preparation, capture all sources, apply recorded adjustments, build every report in a versioned private run, and publish only after validation. Preserve reimbursement-only commands. Use a single current-run pointer and explicit compatibility-file refresh status; retain the previous complete set on failure.
 - **Issue:** #101

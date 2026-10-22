@@ -22,10 +22,24 @@ Contract: ``docs/plan-reference/cfo-main-report-set.md`` sections 6D and 10.
   target revision and prior value, snapshots exact entered values/formulas
   (:func:`pta_finance.backup.snapshot_raw_tab`), re-reads again, writes only new cells below
   existing content with ``RAW`` input in one request, and verifies the whole journal plus
-  every pre-existing cell by readback. An uncertain write failure is resolved by re-reading
-  the journal by adjustment ID before one retry; a retried proposal already recorded with the
-  same content is a no-op. Nothing is ever cleared, edited in place or restored
-  automatically.
+  every pre-existing cell by readback. A failed write request is resolved by a whole-tab
+  readback: the same hash as before the write means it has not landed; the planned journal
+  cells with nothing else changed (:func:`_verify`) means it landed; anything else is a
+  concurrent change and stops. The writer's own re-send rule (:func:`_resend_allowed`):
+  only a failure that carries no HTTP status at all (any type: a lost connection or
+  response, a timeout, a non-HTTP error from the worksheet lookup) or a status the Sheets
+  client treats as transient (:func:`pta_finance.sheets.is_transient_status`: 429/500/503)
+  is sent again, under the client's attempt cap and backoff
+  (:meth:`~pta_finance.sheets.SheetsClient.backoff_delay` / ``pause``). Every re-send is
+  preceded by the pause, a lock re-check and a fresh whole-tab readback: a write seen to
+  have landed by then is not sent again, and an edit seen meanwhile is refused. A small
+  window remains between that last readback and the re-send; a late landing inside it is
+  harmless, because the re-send writes the same absolute ranges with identical values and
+  the final readback (:func:`_verify`) still requires exactly the planned journal. Any
+  other status stops after the readback with no re-send; only a first attempt refused with
+  400/401/403/404 and the tab unchanged is reported as not landed. A later rerun skips
+  proposals whose ID the journal already holds with the same content. Nothing is ever
+  cleared, edited in place or restored automatically.
 
 Limit (stated, not hidden): Google Sheets offers no compare-and-swap. The pre-write reads and
 the post-write readback DETECT another editor's concurrent change and stop publication with
@@ -56,7 +70,6 @@ from types import TracebackType
 from typing import Any
 
 import gspread
-from gspread.exceptions import GSpreadException
 from gspread.utils import rowcol_to_a1
 
 from pta_finance import backup
@@ -97,7 +110,12 @@ from pta_finance.main_reports.sources import (
     parse_money,
     parse_source_date,
 )
-from pta_finance.sheets import SheetsClient
+from pta_finance.sheets import (
+    SHEETS_FAILURES,
+    SheetsClient,
+    http_status,
+    is_transient_status,
+)
 
 __all__ = [
     # constants
@@ -110,7 +128,6 @@ __all__ = [
     "MAX_CATEGORY_TEXT",
     "MAX_PROPOSALS_FILE_BYTES",
     "MAX_AMOUNT",
-    "MAX_WRITE_ATTEMPTS",
     "PROPOSALS_SCHEMA_VERSION",
     "WRITE_SCOPE",
     "LOCK_FILENAME",
@@ -163,7 +180,6 @@ MAX_PROPOSALS_FILE_BYTES = 1_000_000
 # Any amount (signed, prior or replacement) must be strictly below this magnitude: exact-cent
 # sums then always stay inside the default decimal precision.
 MAX_AMOUNT = Decimal("1000000000000")
-MAX_WRITE_ATTEMPTS = 2
 PROPOSALS_SCHEMA_VERSION = 1
 WRITE_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 LOCK_FILENAME = "main-report.lock"
@@ -180,9 +196,6 @@ _SOURCE, _ADDITIVE = ALLOCATION_ORIGINS
 # HTTP statuses that prove a write was rejected outright (auth, permission, request shape):
 # never retried blindly.
 _REJECTED_STATUSES = frozenset({400, 401, 403, 404})
-# Failures of a Sheets read or write: transport (OSError covers requests' errors), any
-# gspread error (APIError, WorksheetNotFound for a renamed tab), and malformed metadata.
-_SHEETS_FAILURES: tuple[type[BaseException], ...] = (GSpreadException, OSError, ValueError)
 
 # kind -> (required fields, forbidden fields, number of targets). One correction
 # representation per kind: replacement kinds never carry a signed amount and vice versa.
@@ -270,7 +283,10 @@ class AdjustmentWriteError(AdjustmentError):
     ``evidence`` lists the private before/after files retained for review. The live tab is
     never restored automatically. ``cause`` names the underlying transport failure (error
     type and HTTP status, e.g. ``APIError 503``); the raw exception is not chained because
-    its text can carry the private workbook binding.
+    its text can carry the private workbook binding. ``may_have_landed`` is set by each raise
+    site: ``False`` only when no journal cell can have been written (the failure came before
+    the write request, or the request was rejected and the readback shows the tab unchanged);
+    otherwise ``True`` (recapture and check before trusting the journal either way).
     """
 
     def __init__(
@@ -279,9 +295,12 @@ class AdjustmentWriteError(AdjustmentError):
         message: str,
         evidence: Sequence[Path] = (),
         cause: str | None = None,
+        *,
+        may_have_landed: bool,
     ) -> None:
         self.evidence = tuple(evidence)
         self.cause = cause
+        self.may_have_landed = may_have_landed
         super().__init__(code, message if cause is None else f"{message} (cause: {cause})")
 
 
@@ -1393,13 +1412,26 @@ def _require_lock(lock: RunLock, root: Path) -> None:
 
 def _cause(error: BaseException) -> str:
     """A value-free description of a transport failure: type plus HTTP status."""
-    status = getattr(getattr(error, "response", None), "status_code", None)
-    return f"{type(error).__name__} {status}" if isinstance(status, int) else type(error).__name__
+    status = http_status(error)
+    return type(error).__name__ if status is None else f"{type(error).__name__} {status}"
 
 
 def _rejected(error: BaseException) -> bool:
-    status = getattr(getattr(error, "response", None), "status_code", None)
-    return status in _REJECTED_STATUSES
+    return http_status(error) in _REJECTED_STATUSES
+
+
+def _resend_allowed(error: BaseException) -> bool:
+    """The journal writer's re-send rule (its one owner).
+
+    Re-send when the failure carries NO HTTP status at all (whatever its type: a lost
+    connection or response, a timeout, or a non-HTTP error such as a worksheet lookup
+    failure) or a status the Sheets client itself retries. Every re-send is guarded by the
+    pause, lock re-check and whole-tab readback in :func:`record`. Any other status
+    (including permanent 4xx outside the rejected set, 501, 502, 504) is not re-sent; the
+    readback alone decides whether it landed.
+    """
+    status = http_status(error)
+    return status is None or is_transient_status(status)
 
 
 def _with_after(evidence: tuple[Path, ...], after: SourceCapture) -> tuple[Path, ...]:
@@ -1427,6 +1459,7 @@ def record(
     as_of: date,
     lock: RunLock,
     clock: Clock | None = None,
+    on_snapshot: Callable[[Path], None] | None = None,
 ) -> RecordResult:
     """Append validated proposals to our Assumptions journal and verify them by readback.
 
@@ -1441,8 +1474,15 @@ def record(
     resulting journal refuses the whole batch before any write. ``lock`` must be the held
     writer lock (:func:`acquire_run_lock`); its token is re-checked on disk at entry and
     again just before the write. Every failure after validation is an
-    :class:`AdjustmentWriteError` with a code, retained evidence and a value-free cause.
-    See the module docstring for the race limit.
+    :class:`AdjustmentWriteError` with a code, retained evidence, a value-free cause and
+    ``may_have_landed``. ``on_snapshot`` is called with the pre-write snapshot path immediately
+    before the first write request (after the snapshot, the second read, the grid growth and
+    the lock re-check), so a caller can record the evidence even if the call is then
+    interrupted. The write itself is sent once per attempt, without the client's hidden
+    retry; the re-send rule, pause, lock re-check and fresh readback are described in the
+    module docstring. ``may_have_landed`` is ``False`` only for a failure before the first
+    request or an outright rejection of that first request with the tab unchanged. See the module
+    docstring for the race limit.
     """
     main_reports = _main_reports(config)
     root = main_reports.output_path
@@ -1456,30 +1496,33 @@ def record(
     def fresh() -> SourceCapture:
         try:
             current = capture_assumptions(workbook, tab, now)
-        except _SHEETS_FAILURES as error:
+        except SHEETS_FAILURES as error:
             raise AdjustmentWriteError(
                 "assumptions_unreadable",
                 "the Assumptions tab could not be read before writing; nothing was written",
                 evidence,
                 _cause(error),
+                may_have_landed=False,
             ) from None
         if current.sha256 != captured.sha256:
             raise AdjustmentWriteError(
                 "assumptions_changed",
                 "the Assumptions tab changed since the run captured it; recapture and review",
                 evidence,
+                may_have_landed=False,
             )
         return current
 
     def read_back(cause: str | None) -> SourceCapture:
         try:
             return capture_assumptions(workbook, tab, now)
-        except _SHEETS_FAILURES as error:
+        except SHEETS_FAILURES as error:
             raise AdjustmentWriteError(
                 "write_unverified",
                 "the journal write outcome could not be read back; recapture before retrying",
                 evidence,
                 cause or _cause(error),
+                may_have_landed=True,
             ) from None
 
     current = fresh()
@@ -1497,9 +1540,13 @@ def record(
 
     try:
         snapshot = backup.snapshot_raw_tab(client, tab, root / SNAPSHOT_DIR)
-    except _SHEETS_FAILURES as error:
+    except SHEETS_FAILURES as error:
         raise AdjustmentWriteError(
-            "snapshot_failed", "no pre-write snapshot; nothing was written", (), _cause(error)
+            "snapshot_failed",
+            "no pre-write snapshot; nothing was written",
+            (),
+            _cause(error),
+            may_have_landed=False,
         ) from None
     evidence = (snapshot,)
     before = fresh()
@@ -1509,49 +1556,107 @@ def record(
             "planned_cells_occupied",
             f"{occupied} planned journal cell(s) are not empty; nothing was written",
             evidence,
+            may_have_landed=False,
         )
     try:
         client.ensure_grid_size(tab, plan.last_row, _WIDTH)
-    except _SHEETS_FAILURES as error:
+    except SHEETS_FAILURES as error:
         raise AdjustmentWriteError(
             "grid_resize_failed",
             "the tab could not be grown for the journal rows; nothing was written",
             evidence,
             _cause(error),
+            may_have_landed=False,
         ) from None
-    _require_lock(lock, root)
+    try:
+        _require_lock(lock, root)
+    except AdjustmentError as error:
+        raise AdjustmentWriteError(
+            error.code,
+            "the run lock was lost before writing; nothing was written",
+            evidence,
+            may_have_landed=False,
+        ) from None
+    if on_snapshot is not None:  # the last step before the first request to the tab
+        try:
+            on_snapshot(snapshot)
+        except Exception as error:
+            raise AdjustmentWriteError(
+                "snapshot_callback_failed",
+                "the caller's snapshot hook failed; nothing was written",
+                evidence,
+                type(error).__name__,
+                may_have_landed=False,
+            ) from None
+
+    def landed(observed: SourceCapture, cause: str | None) -> SourceCapture:
+        """A changed tab must be exactly the planned journal; anything else stops."""
+        failure = _verify(before, observed, plan)
+        if failure is not None:
+            raise AdjustmentWriteError(
+                "write_uncertain_conflict",
+                f"after an uncertain write the tab is not the planned journal ({failure}); "
+                "nothing was restored",
+                _with_after(evidence, observed),
+                cause,
+                may_have_landed=True,
+            ) from None  # called while handling a transport error: never chain its text
+        return observed
+
     attempts = 0
     while True:
         attempts += 1
         try:
-            client.write_raw_ranges(tab, plan.ranges)
-        except _SHEETS_FAILURES as error:
-            # The outcome is uncertain: read back by adjustment ID before any retry.
+            # One request per attempt (no hidden client retry): this loop sees every attempt,
+            # so an earlier unobserved attempt is never mistaken for a clean rejection.
+            client.write_raw_ranges(tab, plan.ranges, retry=False)
+        except SHEETS_FAILURES as error:
+            # The outcome is uncertain: decide it from a whole-tab readback.
             cause = _cause(error)
             observed = read_back(cause)
-            if observed.sha256 == before.sha256:
-                rejected = _rejected(error)
-                if attempts < MAX_WRITE_ATTEMPTS and not rejected:
-                    continue
+            if observed.sha256 != before.sha256:
+                after = landed(observed, cause)
+                break
+            rejected = _rejected(error)
+            delay = client.backoff_delay(attempts) if _resend_allowed(error) else None
+            if delay is None:
+                # Only a first attempt that was rejected outright, with the tab unchanged,
+                # cannot have landed; an earlier unobserved attempt still might.
+                may_have_landed = not rejected or attempts > 1
                 message = (
-                    "the journal write was rejected; nothing was recorded"
-                    if rejected
-                    else f"the journal write was not observed after {attempts} attempt(s) and MAY "
-                    "still land: recapture and rerun (the readback-by-ID check keeps a rerun "
-                    "from recording anything twice)"
+                    f"the journal write was not observed after {attempts} attempt(s) and MAY "
+                    "still land: recapture and rerun (a rerun skips every adjustment ID the "
+                    "journal already holds)"
+                    if may_have_landed
+                    else "the journal write was rejected; nothing was recorded"
                 )
-                raise AdjustmentWriteError("write_failed", message, evidence, cause) from None
-            failure = _verify(before, observed, plan)
-            if failure is not None:
                 raise AdjustmentWriteError(
-                    "write_uncertain_conflict",
-                    f"after an uncertain write the tab is not the planned journal ({failure}); "
-                    "nothing was restored",
-                    _with_after(evidence, observed),
+                    "write_failed",
+                    message,
+                    evidence,
                     cause,
+                    may_have_landed=may_have_landed,
                 ) from None
-            after = observed
-            break
+            # Before the re-send: pause, re-check the lock, then read the whole tab again so
+            # a write seen to have landed during the pause is not sent twice and an edit seen
+            # meanwhile is refused rather than overwritten. (A landing after this read is
+            # rewritten with identical values to the same ranges and checked by _verify.)
+            client.pause(delay)
+            try:
+                _require_lock(lock, root)
+            except AdjustmentError as lost:
+                raise AdjustmentWriteError(
+                    lost.code,
+                    "the run lock was lost between write attempts; not sent again",
+                    evidence,
+                    cause,
+                    may_have_landed=True,
+                ) from None
+            observed = read_back(cause)
+            if observed.sha256 != before.sha256:
+                after = landed(observed, cause)
+                break
+            continue
         after = read_back(None)
         failure = _verify(before, after, plan)
         if failure is not None:
@@ -1560,13 +1665,25 @@ def record(
                 "the readback differs from the planned journal; publication must stop and "
                 "nothing was restored",
                 _with_after(evidence, after),
+                may_have_landed=True,
             )
         break
+    try:
+        recorded = read_journal(after)
+    except Exception as error:
+        raise AdjustmentWriteError(
+            "journal_unreadable_after_write",
+            "the journal was written and verified but could not be parsed back; recapture "
+            "before trusting it",
+            _with_after(evidence, after),
+            type(error).__name__,
+            may_have_landed=True,
+        ) from None
     return RecordResult(
         written=plan.new_ids,
         already_recorded=already,
         snapshot_path=snapshot,
         assumptions=after,
-        journal=read_journal(after),
+        journal=recorded,
         attempts=attempts,
     )

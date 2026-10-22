@@ -66,6 +66,9 @@ __all__ = [
     "CARRYOVER_BASES",
     "RUN_ID_PATTERN",
     "ARTIFACT_MEDIA_TYPES",
+    "RUN_STATUSES",
+    "ALIAS_STATUSES",
+    "ALIAS_REFRESH_STATES",
     "is_valid_source_alias",
     "is_valid_record_key",
     "canonical_json_bytes",
@@ -132,6 +135,7 @@ __all__ = [
     "ReportFacts",
     "Artifact",
     "ArtifactSet",
+    "RunManifest",
 ]
 
 SCHEMA_VERSION = 1
@@ -238,6 +242,12 @@ CARRYOVER_BASES: tuple[str, ...] = ("expense_date", "submitted")
 RUN_ID_PATTERN = re.compile(r"run-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\Z")
 # Media types of the files a rendered run may contain.
 ARTIFACT_MEDIA_TYPES: tuple[str, ...] = ("text/html", "application/pdf", "image/png", "text/plain")
+# Run manifest vocabularies: a run's status, one compatibility copy's refresh result, and
+# whether the copies were refreshed as a complete set after the pointer switch.
+RUN_STATUSES: tuple[str, ...] = ("failed", "validated", "published")
+ALIAS_STATUSES: tuple[str, ...] = ("refreshed", "failed", "not_attempted")
+# ``pending``: the pointer may already name the run while its copies are not yet refreshed.
+ALIAS_REFRESH_STATES: tuple[str, ...] = ("pending", "complete", "partial")
 
 
 def is_valid_source_alias(alias: str) -> bool:
@@ -2097,4 +2107,107 @@ class ArtifactSet:
             "run_id": self.run_id,
             "artifacts": [item.to_dict() for item in self.artifacts],
             "export_sandboxed": self.export_sandboxed,
+        }
+
+
+@dataclass(frozen=True)
+class RunManifest:
+    """Private provenance of one end-to-end run (``run-manifest.json`` in its run folder).
+
+    ``status`` is a :data:`RUN_STATUSES` entry. ``input_sha256`` is the hash of
+    ``input_components`` (capture aggregate, journal, crosswalk, bundle, receipt sidecar and
+    pages, configuration semantics and as-of): every artifact of the run identifies that one
+    captured input set. The bundle and sidecar digests before and after the in-place
+    reimbursement refresh show what the run changed in the private evidence store. Journal
+    writes (``adjustments_written`` / ``journal_snapshot``) are carried into every later
+    failure record; a journal write that itself failed records the proposals attempted, the
+    writer's error code, whether the write may have landed, and its retained evidence files.
+    A failed run records the ``stage`` it reached and, for an unexpected error, only its type
+    name (``failure_type``). Paths are relative to the run folder (artifacts, records) or to the
+    private output root (``capture_ref``, ``journal_snapshot``, ``journal_evidence``). Copies
+    of the queue, its copy text and the PDF/PNG exports carry no identity tag of their own
+    (the queue renderer keeps its interface); ``artifacts`` ties each to the run by hash.
+    """
+
+    run_id: str
+    as_of: date
+    status: str
+    code_revision: str
+    created_at: datetime
+    stage: str | None = None
+    failure_codes: tuple[str, ...] = ()
+    failure_type: str | None = None
+    input_sha256: str | None = None
+    input_components: tuple[tuple[str, Any], ...] = ()
+    capture_aggregate_sha256: str | None = None
+    capture_ref: str | None = None
+    capture_hashes: tuple[tuple[str, str], ...] = ()
+    adopted_budget_sha256: str | None = None
+    assumptions_sha256: str | None = None
+    journal_sha256: str | None = None
+    crosswalk_sha256: str | None = None
+    bundle_sha256_before_refresh: str | None = None
+    sidecar_sha256_before_refresh: str | None = None
+    bundle_sha256_after_refresh: str | None = None
+    sidecar_sha256_after_refresh: str | None = None
+    bundle_sha256: str | None = None
+    sidecar_sha256: str | None = None
+    receipt_pages: tuple[tuple[str, str], ...] = ()
+    adjustments_written: tuple[str, ...] = ()
+    adjustments_already_recorded: tuple[str, ...] = ()
+    journal_snapshot: str | None = None
+    adjustments_attempted: tuple[str, ...] = ()
+    journal_write_error: str | None = None
+    journal_write_may_have_landed: bool | None = None
+    journal_evidence: tuple[str, ...] = ()
+    applied_adjustments: tuple[str, ...] = ()
+    coverage_warnings: tuple[str, ...] = ()
+    records: tuple[tuple[str, str], ...] = ()
+    artifacts: ArtifactSet | None = None
+    published_at: datetime | None = None
+    alias_refresh: tuple[tuple[str, str], ...] = ()
+    alias_refresh_state: str | None = None
+    schema_version: int = SCHEMA_VERSION
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "run_id": self.run_id,
+            "as_of": self.as_of,
+            "status": self.status,
+            "code_revision": self.code_revision,
+            "created_at": self.created_at,
+            "stage": self.stage,
+            "failure_codes": list(self.failure_codes),
+            "failure_type": self.failure_type,
+            "input_sha256": self.input_sha256,
+            "input_components": dict(self.input_components),
+            "capture_aggregate_sha256": self.capture_aggregate_sha256,
+            "capture_ref": self.capture_ref,
+            "capture_hashes": dict(self.capture_hashes),
+            "adopted_budget_sha256": self.adopted_budget_sha256,
+            "assumptions_sha256": self.assumptions_sha256,
+            "journal_sha256": self.journal_sha256,
+            "crosswalk_sha256": self.crosswalk_sha256,
+            "bundle_sha256_before_refresh": self.bundle_sha256_before_refresh,
+            "sidecar_sha256_before_refresh": self.sidecar_sha256_before_refresh,
+            "bundle_sha256_after_refresh": self.bundle_sha256_after_refresh,
+            "sidecar_sha256_after_refresh": self.sidecar_sha256_after_refresh,
+            "bundle_sha256": self.bundle_sha256,
+            "sidecar_sha256": self.sidecar_sha256,
+            "receipt_pages": dict(self.receipt_pages),
+            "adjustments_written": list(self.adjustments_written),
+            "adjustments_already_recorded": list(self.adjustments_already_recorded),
+            "journal_snapshot": self.journal_snapshot,
+            "adjustments_attempted": list(self.adjustments_attempted),
+            "journal_write_error": self.journal_write_error,
+            "journal_write_may_have_landed": self.journal_write_may_have_landed,
+            "journal_evidence": list(self.journal_evidence),
+            "applied_adjustments": list(self.applied_adjustments),
+            "coverage_warnings": list(self.coverage_warnings),
+            "records": dict(self.records),
+            "artifacts": None if self.artifacts is None else self.artifacts.to_dict(),
+            "published_at": self.published_at,
+            "alias_refresh": dict(self.alias_refresh),
+            "alias_refresh_state": self.alias_refresh_state,
         }

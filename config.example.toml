@@ -51,7 +51,10 @@ service_account_file = "secrets/service-account.json"
 # Read through a SEPARATE client limited to the spreadsheets.readonly scope; share the CFO
 # workbook read-only with the service account. Legacy commands ignore this section.
 # source_spreadsheet_id = "<cfo-workbook-spreadsheet-id>"
-# output_dir = "reports/output/main-report-runs"   # under reports/output/ or outside the project
+# output_dir = "reports/output/main-report-runs"   # see the rule below
+# Rule: output_dir is a SUBFOLDER either of reports/output/ or of a dedicated private folder
+# outside the project. end-to-end-run writes main-report-set.html and the compatibility
+# copies into the folder above output_dir, which must pass the same check.
 # assumptions_tab = "Assumptions"                  # our own workbook's Assumptions tab
 #
 # One table per source alias (lowercase ASCII slug). Every kind must be bound:

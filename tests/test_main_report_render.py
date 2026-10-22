@@ -24,7 +24,7 @@ import threading
 import zlib
 from collections import defaultdict
 from collections.abc import Iterator, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from html import unescape
 from html.parser import HTMLParser
@@ -78,6 +78,7 @@ from tests.conftest import (
     _budget_row,
     _bundle_payload,
     _record_payment,
+    require_chromium,
 )
 
 RUN_ID = make_run_id(datetime(2030, 8, 15, 13, 0, tzinfo=UTC))
@@ -1439,6 +1440,39 @@ def test_missing_playwright_is_a_typed_export_error(
     assert sorted(p.name for p in tmp_path.iterdir()) == ["page.html", "page.pdf"]
 
 
+def test_pointer_page_links_every_file_of_the_run_and_escapes_its_link() -> None:
+    link = 'runs/<x>&"'
+    page = render.pointer_page(
+        run_id=RUN_ID,
+        input_sha256="a" * 64,
+        as_of=date(2030, 8, 15),
+        published_at=datetime(2030, 8, 16, 9, 30, tzinfo=UTC),
+        run_link=link,
+        manifest_name="run-manifest.json",
+    )
+    escaped = str(escape(link))
+    hrefs = re.findall(r'href="([^"]*)"', page)
+    assert hrefs == [
+        f"{escaped}/{name}"
+        for name in (
+            INDEX_HTML,
+            QUEUE_HTML,
+            COPY_TEXT,
+            *SUMMARY_HTML,
+            "run-manifest.json",
+        )
+    ]
+    assert link not in page  # never raw
+    assert f'<meta http-equiv="Content-Security-Policy" content="{CSP}">' in page
+    assert str(render.run_id_meta(RUN_ID)) in page
+    assert str(render.input_set_meta("a" * 64)) in page
+    text = _text(page)
+    assert "As of August 15, 2030" in text and "2030-08-16 09:30 UTC" in text
+    for title in ("Reimbursement Queue", "Reimbursement Queue copy text", "Run manifest"):
+        assert title in text
+    assert all(title in text for title in TITLES.values())
+
+
 @pytest.mark.parametrize("case", ["missing", "clash", "overwrite_input"])
 def test_invalid_export_jobs_are_refused(tmp_path: Path, case: str) -> None:
     html = tmp_path / "page.html"
@@ -1459,20 +1493,6 @@ def test_invalid_export_jobs_are_refused(tmp_path: Path, case: str) -> None:
 # --------------------------------------------------------------------------------------
 # Headless Chromium: real export, readable layouts and the request guard
 # --------------------------------------------------------------------------------------
-
-
-def _require_chromium() -> Any:
-    """Skip exactly as the receipt viewer browser test does when Chromium is not installed."""
-    playwright = pytest.importorskip("playwright.sync_api")
-    with playwright.sync_playwright() as driver:
-        try:
-            browser = driver.chromium.launch(channel="chromium")
-        except playwright.Error as exc:
-            if "Executable doesn't exist at" in str(exc):
-                pytest.skip("Playwright Chromium executable is not installed")
-            raise
-        browser.close()
-    return playwright
 
 
 def _pdf_pages(payload: bytes) -> list[tuple[float, float, str]]:
@@ -1496,7 +1516,7 @@ def _pdf_pages(payload: bytes) -> list[tuple[float, float, str]]:
 
 
 def test_chromium_export_produces_readable_pdf_and_png(tmp_path: Path) -> None:
-    playwright = _require_chromium()
+    playwright = require_chromium()
     inputs = _inputs(tmp_path, adjusted=False)
     artifacts = inputs.write(exporter=None)
     assert list(artifacts.paths) == ALL_FILES
@@ -1534,7 +1554,7 @@ def test_chromium_export_produces_readable_pdf_and_png(tmp_path: Path) -> None:
 def test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths(
     rendered: RenderedSet, viewport: dict[str, int]
 ) -> None:
-    playwright = _require_chromium()
+    playwright = require_chromium()
     run_dir = rendered.inputs.run_dir
     with playwright.sync_playwright() as driver:
         browser = driver.chromium.launch(channel="chromium")
@@ -1566,7 +1586,7 @@ def test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths(
 
 
 def test_chromium_export_never_runs_page_scripts(tmp_path: Path) -> None:
-    _require_chromium()
+    require_chromium()
     html = tmp_path / "page.html"
     html.write_text(
         "<!doctype html><p>Example PTA</p><script>"
@@ -1612,7 +1632,7 @@ def test_chromium_export_aborts_every_request_but_the_document(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, loopback: list[str]
 ) -> None:
     """With network emulation turned off, the route handler alone keeps the page local."""
-    _require_chromium()
+    require_chromium()
     monkeypatch.setattr(export, "_OFFLINE", False)
     origin = loopback.pop(0)
     (tmp_path / "tall.png").write_bytes(_png(50, 3000))
@@ -1634,7 +1654,7 @@ def test_chromium_export_aborts_every_request_but_the_document(
 def test_chromium_unreadable_export_output_is_refused_and_earlier_files_kept(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _require_chromium()
+    require_chromium()
     html = tmp_path / "page.html"
     html.write_text("<!doctype html><p>Example PTA</p>", encoding="utf-8")
     pdf, png = tmp_path / "page.pdf", tmp_path / "page.png"

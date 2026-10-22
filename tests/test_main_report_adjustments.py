@@ -14,7 +14,8 @@ import dataclasses
 import inspect
 import itertools
 import json
-from collections.abc import Callable, Sequence
+import re
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -22,10 +23,12 @@ from typing import Any
 
 import pytest
 import requests
+from google.auth.exceptions import RefreshError, TransportError
 from gspread.exceptions import WorksheetNotFound
 from requests.models import Response
 
 from pta_finance import backup
+from pta_finance import sheets as sheets_module
 from pta_finance.config import Config, load_config
 from pta_finance.main_reports import adjustments, models, reconcile, sources
 from pta_finance.main_reports.adjustments import (
@@ -55,6 +58,7 @@ from pta_finance.main_reports.models import (
     AdjustmentJournal,
     CaptureSet,
     Reconciliation,
+    SourceCapture,
     Transaction,
     canonical_json_bytes,
     is_valid_record_key,
@@ -497,12 +501,14 @@ def test_uncertain_write_that_did_not_land_is_retried_once(tmp_path: Path) -> No
 def test_write_that_never_lands_fails_visibly_and_records_nothing(tmp_path: Path) -> None:
     scenario = Scenario(tmp_path)
     entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
-    scenario.sheet._fail_first["batch_update"] = [ConnectionError("a"), ConnectionError("b")]
+    # Every attempt the production retry policy allows is lost (default five).
+    scenario.sheet._fail_first["batch_update"] = [ConnectionError(str(n)) for n in range(5)]
 
     with pytest.raises(AdjustmentWriteError) as caught:
         scenario.record([entry])
 
     assert caught.value.code == "write_failed"
+    assert caught.value.may_have_landed is True
     assert caught.value.__cause__ is None and caught.value.__suppress_context__
     (snapshot,) = caught.value.evidence
     assert snapshot.exists()
@@ -537,6 +543,7 @@ def test_unreadable_outcome_after_a_failed_write_is_unverified(tmp_path: Path) -
             clock=_clock(),
         )
     assert caught.value.code == "write_unverified"
+    assert caught.value.may_have_landed is True
 
 
 def _edit_cell(row: int, column: int, value: str) -> Callable[[JournalWorksheet], None]:
@@ -596,6 +603,7 @@ def test_readback_detects_concurrent_edits_and_never_restores(tmp_path: Path, ca
         scenario.record([entry])
 
     assert caught.value.code == code
+    assert caught.value.may_have_landed is True
     snapshot, after = caught.value.evidence
     assert snapshot.exists() and after.name == "after-readback.json" and after.exists()
     # Nothing is rolled back or rewritten: exactly one write was issued.
@@ -614,6 +622,7 @@ def test_uncertain_write_with_a_concurrent_edit_is_a_conflict(tmp_path: Path) ->
         scenario.record([entry])
 
     assert caught.value.code == "write_uncertain_conflict"
+    assert caught.value.may_have_landed is True
     assert "concurrent_edit_detected" in str(caught.value)
     assert caught.value.__cause__ is None and caught.value.__suppress_context__
     assert len(caught.value.evidence) == 2
@@ -638,6 +647,7 @@ def test_assumptions_changed_since_capture_blocks_the_write(tmp_path: Path) -> N
         )
 
     assert caught.value.code == "assumptions_changed" and caught.value.evidence == ()
+    assert caught.value.may_have_landed is False
     assert scenario.sheet.batch_update_calls == []
     assert not (scenario.config.main_reports.output_path / "adjustments").exists()  # type: ignore[union-attr]
 
@@ -659,6 +669,7 @@ def test_edit_between_snapshot_and_write_blocks_the_write(
         scenario.record([entry])
 
     assert caught.value.code == "assumptions_changed"
+    assert caught.value.may_have_landed is False
     (snapshot,) = caught.value.evidence
     assert snapshot.exists()
     assert scenario.sheet.batch_update_calls == []
@@ -1731,18 +1742,40 @@ def _http_error(status: int) -> BaseException:
     return requests.HTTPError("rejected", response=response)
 
 
-WRITE_FAILURES = {
+# Stands for "transient failures until the client's attempt cap is spent" (the count comes
+# from the client policy itself, never restated here).
+EXHAUST = "exhaust"
+WRITE_FAILURES: dict[str, tuple[Any, BaseException | None, str | None]] = {
     # name: (batch failures queued before any write lands, raise after landing, cause)
     "landed_then_503": ([], make_api_error(503), None),
     "503_then_retry": ([make_api_error(503)], None, None),
     "timeout_then_retry": ([ConnectionError("timeout")], None, None),
-    "503_then_429": ([make_api_error(503), make_api_error(429)], None, "APIError 429"),
+    "429_429_then_ok": ([make_api_error(429), make_api_error(429)], None, None),
+    "503_503_then_ok": ([make_api_error(503), make_api_error(503)], None, None),
+    # A later attempt lands but its response is lost: the readback ends the loop.
+    "503_then_landed_then_503": ([make_api_error(503)], make_api_error(503), None),
+    "transient_exhausted": (EXHAUST, None, "APIError 503"),
+    # An unobserved first attempt can still land even when the retry is then rejected.
+    "timeout_then_rejected": (
+        [ConnectionError("timeout"), make_api_error(403)],
+        None,
+        "APIError 403",
+    ),
+    "503_then_403": ([make_api_error(503), make_api_error(403)], None, "APIError 403"),
+    # A status the writer does not re-send (not transient, not a clean rejection).
+    "not_resent_409": ([make_api_error(409), make_api_error(409)], None, "APIError 409"),
+    "not_resent_502": ([make_api_error(502), make_api_error(502)], None, "APIError 502"),
     "rejected_400": ([make_api_error(400), make_api_error(400)], None, "APIError 400"),
     "rejected_401": ([make_api_error(401), make_api_error(401)], None, "APIError 401"),
     "rejected_403": ([make_api_error(403), make_api_error(403)], None, "APIError 403"),
     "rejected_404": ([make_api_error(404), make_api_error(404)], None, "APIError 404"),
     "rejected_http_403": ([_http_error(403), _http_error(403)], None, "HTTPError 403"),
 }
+
+
+def _attempt_cap(client: SheetsClient) -> int:
+    """How many attempts the client's retry policy allows one call."""
+    return next(n for n in itertools.count(1) if client.backoff_delay(n) is None)
 
 
 def _single_attempt_client(scenario: Scenario) -> SheetsClient:
@@ -1757,37 +1790,261 @@ def _single_attempt_client(scenario: Scenario) -> SheetsClient:
 
 @pytest.mark.parametrize("case", sorted(WRITE_FAILURES))
 def test_api_errors_during_the_write_are_resolved_by_reading_back(
-    tmp_path: Path, case: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
     queued, after_landing, failed_cause = WRITE_FAILURES[case]
     scenario = Scenario(tmp_path)
     entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
     sheet = scenario.sheet
+    # The production client policy (default attempts, backoff); its sleep is recorded and
+    # the jitter draw is fixed so every pause can be compared with the policy's own value.
+    monkeypatch.setattr(sheets_module.random, "uniform", lambda low, high: (low + high) / 2)
+    sleep = RecordingSleep()
+    client = SheetsClient(
+        scenario.config,
+        gspread_client=scenario.harness.own_client,  # type: ignore[arg-type]
+        sleep=sleep,
+    )
+    if queued == EXHAUST:
+        queued = [make_api_error(503) for _ in range(_attempt_cap(client))]
     sheet._fail_first["batch_update"] = list(queued)
     if after_landing is not None:
         sheet.after_batch_update = _raise_once(after_landing)
-    client = _single_attempt_client(scenario)
+    policy = [client.backoff_delay(n) for n in range(1, len(queued) + 1)]
 
     if failed_cause is None:
         result = scenario.record([entry], client=client)
         assert result.written == (entry.adjustment_id,)
-        assert result.attempts == (1 if after_landing is not None else 2)
+        assert result.attempts == len(queued) + 1  # the landing attempt ends the loop
+        assert len(sheet.batch_update_calls) == 1  # exactly one landed write
         assert scenario.ledger().applied == (entry.adjustment_id,)
+        # The client's backoff ran before every re-send, with the policy's own delays.
+        assert sleep.calls == policy[: result.attempts - 1]
         return
     with pytest.raises(AdjustmentWriteError) as caught:
         scenario.record([entry], client=client)
     assert caught.value.code == "write_failed"
+    # Only a first attempt rejected outright, with the tab unchanged, cannot have landed.
+    assert caught.value.may_have_landed is (not case.startswith("rejected"))
     assert caught.value.cause == failed_cause and failed_cause in str(caught.value)
     (snapshot,) = caught.value.evidence
     assert snapshot.exists()
     rejected = case.startswith("rejected")
-    # A rejected write is not retried blindly: one attempt, the second error unused.
-    assert len(sheet._fail_first["batch_update"]) == (1 if rejected else 0)
+    not_resent = rejected or case.startswith("not_resent")
+    # A refused or non-transient status is never re-sent: one attempt, the second unused.
+    assert len(sheet._fail_first["batch_update"]) == (1 if not_resent else 0)
+    attempts = 1 if not_resent else len(queued)
+    assert sleep.calls == policy[: attempts - 1]  # a pause before every re-send, none after
+    assert sheet.batch_update_calls == []
     if rejected:
         assert "rejected; nothing was recorded" in str(caught.value)
     else:  # ambiguous: never claims that nothing was recorded
         assert "MAY still land" in str(caught.value) and "nothing" not in str(caught.value)
     assert read_journal(scenario.capture()[0].assumptions).marker_row is None
+
+
+class _LateLandingSheet(JournalWorksheet):
+    """The ``defer_call``-th write request times out but lands later, while the writer
+    pauses (:meth:`land`); earlier calls behave as usual (queued failures included)."""
+
+    defer_call = 1
+    calls = 0
+    deferred: tuple[list[dict[str, Any]], str | None] | None = None
+
+    def batch_update(
+        self, data: Iterable[Mapping[str, Any]], value_input_option: str | None = None
+    ) -> dict[str, Any]:
+        self.calls += 1
+        if self.calls == self.defer_call:
+            self.deferred = ([dict(request) for request in data], value_input_option)
+            raise requests.exceptions.ReadTimeout("fictional timeout")
+        return super().batch_update(data, value_input_option)
+
+    def land(self) -> None:
+        """Apply the deferred write (a pause before it was deferred lands nothing)."""
+        if self.deferred is not None:
+            deferred, self.deferred = self.deferred, None
+            super().batch_update(*deferred)
+
+
+def _pausing_client(scenario: Scenario, during_pause: Callable[[float], None]) -> SheetsClient:
+    return SheetsClient(
+        scenario.config,
+        gspread_client=scenario.harness.own_client,  # type: ignore[arg-type]
+        sleep=during_pause,
+    )
+
+
+def test_a_write_that_lands_during_the_pause_is_not_sent_again(tmp_path: Path) -> None:
+    sheet = _LateLandingSheet([list(row) for row in ASSUMPTIONS_GRID], sheet_id=2002)
+    scenario = Scenario(tmp_path, assumptions=sheet)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    client = _pausing_client(scenario, lambda _seconds: sheet.land())
+
+    result = scenario.record([entry], client=client)
+
+    assert result.written == (entry.adjustment_id,) and result.attempts == 1
+    assert len(sheet.batch_update_calls) == 1  # the late landing only; no re-send
+    assert scenario.ledger().applied == (entry.adjustment_id,)
+
+
+def test_a_write_that_lands_during_the_second_pause_is_not_sent_again(tmp_path: Path) -> None:
+    sheet = _LateLandingSheet([list(row) for row in ASSUMPTIONS_GRID], sheet_id=2002)
+    sheet.defer_call = 2
+    sheet._fail_first["batch_update"] = [make_api_error(503)]  # the first attempt
+    scenario = Scenario(tmp_path, assumptions=sheet)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    pauses: list[float] = []
+
+    def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        sheet.land()
+
+    result = scenario.record([entry], client=_pausing_client(scenario, pause))
+
+    assert result.written == (entry.adjustment_id,) and result.attempts == 2
+    assert sheet.calls == 2 and len(pauses) == 2  # no third send
+    assert len(sheet.batch_update_calls) == 1  # the late landing only
+    assert scenario.ledger().applied == (entry.adjustment_id,)
+
+
+def test_the_lock_is_re_checked_before_the_readback_after_a_pause(tmp_path: Path) -> None:
+    sheet = _LateLandingSheet([list(row) for row in ASSUMPTIONS_GRID], sheet_id=2002)
+    scenario = Scenario(tmp_path, assumptions=sheet)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    lock_path = scenario.config.main_reports.output_path / LOCK_FILENAME  # type: ignore[union-attr]
+
+    def pause(_seconds: float) -> None:
+        sheet.land()  # the write lands during the pause...
+        lock_path.unlink()  # ...and the lock is lost too
+
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry], client=_pausing_client(scenario, pause))
+
+    assert caught.value.code == "lock_not_held"
+    assert caught.value.may_have_landed is True
+    assert sheet.calls == 1  # nothing sent after the pause
+    assert len(sheet.batch_update_calls) == 1  # only the late landing
+
+
+def test_an_edit_during_the_pause_is_refused_and_not_overwritten(tmp_path: Path) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    scenario.sheet._fail_first["batch_update"] = [make_api_error(503)]
+    client = _pausing_client(scenario, lambda _seconds: scenario.sheet.set_cell(1, 1, "2.5"))
+
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry], client=client)
+
+    assert caught.value.code == "write_uncertain_conflict"
+    assert caught.value.may_have_landed is True
+    assert scenario.sheet.batch_update_calls == []  # never sent again over the edit
+    assert scenario.sheet.grid[1][1] == "2.5"
+
+
+def test_a_lock_lost_during_the_pause_stops_the_re_send(tmp_path: Path) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    scenario.sheet._fail_first["batch_update"] = [make_api_error(503)]
+    lock_path = scenario.config.main_reports.output_path / LOCK_FILENAME  # type: ignore[union-attr]
+    client = _pausing_client(scenario, lambda _seconds: lock_path.unlink())
+
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry], client=client)
+
+    assert caught.value.code == "lock_not_held"
+    assert caught.value.may_have_landed is True  # the first attempt is still unobserved
+    assert scenario.sheet.batch_update_calls == []
+
+
+def test_an_auth_refresh_failure_before_the_send_is_typed_and_cannot_have_landed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+
+    def refresh_failed(*_args: Any, **_kwargs: Any) -> Path:
+        raise RefreshError(f"{CFO_ID} fictional token text")
+
+    monkeypatch.setattr(backup, "snapshot_raw_tab", refresh_failed)
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry])
+    assert (caught.value.code, caught.value.may_have_landed) == ("snapshot_failed", False)
+    assert caught.value.cause == "RefreshError" and CFO_ID not in str(caught.value)
+    assert caught.value.__cause__ is None and caught.value.__suppress_context__
+    assert scenario.sheet.batch_update_calls == []
+
+
+def test_an_auth_transport_failure_after_the_send_is_typed_and_may_have_landed(
+    tmp_path: Path,
+) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    sheet = scenario.sheet
+
+    def readback_fails(ws: JournalWorksheet) -> None:
+        ws.after_batch_update = None
+        ws._fail_first["get_all_values"] = [TransportError(f"{CFO_ID} fictional text")]
+
+    sheet.after_batch_update = readback_fails
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry])
+    assert (caught.value.code, caught.value.may_have_landed) == ("write_unverified", True)
+    assert caught.value.cause == "TransportError" and CFO_ID not in str(caught.value)
+    assert len(sheet.batch_update_calls) == 1
+
+
+def test_a_failing_snapshot_hook_is_typed_and_nothing_is_sent(tmp_path: Path) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    capture_set, rec = scenario.capture()
+
+    def hook(_path: Path) -> None:
+        raise RuntimeError("fictional hook failure")
+
+    with acquire_run_lock(scenario.config) as lock, pytest.raises(AdjustmentWriteError) as caught:
+        record(
+            [entry],
+            config=scenario.config,
+            client=scenario.harness.own(),
+            captured=capture_set.assumptions,
+            reconciliation=rec,
+            as_of=AS_OF,
+            lock=lock,
+            on_snapshot=hook,
+        )
+    assert caught.value.code == "snapshot_callback_failed"
+    assert (caught.value.may_have_landed, caught.value.cause) == (False, "RuntimeError")
+    assert caught.value.__cause__ is None and caught.value.__suppress_context__
+    assert "fictional hook failure" not in str(caught.value)
+    (snapshot,) = caught.value.evidence
+    assert snapshot.exists()
+    assert scenario.sheet.batch_update_calls == []
+
+
+def test_a_journal_unreadable_after_a_landed_write_is_typed_and_landed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    real = adjustments.read_journal
+    before = scenario.capture()[0].assumptions.sha256
+
+    def unreadable_once_written(capture: SourceCapture) -> AdjustmentJournal:
+        if capture.sha256 != before:
+            raise ValueError(f"{CFO_ID} fictional parse text")
+        return real(capture)
+
+    monkeypatch.setattr(adjustments, "read_journal", unreadable_once_written)
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry])
+    assert caught.value.code == "journal_unreadable_after_write"
+    assert (caught.value.may_have_landed, caught.value.cause) == (True, "ValueError")
+    assert caught.value.__cause__ is None and caught.value.__suppress_context__
+    assert CFO_ID not in str(caught.value)
+    snapshot, after = caught.value.evidence
+    assert snapshot.exists() and after.exists()
+    assert len(scenario.sheet.batch_update_calls) == 1
 
 
 def _failing_reads(sheet: JournalWorksheet, fail_on: int, error: BaseException) -> None:
@@ -1833,6 +2090,7 @@ def test_unreadable_readback_is_a_typed_unverified_result(
         )
 
     assert caught.value.code == "write_unverified"
+    assert caught.value.may_have_landed is True
     expected = READ_CAUSES[read_error] if write_error is None else "APIError 503"
     assert caught.value.cause == expected
     (snapshot,) = caught.value.evidence
@@ -1902,6 +2160,7 @@ def test_pre_write_read_failures_are_typed(tmp_path: Path, read_error: str, fail
         )
 
     assert caught.value.code == "assumptions_unreadable"
+    assert caught.value.may_have_landed is False
     assert caught.value.cause == READ_CAUSES[read_error]
     assert CFO_ID not in str(caught.value) and "fake-spreadsheet-id" not in str(caught.value)
     assert caught.value.__cause__ is None and caught.value.__suppress_context__
@@ -1937,6 +2196,7 @@ def test_snapshot_failure_is_typed_and_writes_nothing(
         (),
     )
     assert scenario.sheet.batch_update_calls == []
+    assert caught.value.may_have_landed is False
 
 
 @pytest.mark.parametrize(
@@ -1954,6 +2214,7 @@ def test_grid_growth_failure_is_typed_and_writes_nothing(
     with pytest.raises(AdjustmentWriteError) as caught:
         scenario.record([entry], client=_single_attempt_client(scenario))
     assert (caught.value.code, caught.value.cause) == ("grid_resize_failed", cause)
+    assert caught.value.may_have_landed is False
     assert len(caught.value.evidence) == 1
     assert sheet.batch_update_calls == []
 
@@ -1972,6 +2233,7 @@ def test_planned_cells_holding_blank_looking_entries_are_refused(
     with pytest.raises(AdjustmentWriteError) as caught:
         scenario.record([entry])
     assert caught.value.code == "planned_cells_occupied"
+    assert caught.value.may_have_landed is False
     assert sheet.batch_update_calls == []
 
 
@@ -1985,6 +2247,7 @@ def test_occupied_planned_cells_are_refused_before_writing(
     with pytest.raises(AdjustmentWriteError) as caught:
         scenario.record([entry])
     assert caught.value.code == "planned_cells_occupied"
+    assert caught.value.may_have_landed is False
     assert scenario.sheet.batch_update_calls == []
 
 
@@ -2021,6 +2284,7 @@ def test_after_evidence_is_never_overwritten(
 
     (snapshot,) = caught.value.evidence
     assert caught.value.code == "write_uncertain_conflict"
+    assert caught.value.may_have_landed is True
     assert (snapshot.parent / "after-readback.json").read_text(encoding="utf-8") == (
         "earlier evidence"
     )
@@ -2060,6 +2324,94 @@ def test_a_forged_lock_is_refused(tmp_path: Path) -> None:
     scenario.harness.assert_no_writes()
 
 
+@pytest.mark.parametrize(
+    "queued",
+    [
+        (503, 403),
+        (500, 401),
+        (429, 404),
+        (503, 400),
+    ],
+    ids=lambda statuses: "_".join(map(str, statuses)),
+)
+def test_a_rejection_after_an_unobserved_attempt_may_have_landed(
+    tmp_path: Path, queued: tuple[int, int]
+) -> None:
+    """The production client (default retries): the writer sees every attempt itself."""
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    scenario.sheet._fail_first["batch_update"] = [make_api_error(status) for status in queued]
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry])
+    assert caught.value.code == "write_failed"
+    assert caught.value.may_have_landed is True
+    assert "MAY still land" in str(caught.value)
+    assert scenario.sheet.batch_update_calls == []
+
+
+def test_a_clean_first_rejection_through_the_production_client_cannot_have_landed(
+    tmp_path: Path,
+) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    scenario.sheet._fail_first["batch_update"] = [make_api_error(403)]
+    with pytest.raises(AdjustmentWriteError) as caught:
+        scenario.record([entry])
+    assert (caught.value.code, caught.value.may_have_landed) == ("write_failed", False)
+    assert "nothing was recorded" in str(caught.value)
+
+
+def test_the_snapshot_is_announced_immediately_before_the_first_write(
+    tmp_path: Path,
+) -> None:
+    sheet = JournalWorksheet([list(row) for row in ASSUMPTIONS_GRID], sheet_id=2002, row_count=5)
+    scenario = Scenario(tmp_path, assumptions=sheet)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    capture_set, rec = scenario.capture()
+    seen: list[tuple[bool, int, int]] = []
+
+    def announced(path: Path) -> None:
+        seen.append((path.exists(), len(sheet.add_rows_calls), len(sheet.batch_update_calls)))
+
+    with acquire_run_lock(scenario.config) as lock:
+        record(
+            [entry],
+            config=scenario.config,
+            client=scenario.harness.own(),
+            captured=capture_set.assumptions,
+            reconciliation=rec,
+            as_of=AS_OF,
+            lock=lock,
+            clock=_clock(),
+            on_snapshot=announced,
+        )
+    # After the snapshot and the grid growth, before the one write request.
+    assert seen == [(True, 1, 0)]
+    assert len(sheet.batch_update_calls) == 1
+
+
+def test_no_snapshot_is_announced_when_the_write_is_refused_before_sending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario = Scenario(tmp_path)
+    entry = _recategorize(scenario.txn(CHECK), "Classroom Supplies", "Field Trips")
+    monkeypatch.setattr(adjustments, "JOURNAL_GAP_ROWS", -2)  # planned cells occupied
+    capture_set, rec = scenario.capture()
+    seen: list[Path] = []
+    with acquire_run_lock(scenario.config) as lock, pytest.raises(AdjustmentWriteError):
+        record(
+            [entry],
+            config=scenario.config,
+            client=scenario.harness.own(),
+            captured=capture_set.assumptions,
+            reconciliation=rec,
+            as_of=AS_OF,
+            lock=lock,
+            on_snapshot=seen.append,
+        )
+    assert seen == []
+
+
 def test_lock_removed_mid_run_refuses_the_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2074,9 +2426,12 @@ def test_lock_removed_mid_run_refuses_the_write(
         return path
 
     monkeypatch.setattr(backup, "snapshot_raw_tab", snapshot_then_remove_lock)
-    with pytest.raises(AdjustmentError) as caught:
+    with pytest.raises(AdjustmentWriteError) as caught:
         scenario.record([entry])
     assert caught.value.code == "lock_not_held"
+    assert caught.value.may_have_landed is False  # nothing was sent
+    (snapshot,) = caught.value.evidence
+    assert snapshot.exists()
     assert scenario.sheet.batch_update_calls == []
 
 
@@ -2275,3 +2630,19 @@ def test_journal_entry_limit_is_inclusive(tmp_path: Path, monkeypatch: pytest.Mo
     with pytest.raises(AdjustmentError) as caught:
         scenario.record([_adjustment("additive", category="Donations", signed_amount=Decimal(3))])
     assert caught.value.code == "journal_full"
+
+
+def test_sheets_failures_and_http_status_have_one_owner() -> None:
+    """Every Sheets failure is caught through sheets.SHEETS_FAILURES and every HTTP status is
+    read through sheets.http_status: no main_reports module keeps its own copy."""
+    assert set(sheets_module.SHEETS_FAILURES) >= {OSError, ValueError, RefreshError}
+    package = Path(adjustments.__file__).resolve().parent
+    status_parse = re.compile(r"status_code|getattr\([^)]*[\"']code[\"']")
+    local_tuple = re.compile(r"_(?:SHEETS|TRANSPORT)_FAILURES")
+    for module in sorted(package.glob("*.py")):
+        text = module.read_text(encoding="utf-8")
+        assert status_parse.search(text) is None, module.name
+        assert local_tuple.search(text) is None, module.name
+    for name in ("adjustments", "runner"):
+        source = (package / f"{name}.py").read_text(encoding="utf-8")
+        assert "SHEETS_FAILURES" in source, name
