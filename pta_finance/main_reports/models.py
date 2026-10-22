@@ -9,7 +9,9 @@ Source capture owns the records defined here: :class:`SourceCapture`, :class:`Ca
 :class:`RowIssue` / :class:`ExcludedRow` diagnostics and :class:`SourceChange`. Reconciliation
 owns :class:`Reconciliation` and its parts (:class:`Discrepancy`, :class:`SourceMatch`,
 :class:`MonthlyCategoryCell`, :class:`PnlControlCheck`, :class:`CrosswalkCell`, ...).
-Adjustments, facts and run manifests add their own records here and consume these unchanged.
+Adjustments own :class:`Adjustment`, :class:`AdjustmentJournal` and :class:`AdjustedLedger`
+(with :class:`AdjustedAllocation`, :class:`AdjustmentDelta`, :class:`AdjustmentIssue`). Facts
+and run manifests add their own records here and consume these unchanged.
 
 Identifiers (contract section 10): ``record_key`` is
 ``v1:<source-alias>:<sha256-of-identity>:<occurrence>``; a revision hash covers every source
@@ -21,6 +23,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import uuid
+from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -37,20 +41,31 @@ __all__ = [
     "ROW_ROLES",
     "STATUS_CLASSES",
     "SOURCE_ALIAS_PATTERN",
+    "HEX_DIGEST_PATTERN",
+    "DISCREPANCY_ID_PREFIX",
     "RECONCILIATION_STATES",
     "MATCH_KINDS",
     "DISCREPANCY_STATES",
     "CELL_CLASSES",
     "CLASSIFICATION_STATUSES",
     "PNL_CONTROL_STATUSES",
+    "ADJUSTMENT_KINDS",
+    "ADJUSTMENT_ID_PATTERN",
+    "ALLOCATION_ORIGINS",
+    "ISSUE_SEVERITIES",
     "is_valid_source_alias",
+    "is_valid_record_key",
     "canonical_json_bytes",
     "sha256_hex",
     "content_hash",
     "make_record_key",
     "make_discrepancy_id",
     "make_match_id",
+    "make_adjustment_id",
+    "is_valid_adjustment_id",
     "money_str",
+    "monthly_cells_from",
+    "month_totals_from",
     "CoverageInterval",
     "FormulaCell",
     "EnteredNumber",
@@ -77,6 +92,13 @@ __all__ = [
     "ProcessorSummary",
     "CoverageFlag",
     "Reconciliation",
+    "Adjustment",
+    "AdjustmentIssue",
+    "JournalEntry",
+    "AdjustmentJournal",
+    "AdjustedAllocation",
+    "AdjustmentDelta",
+    "AdjustedLedger",
 ]
 
 SCHEMA_VERSION = 1
@@ -105,6 +127,9 @@ STATUS_CLASSES: tuple[str, ...] = (
 )
 
 SOURCE_ALIAS_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,39}\Z")
+# A lowercase SHA-256 hex digest (content hashes, revision hashes, aggregate hashes).
+HEX_DIGEST_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+DISCREPANCY_ID_PREFIX = "DISC-"
 
 # How reconciliation treats each normalized row. ``unreconciled`` is the normalization default.
 RECONCILIATION_STATES: tuple[str, ...] = (
@@ -131,6 +156,20 @@ DISCREPANCY_STATES: tuple[str, ...] = ("unresolved", "resolved")
 CELL_CLASSES: tuple[str, ...] = ("income", "expense", "zero")
 CLASSIFICATION_STATUSES: tuple[str, ...] = ("matched", "unmatched", "ambiguous", "no_text")
 PNL_CONTROL_STATUSES: tuple[str, ...] = ("matched", "mismatched", "unverified", "absent")
+
+# Reporting-correction kinds (contract sections 6D and 10). The vocabulary is closed: there is
+# no kind that approves, pays or otherwise changes a reimbursement decision.
+ADJUSTMENT_KINDS: tuple[str, ...] = (
+    "category_override",  # move a bank row's allocation(s) of one category to another
+    "date_override",  # move a bank row's allocations to another posting date
+    "amount_correction",  # replace a bank row's net amount in one category
+    "additive",  # an independently evidenced entry with no source row
+    "reversal",  # withdraw the entry it supersedes
+)
+# ``ADJ-`` + UUID4 hex (version nibble 4, RFC 4122 variant).
+ADJUSTMENT_ID_PATTERN = re.compile(r"ADJ-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\Z")
+ALLOCATION_ORIGINS: tuple[str, ...] = ("source", "additive")
+ISSUE_SEVERITIES: tuple[str, ...] = ("error", "warning")
 
 
 def is_valid_source_alias(alias: str) -> bool:
@@ -183,6 +222,19 @@ def _sorted_pairs(pairs: Iterable[tuple[str, str]]) -> list[list[str]]:
     return sorted([key, revision] for key, revision in pairs)
 
 
+def is_valid_record_key(value: str) -> bool:
+    """True for the exact :func:`make_record_key` shape (any alias, digest and occurrence)."""
+    parts = value.split(":")
+    return (
+        len(parts) == 4
+        and parts[0] == RECORD_KEY_VERSION
+        and is_valid_source_alias(parts[1])
+        and HEX_DIGEST_PATTERN.match(parts[2]) is not None
+        and parts[3].isascii()
+        and parts[3].isdigit()
+    )
+
+
 def make_discrepancy_id(
     kind: str, affected: Iterable[tuple[str, str]], subject: Sequence[str] = ()
 ) -> str:
@@ -191,7 +243,7 @@ def make_discrepancy_id(
     ``subject`` distinguishes control-cell findings that affect no source row (for example a
     published P&L category/month cell); it is empty for row-level findings.
     """
-    return "DISC-" + content_hash(
+    return DISCREPANCY_ID_PREFIX + content_hash(
         {"kind": kind, "affected": _sorted_pairs(affected), "subject": list(subject)}
     )
 
@@ -201,6 +253,16 @@ def make_match_id(kind: str, members: Iterable[tuple[str, str]]) -> str:
     return "MATCH-" + content_hash({"kind": kind, "members": _sorted_pairs(members)})
 
 
+def make_adjustment_id() -> str:
+    """A new ``ADJ-`` + UUID4 hex identifier, created once when a proposal is saved."""
+    return "ADJ-" + uuid.uuid4().hex
+
+
+def is_valid_adjustment_id(value: str) -> bool:
+    """True for ``ADJ-`` + UUID4 hex (see :data:`ADJUSTMENT_ID_PATTERN`)."""
+    return ADJUSTMENT_ID_PATTERN.match(value) is not None
+
+
 def money_str(value: Decimal) -> str:
     """Render exact cents as a decimal string (``Decimal('-3')`` -> ``'-3.00'``)."""
     quantized = value.quantize(CENT)
@@ -208,6 +270,55 @@ def money_str(value: Decimal) -> str:
         raise ValueError("money must be exact cents")
     # Negative zero renders as "0.00": equal amounts always serialize (and hash) identically.
     return format(quantized if quantized else abs(quantized), "f")
+
+
+_ZERO_MONEY = Decimal("0.00")
+
+
+def monthly_cells_from(
+    items: Iterable[tuple[date, str, Decimal, Sequence[SourceRef]]],
+) -> tuple[MonthlyCategoryCell, ...]:
+    """Net signed amounts by category and posting month, as the source P&L formula does.
+
+    Each item is ``(posting_date, category, signed_amount, contributor_refs)``. The ONE rule
+    shared by the source view and the adjusted view: the sign of each monthly category NET
+    decides income or expense; ``inflow`` / ``outflow`` keep the gross activity behind it.
+    Cells are ordered by month then category; contributors keep item order.
+    """
+    groups: dict[tuple[date, str], list[tuple[Decimal, Sequence[SourceRef]]]] = defaultdict(list)
+    for posting, category, amount, refs in items:
+        groups[(posting.replace(day=1), category)].append((amount, refs))
+    cells: list[MonthlyCategoryCell] = []
+    for (month, category), members in sorted(groups.items()):
+        amounts = [amount for amount, _ in members]
+        net = sum(amounts, _ZERO_MONEY)
+        cells.append(
+            MonthlyCategoryCell(
+                category=category,
+                month=month,
+                net=net,
+                inflow=sum((a for a in amounts if a > 0), _ZERO_MONEY),
+                outflow=sum((a for a in amounts if a < 0), _ZERO_MONEY),
+                classification="income" if net > 0 else "expense" if net < 0 else "zero",
+                contributors=tuple(ref for _, refs in members for ref in refs),
+            )
+        )
+    return tuple(cells)
+
+
+def month_totals_from(cells: Iterable[MonthlyCategoryCell]) -> tuple[PnlMonthTotal, ...]:
+    """Month totals: income/expense are the sums of positive/negative category NETS."""
+    by_month: dict[date, list[Decimal]] = defaultdict(list)
+    for cell in cells:
+        by_month[cell.month].append(cell.net)
+    totals: list[PnlMonthTotal] = []
+    for month in sorted(by_month):
+        income = sum((net for net in by_month[month] if net > 0), _ZERO_MONEY)
+        expense = sum((net for net in by_month[month] if net < 0), _ZERO_MONEY)
+        totals.append(
+            PnlMonthTotal(month=month, income=income, expense=expense, net=income + expense)
+        )
+    return tuple(totals)
 
 
 def _utc_iso(value: datetime) -> str:
@@ -1002,4 +1113,249 @@ class Reconciliation:
             "discrepancies": [item.to_dict() for item in self.discrepancies],
             "coverage_flags": [flag.to_dict() for flag in self.coverage_flags],
             "row_warnings": [issue.to_dict() for issue in self.row_warnings],
+        }
+
+
+@dataclass(frozen=True)
+class Adjustment:
+    """One evidence-backed reporting correction (contract sections 6D and 10).
+
+    Exactly one correction representation per kind: ``category_override``,
+    ``date_override`` and ``amount_correction`` use ``prior_value`` -> ``replacement_value``
+    (the prior value is the precondition checked against the targeted source revision);
+    ``additive`` uses ``signed_amount`` in ``category`` with no target; ``reversal`` carries no
+    value and withdraws the entry it ``supersedes``. A later entry replaces or reverses an
+    earlier one only through ``supersedes``; recorded entries are never edited.
+
+    Canonical text: amounts as exact-cent decimal strings, dates ISO. ``recorded_at`` is set
+    by the journal writer (``None`` on an unrecorded proposal) and excluded from
+    :meth:`fingerprint`, so an identical retried proposal is recognized as already recorded.
+    Adjustments change reporting only: they never approve, pay or alter a reimbursement.
+    """
+
+    adjustment_id: str
+    kind: str
+    effective_date: date
+    reason: str
+    evidence: tuple[str, ...]
+    targets: tuple[tuple[str, str], ...] = ()
+    prior_value: str | None = None
+    replacement_value: str | None = None
+    signed_amount: Decimal | None = None
+    category: str | None = None
+    supersedes: str | None = None
+    recorded_at: datetime | None = None
+
+    def payload(self) -> dict[str, Any]:
+        """Every field except ``recorded_at`` (the identity compared on retries)."""
+        return {
+            "adjustment_id": self.adjustment_id,
+            "kind": self.kind,
+            "effective_date": self.effective_date.isoformat(),
+            "targets": [
+                {"record_key": key, "revision_hash": revision} for key, revision in self.targets
+            ],
+            "prior_value": self.prior_value,
+            "replacement_value": self.replacement_value,
+            "signed_amount": _opt_money(self.signed_amount),
+            "category": self.category,
+            "reason": self.reason,
+            "evidence": list(self.evidence),
+            "supersedes": self.supersedes,
+        }
+
+    def fingerprint(self) -> str:
+        return content_hash(self.payload())
+
+    def to_dict(self) -> dict[str, Any]:
+        entry = self.payload()
+        entry["recorded_at"] = None if self.recorded_at is None else _utc_iso(self.recorded_at)
+        return entry
+
+
+@dataclass(frozen=True)
+class AdjustmentIssue:
+    """A journal, proposal or projection finding. Never carries a cell or money value.
+
+    ``row_number`` is the one-based sheet row of a journal entry or the one-based position
+    of a proposal; ``severity`` is in :data:`ISSUE_SEVERITIES` (errors block publication).
+    """
+
+    code: str
+    severity: str
+    adjustment_id: str | None = None
+    row_number: int | None = None
+    field: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "code": self.code,
+            "severity": self.severity,
+            "adjustment_id": self.adjustment_id,
+            "row_number": self.row_number,
+            "field": self.field,
+        }
+
+
+@dataclass(frozen=True)
+class JournalEntry:
+    """A parsed journal row and its one-based sheet row number."""
+
+    adjustment: Adjustment
+    row_number: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"row_number": self.row_number, "adjustment": self.adjustment.to_dict()}
+
+
+@dataclass(frozen=True)
+class AdjustmentJournal:
+    """The adjustments journal as read from one Assumptions capture.
+
+    ``marker_row`` is ``None`` when the section does not exist yet (nothing to apply).
+    ``sha256`` hashes the raw journal region, so any change to a recorded row changes it;
+    ``assumptions_sha256`` names the capture it was read from. ``last_occupied_row`` is the
+    last one-based row holding any value or formula anywhere on the tab (placement anchor).
+    Row-level ``issues`` are errors: an unreadable row blocks adjusted publication.
+    """
+
+    tab_title: str
+    assumptions_sha256: str
+    marker_row: int | None
+    entries: tuple[JournalEntry, ...]
+    issues: tuple[AdjustmentIssue, ...]
+    last_occupied_row: int
+    sha256: str
+    schema_version: int = SCHEMA_VERSION
+
+    @property
+    def adjustments(self) -> tuple[Adjustment, ...]:
+        return tuple(entry.adjustment for entry in self.entries)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "tab_title": self.tab_title,
+            "assumptions_sha256": self.assumptions_sha256,
+            "marker_row": self.marker_row,
+            "entries": [entry.to_dict() for entry in self.entries],
+            "issues": [issue.to_dict() for issue in self.issues],
+            "last_occupied_row": self.last_occupied_row,
+            "sha256": self.sha256,
+        }
+
+
+@dataclass(frozen=True)
+class AdjustedAllocation:
+    """One allocation in the adjusted view, with its source values kept beside it.
+
+    ``origin`` is ``source`` (a bank allocation, possibly corrected) or ``additive`` (created
+    by an additive entry; no source row, zero source amount). ``counted`` is false for the
+    exact transfer category, which the P&L view excludes. ``adjustment_ids`` lists every
+    applied entry that changed this allocation, in application order. Amounts are signed
+    exactly as the bank signs them (inflow positive, outflow negative).
+    """
+
+    origin: str
+    category: str
+    amount: Decimal
+    posting_date: date
+    counted: bool
+    record_key: str | None = None
+    revision_hash: str | None = None
+    ref: SourceRef | None = None
+    source_category: str | None = None
+    source_amount: Decimal = _ZERO_MONEY
+    source_date: date | None = None
+    adjustment_ids: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "origin": self.origin,
+            "category": self.category,
+            "amount": money_str(self.amount),
+            "posting_date": self.posting_date.isoformat(),
+            "counted": self.counted,
+            "record_key": self.record_key,
+            "revision_hash": self.revision_hash,
+            "ref": None if self.ref is None else self.ref.to_dict(),
+            "source_category": self.source_category,
+            "source_amount": money_str(self.source_amount),
+            "source_date": _opt_date(self.source_date),
+            "adjustment_ids": list(self.adjustment_ids),
+        }
+
+
+@dataclass(frozen=True)
+class AdjustmentDelta:
+    """Signed source-to-adjusted change one applied entry makes to one P&L cell.
+
+    For every category/month: source net + the sum of its deltas == adjusted net.
+    """
+
+    adjustment_id: str
+    kind: str
+    category: str
+    month: date
+    amount: Decimal
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "adjustment_id": self.adjustment_id,
+            "kind": self.kind,
+            "category": self.category,
+            "month": self.month.isoformat(),
+            "amount": money_str(self.amount),
+        }
+
+
+@dataclass(frozen=True)
+class AdjustedLedger:
+    """The source reconciliation plus the journal entries applied to a copy of its view.
+
+    ``source`` is never modified: source transactions, allocations, discrepancies and
+    reconciliation states stay exactly as reconciled, and adjustments never resolve a
+    discrepancy. ``applied`` lists entries in effect on ``as_of``; ``pending`` entries take
+    effect later; ``superseded`` entries were replaced or reversed. Any ``conflicts`` (errors)
+    block adjusted publication (:attr:`publishable`).
+    """
+
+    source: Reconciliation
+    as_of: date
+    journal_sha256: str
+    applied: tuple[str, ...]
+    pending: tuple[str, ...]
+    superseded: tuple[str, ...]
+    allocations: tuple[AdjustedAllocation, ...]
+    monthly_cells: tuple[MonthlyCategoryCell, ...]
+    pnl_totals: tuple[PnlMonthTotal, ...]
+    deltas: tuple[AdjustmentDelta, ...]
+    conflicts: tuple[AdjustmentIssue, ...] = ()
+    warnings: tuple[AdjustmentIssue, ...] = ()
+    schema_version: int = SCHEMA_VERSION
+
+    @property
+    def publishable(self) -> bool:
+        return not self.conflicts
+
+    @property
+    def discrepancies(self) -> tuple[Discrepancy, ...]:
+        return self.source.discrepancies
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "as_of": self.as_of.isoformat(),
+            "journal_sha256": self.journal_sha256,
+            "publishable": self.publishable,
+            "applied": list(self.applied),
+            "pending": list(self.pending),
+            "superseded": list(self.superseded),
+            "allocations": [item.to_dict() for item in self.allocations],
+            "monthly_cells": [cell.to_dict() for cell in self.monthly_cells],
+            "pnl_totals": [total.to_dict() for total in self.pnl_totals],
+            "deltas": [delta.to_dict() for delta in self.deltas],
+            "conflicts": [issue.to_dict() for issue in self.conflicts],
+            "warnings": [issue.to_dict() for issue in self.warnings],
+            "source": self.source.to_dict(),
         }

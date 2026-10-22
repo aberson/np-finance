@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 from gspread.exceptions import APIError
+from gspread.utils import a1_to_rowcol
 from requests.models import Response
 
 from pta_finance import report_source
@@ -443,6 +444,114 @@ class CfoSpreadsheet(FakeSpreadsheet):
         return {"sheets": [{"data": [{"rowData": [{"values": row} for row in rows]}]}]}
 
 
+class JournalWorksheet(CfoWorksheet):
+    """Our own writable Assumptions tab: batch writes land in the grid like Sheets.
+
+    ``RAW`` writes keep text as text (a value beginning with ``=`` stays a string, never a
+    formula); ``entered`` overrides model a cell's typed value (e.g. a number behind a
+    formatted display). A write past ``row_count`` / ``col_count`` is rejected with a 400,
+    as Sheets does, until ``add_rows`` / ``add_cols`` grow the grid. ``after_batch_update``
+    runs after a write lands (to simulate a concurrent edit or a lost response).
+    """
+
+    def __init__(
+        self,
+        grid: list[list[str]],
+        *,
+        sheet_id: int,
+        row_count: int = 1000,
+        col_count: int = 26,
+        entered: Mapping[tuple[int, int], object] | None = None,
+    ) -> None:
+        super().__init__(grid, sheet_id=sheet_id)
+        self.row_count = row_count
+        self.col_count = col_count
+        self.entered: dict[tuple[int, int], object] = dict(entered or {})
+        self.raw_text: set[tuple[int, int]] = set()
+        self.add_rows_calls: list[int] = []
+        self.add_cols_calls: list[int] = []
+        self.after_batch_update: Callable[[JournalWorksheet], None] | None = None
+
+    def set_cell(self, row: int, column: int, value: str, *, raw: bool = False) -> None:
+        """Set a zero-based cell's displayed value (``raw`` keeps formula-like text as text)."""
+        while len(self.grid) <= row:
+            self.grid.append([])
+        line = self.grid[row]
+        while len(line) <= column:
+            line.append("")
+        line[column] = value
+        self.entered.pop((row, column), None)
+        if raw:
+            self.raw_text.add((row, column))
+        else:
+            self.raw_text.discard((row, column))
+
+    def batch_update(
+        self, data: Iterable[Mapping[str, Any]], value_input_option: str | None = None
+    ) -> dict[str, Any]:
+        self._maybe_fail("batch_update")
+        requests = [dict(req) for req in data]
+        for request in requests:
+            row, column = a1_to_rowcol(str(request["range"]).split(":", 1)[0])
+            values = request["values"]
+            width = max((len(line) for line in values), default=0)
+            if row - 1 + len(values) > self.row_count or column - 1 + width > self.col_count:
+                raise make_api_error(
+                    400, message="Range exceeds grid limits", api_status="INVALID_ARGUMENT"
+                )
+        self.batch_update_calls.append(requests)
+        self.batch_update_vios.append(value_input_option)
+        for request in requests:
+            row, column = a1_to_rowcol(str(request["range"]).split(":", 1)[0])
+            for row_offset, line in enumerate(request["values"]):
+                for column_offset, value in enumerate(line):
+                    self.set_cell(
+                        row - 1 + row_offset,
+                        column - 1 + column_offset,
+                        str(value),
+                        raw=value_input_option == "RAW",
+                    )
+        if self.after_batch_update is not None:
+            self.after_batch_update(self)
+        return {"replies": [{} for _ in requests]}
+
+    def add_rows(self, rows: int) -> None:
+        self._maybe_fail("add_rows")
+        self.add_rows_calls.append(rows)
+        self.row_count += rows
+
+    def add_cols(self, cols: int) -> None:
+        self._maybe_fail("add_cols")
+        self.add_cols_calls.append(cols)
+        self.col_count += cols
+
+    def tagged_grid(self) -> list[list[dict[str, object]]]:
+        rows = tagged_user_entered_grid(self.grid)
+        for (row, column), value in self.entered.items():
+            while len(rows) <= row:
+                rows.append([])
+            while len(rows[row]) <= column:
+                rows[row].append({"userEnteredValue": None})
+            rows[row][column] = tagged_user_entered_grid([[value]])[0][0]
+        for row, column in self.raw_text:
+            text = self.grid[row][column]
+            rows[row][column] = {"userEnteredValue": {"stringValue": text} if text else None}
+        return rows
+
+
+class JournalSpreadsheet(CfoSpreadsheet):
+    """Our own workbook: a :class:`JournalWorksheet` reports its tagged entered values."""
+
+    def fetch_sheet_metadata(self, params: Mapping[str, Any]) -> dict[str, Any]:
+        title = str(params["ranges"]).split("!", 1)[0].strip("'")
+        ws = self.worksheet(title)
+        if not isinstance(ws, JournalWorksheet):
+            return super().fetch_sheet_metadata(params)
+        self.metadata_params.append(dict(params))
+        rows = ws.tagged_grid()
+        return {"sheets": [{"data": [{"rowData": [{"values": row} for row in rows]}]}]}
+
+
 class TimeoutClient(FakeClient):
     def __init__(self, spreadsheet: FakeSpreadsheet) -> None:
         super().__init__(spreadsheet)
@@ -452,10 +561,10 @@ class TimeoutClient(FakeClient):
         self.timeouts.append(timeout)
 
 
-def _own_worksheets() -> dict[str, CfoWorksheet]:
+def _own_worksheets(assumptions: JournalWorksheet | None = None) -> dict[str, CfoWorksheet]:
     return {
         report_source.BUDGET_TIMESERIES_TAB: CfoWorksheet(BUDGET_GRID, sheet_id=2001),
-        "Assumptions": CfoWorksheet(ASSUMPTIONS_GRID, sheet_id=2002),
+        "Assumptions": assumptions or JournalWorksheet(ASSUMPTIONS_GRID, sheet_id=2002),
     }
 
 
@@ -523,18 +632,22 @@ def _clock() -> Callable[[], datetime]:
 class CfoHarness:
     """A loaded config plus fake CFO and own workbooks; :meth:`capture` runs the production
     read-only capture against them and :meth:`assert_no_writes` proves nothing was written.
+    Our own Assumptions tab is a writable :class:`JournalWorksheet` (``assumptions``).
     """
 
     def __init__(
         self,
         config: Config,
         cfo: Mapping[str, CfoWorksheet],
+        *,
+        assumptions: JournalWorksheet | None = None,
+        own_extra: Mapping[str, CfoWorksheet] | None = None,
     ) -> None:
         self.config = config
         self.cfo_sheets = dict(cfo)
-        self.own_sheets = _own_worksheets()
+        self.own_sheets = {**_own_worksheets(assumptions), **(own_extra or {})}
         self.cfo_spreadsheet = CfoSpreadsheet(self.cfo_sheets)
-        self.own_spreadsheet = CfoSpreadsheet(self.own_sheets)
+        self.own_spreadsheet = JournalSpreadsheet(self.own_sheets)
         self.cfo_client = TimeoutClient(self.cfo_spreadsheet)
         self.own_client = FakeClient(self.own_spreadsheet)
 
@@ -554,11 +667,29 @@ class CfoHarness:
             clock=clock or _clock(),
         )
 
-    def assert_no_writes(self) -> None:
-        for ws in [*self.cfo_sheets.values(), *self.own_sheets.values()]:
+    @property
+    def assumptions(self) -> JournalWorksheet:
+        sheet = self.own_sheets["Assumptions"]
+        assert isinstance(sheet, JournalWorksheet)
+        return sheet
+
+    def assert_no_cfo_writes(self) -> None:
+        """No write of any kind reached the CFO workbook, and only it was opened by key."""
+        for ws in self.cfo_sheets.values():
             assert ws.batch_update_calls == []
             assert ws.append_rows_calls == []
             assert ws.update_calls == []
             assert ws.delete_rows_calls == []
         assert self.cfo_spreadsheet.add_worksheet_calls == []
+        assert set(self.cfo_client.opened_keys) <= {CFO_ID}
+
+    def assert_no_writes(self) -> None:
+        self.assert_no_cfo_writes()
+        for ws in self.own_sheets.values():
+            assert ws.batch_update_calls == []
+            assert ws.append_rows_calls == []
+            assert ws.update_calls == []
+            assert ws.delete_rows_calls == []
+        assert self.assumptions.add_rows_calls == []
+        assert self.assumptions.add_cols_calls == []
         assert self.own_spreadsheet.add_worksheet_calls == []

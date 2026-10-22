@@ -7,9 +7,11 @@ parallel helper) and asserts (a) a single row-targeted ``batch_update`` and (b) 
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from gspread.exceptions import APIError
-from gspread.utils import ValueInputOption
+from gspread.utils import ValueInputOption, rowcol_to_a1
 
 from pta_finance import schema
 from pta_finance.config import Config
@@ -18,6 +20,7 @@ from tests.conftest import (
     FakeClient,
     FakeSpreadsheet,
     FakeWorksheet,
+    JournalWorksheet,
     RecordingSleep,
     make_api_error,
 )
@@ -511,3 +514,95 @@ def test_append_raw_rows_noop_when_empty(fake_config: Config) -> None:
     client = _client(fake_config, ws)
     client.append_raw_rows(_TXN, [])
     assert ws.append_rows_calls == []
+
+
+def test_spreadsheet_id_names_the_opened_workbook(fake_config: Config) -> None:
+    assert SheetsClient(fake_config).spreadsheet_id == "fake-spreadsheet-id"
+    other = SheetsClient(fake_config, spreadsheet_id="fake-other-id")
+    assert other.spreadsheet_id == "fake-other-id"
+
+
+def test_write_raw_ranges_is_one_raw_batch_of_exact_ranges(fake_config: Config) -> None:
+    """RAW keeps formula-like text as text and never coerces dates or amounts."""
+    ws = JournalWorksheet([["a"]], sheet_id=1)
+    client = _client(fake_config, ws)
+
+    client.write_raw_ranges(_TXN, {"A5": [["=SUM(A1)"]], "A6:B6": [["2030-01-15", "-3.00"]]})
+
+    assert ws.batch_update_vios == [ValueInputOption.raw]
+    (requests,) = ws.batch_update_calls
+    assert requests == [
+        {"range": "A5", "values": [["=SUM(A1)"]]},
+        {"range": "A6:B6", "values": [["2030-01-15", "-3.00"]]},
+    ]
+    assert ws.tagged_grid()[4][0] == {"userEnteredValue": {"stringValue": "=SUM(A1)"}}
+
+
+def test_write_raw_ranges_noop_when_empty(fake_config: Config) -> None:
+    ws = FakeWorksheet([["a"]])
+    client = _client(fake_config, ws)
+    client.write_raw_ranges(_TXN, {})
+    assert ws.batch_update_calls == []
+
+
+def test_ensure_grid_size_only_appends_what_is_missing(fake_config: Config) -> None:
+    ws = JournalWorksheet([["a"]], sheet_id=1, row_count=10, col_count=5)
+    client = _client(fake_config, ws)
+
+    assert client.ensure_grid_size(_TXN, 8, 5) == (0, 0)
+    assert ws.add_rows_calls == [] and ws.add_cols_calls == []
+    assert client.ensure_grid_size(_TXN, 14, 12) == (4, 7)
+    assert ws.add_rows_calls == [4] and ws.add_cols_calls == [7]
+    assert (ws.row_count, ws.col_count) == (14, 12)
+    assert ws.grid == [["a"]]
+
+
+class _PrefixingWorksheet(FakeWorksheet):
+    """Mutates each request's range in place, as gspread's batch_update does, then 429s once."""
+
+    def __init__(self) -> None:
+        super().__init__([["a"]], title="Tab")
+        self.seen: list[list[str]] = []
+        self.failures = 1
+
+    def batch_update(self, data: Any, value_input_option: str | None = None) -> dict[str, Any]:
+        self.seen.append([request["range"] for request in data])
+        for request in data:
+            request["range"] = f"'Tab'!{request['range']}"
+        if self.failures:
+            self.failures -= 1
+            raise make_api_error(429)
+        return super().batch_update(data, value_input_option)
+
+
+@pytest.mark.parametrize(
+    "method", ["write_raw_ranges", "update_cells", "upsert_rows", "update_rows_by_index"]
+)
+def test_retried_batch_writes_resend_the_original_ranges(fake_config: Config, method: str) -> None:
+    ws = _PrefixingWorksheet()
+    client = _client(fake_config, ws, sleep=RecordingSleep())
+
+    if method == "write_raw_ranges":
+        client.write_raw_ranges(_TXN, {"A5": [["x"]]})
+        expected = "A5"
+    elif method == "update_cells":
+        client.update_cells(_TXN, {"E7": "1"})
+        expected = "E7"
+    elif method == "upsert_rows":
+        client.upsert_rows(_TXN, {"TXN-1": _row_for("TXN-1")})
+        expected = f"A2:{rowcol_to_a1(2, len(_COLS))}"
+    else:
+        client.update_rows_by_index(_TXN, {2: _row_for("TXN-1")})
+        expected = f"A2:{rowcol_to_a1(2, len(_COLS))}"
+
+    assert ws.seen == [[expected], [expected]]
+
+
+def test_ensure_grid_size_never_shrinks_a_wider_or_taller_tab(fake_config: Config) -> None:
+    """The common case: a default 26-column tab and a 12-column journal."""
+    ws = JournalWorksheet([["a"]], sheet_id=1, row_count=1000, col_count=26)
+    client = _client(fake_config, ws)
+
+    assert client.ensure_grid_size(_TXN, 20, 12) == (0, 0)
+    assert ws.add_rows_calls == [] and ws.add_cols_calls == []
+    assert (ws.row_count, ws.col_count) == (1000, 26)

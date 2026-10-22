@@ -23,6 +23,7 @@ Design for testability + corruption-safety:
 
 from __future__ import annotations
 
+import copy
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -218,6 +219,11 @@ class SheetsClient:
         self._max_retries = max_retries
         self._base_delay = base_delay
         self._jitter = jitter
+
+    @property
+    def spreadsheet_id(self) -> str:
+        """The spreadsheet this client opens (used to refuse writes to the wrong workbook)."""
+        return self._spreadsheet_id
 
     # --- connection (lazy) -------------------------------------------------
 
@@ -446,7 +452,7 @@ class SheetsClient:
             requests.append({"range": a1, "values": [values]})
 
         # Single atomic batch — all ranges land together or not at all.
-        self._with_retry(lambda: ws.batch_update(requests))
+        self._with_retry(lambda: ws.batch_update(copy.deepcopy(requests)))
 
     def update_cells(self, tab: str, cell_values: Mapping[str, str]) -> None:
         """Atomically overwrite specific A1 cells in ``tab`` (schema-INDEPENDENT).
@@ -467,7 +473,9 @@ class SheetsClient:
         ws = self.worksheet(tab)
         requests = [{"range": a1, "values": [[value]]} for a1, value in cell_values.items()]
         self._with_retry(
-            lambda: ws.batch_update(requests, value_input_option=ValueInputOption.user_entered)
+            lambda: ws.batch_update(
+                copy.deepcopy(requests), value_input_option=ValueInputOption.user_entered
+            )
         )
 
     def append_raw_rows(self, tab: str, rows: Sequence[Sequence[str]]) -> None:
@@ -488,6 +496,41 @@ class SheetsClient:
         self._with_retry(
             lambda: ws.append_rows(values, value_input_option=ValueInputOption.user_entered)
         )
+
+    def write_raw_ranges(self, tab: str, ranges: Mapping[str, Sequence[Sequence[str]]]) -> None:
+        """Write exact A1 ranges in ONE ``batch_update`` with ``RAW`` value input.
+
+        ``RAW`` stores every value as the literal text given: a value beginning with ``=`` stays
+        text (never a formula) and dates/amounts are never coerced. Only the named ranges are
+        touched (never a clear or a full-tab write). One request; a no-op when empty.
+        """
+        if not ranges:
+            return
+        ws = self.worksheet(tab)
+        requests = [
+            {"range": a1, "values": [list(row) for row in rows]} for a1, rows in ranges.items()
+        ]
+        self._with_retry(
+            lambda: ws.batch_update(
+                copy.deepcopy(requests), value_input_option=ValueInputOption.raw
+            )
+        )
+
+    def ensure_grid_size(self, tab: str, rows: int, cols: int) -> tuple[int, int]:
+        """Grow ``tab``'s grid to at least ``rows`` x ``cols`` by appending empty rows/columns.
+
+        A write beyond the grid is rejected by Sheets, so callers that append below existing
+        content probe capacity first. Only empty rows/columns are added at the end; nothing is
+        removed or overwritten. Returns ``(rows_added, cols_added)``.
+        """
+        ws = self.worksheet(tab)
+        add_rows = max(0, rows - int(ws.row_count))
+        add_cols = max(0, cols - int(ws.col_count))
+        if add_rows:
+            self._with_retry(lambda: ws.add_rows(add_rows))
+        if add_cols:
+            self._with_retry(lambda: ws.add_cols(add_cols))
+        return add_rows, add_cols
 
     def _update_range(
         self,
@@ -570,7 +613,7 @@ class SheetsClient:
                 raise ValueError(f"refusing to write header/invalid sheet row {sheet_row}")
             values = [row.get(col, "") for col in columns]
             requests.append({"range": self._a1_range(sheet_row, ncols), "values": [values]})
-        self._with_retry(lambda: ws.batch_update(requests))
+        self._with_retry(lambda: ws.batch_update(copy.deepcopy(requests)))
 
     def delete_rows_by_id(self, tab: str, ids: Sequence[str]) -> None:
         """Delete the rows whose ``id`` is in ``ids`` (row-targeted, never a full clear).

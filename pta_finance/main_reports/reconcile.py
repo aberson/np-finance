@@ -57,6 +57,8 @@ from pta_finance.main_reports.models import (
     SourceMatch,
     SourceRef,
     Transaction,
+    month_totals_from,
+    monthly_cells_from,
 )
 from pta_finance.main_reports.sources import (
     SourceValidationError,
@@ -480,41 +482,12 @@ def _bank_view(
 def _monthly_cells(
     allocations: Sequence[Allocation], by_key: Mapping[str, Transaction]
 ) -> tuple[MonthlyCategoryCell, ...]:
-    groups: dict[tuple[date, str], list[Allocation]] = defaultdict(list)
+    items: list[tuple[date, str, Decimal, tuple[SourceRef, ...]]] = []
     for allocation in allocations:
-        posting = by_key[allocation.record_key].posting_date
-        assert posting is not None  # validated
-        groups[(posting.replace(day=1), allocation.category)].append(allocation)
-    cells: list[MonthlyCategoryCell] = []
-    for (month, category), items in sorted(groups.items()):
-        amounts = [item.amount for item in items]
-        net = sum(amounts, _ZERO)
-        cells.append(
-            MonthlyCategoryCell(
-                category=category,
-                month=month,
-                net=net,
-                inflow=sum((a for a in amounts if a > 0), _ZERO),
-                outflow=sum((a for a in amounts if a < 0), _ZERO),
-                classification="income" if net > 0 else "expense" if net < 0 else "zero",
-                contributors=tuple(by_key[item.record_key].refs[0] for item in items),
-            )
-        )
-    return tuple(cells)
-
-
-def _month_totals(cells: Sequence[MonthlyCategoryCell]) -> tuple[PnlMonthTotal, ...]:
-    by_month: dict[date, list[Decimal]] = defaultdict(list)
-    for cell in cells:
-        by_month[cell.month].append(cell.net)
-    totals: list[PnlMonthTotal] = []
-    for month in sorted(by_month):
-        income = sum((net for net in by_month[month] if net > 0), _ZERO)
-        expense = sum((net for net in by_month[month] if net < 0), _ZERO)
-        totals.append(
-            PnlMonthTotal(month=month, income=income, expense=expense, net=income + expense)
-        )
-    return tuple(totals)
+        txn = by_key[allocation.record_key]
+        assert txn.posting_date is not None  # validated
+        items.append((txn.posting_date, allocation.category, allocation.amount, (txn.refs[0],)))
+    return monthly_cells_from(items)
 
 
 # --------------------------------------------------------------------------------------
@@ -1265,7 +1238,7 @@ def build(transactions: Sequence[Transaction], controls: ReconciliationControls)
 
     allocations, transfers = _bank_view(bank, findings, states)
     cells = _monthly_cells(allocations, by_key)
-    totals = _month_totals(cells)
+    totals = month_totals_from(cells)
     pnl = _pnl_check(controls.pnl, cells, totals, findings)
 
     processor_pass = _ProcessorPass(transactions, bank, findings, states)

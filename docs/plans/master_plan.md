@@ -1308,7 +1308,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 59: Apply recorded reporting adjustments
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-21)
 - **Type:** code
 - **Problem:** Persist evidence-backed reporting corrections in the bounded Assumptions journal and immediately project them without changing source transactions or reimbursement decisions.
 - **Issue:** #98

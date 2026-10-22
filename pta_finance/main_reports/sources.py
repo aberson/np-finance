@@ -51,6 +51,7 @@ from pta_finance.config import ColumnBinding, Config, MainReports, SourceBinding
 from pta_finance.main_reports.models import (
     CENT,
     CONTROL_KINDS,
+    HEX_DIGEST_PATTERN,
     SOURCE_KINDS,
     TRANSACTION_KINDS,
     AdoptedBudget,
@@ -90,6 +91,7 @@ __all__ = [
     "connect_source_client",
     "connect_own_read_client",
     "capture",
+    "capture_assumptions",
     "normalize",
     "normalize_with_report",
     "is_dash_placeholder",
@@ -979,7 +981,13 @@ def _capture_tab(
     )
 
 
-def _capture_assumptions(workbook: ReadOnlyWorkbook, tab: str, clock: Clock) -> SourceCapture:
+def capture_assumptions(workbook: ReadOnlyWorkbook, tab: str, clock: Clock) -> SourceCapture:
+    """Capture our Assumptions tab (values, formulas, entered numbers) with its content hash.
+
+    The one capture rule for that tab: :func:`capture` uses it inside a capture set and the
+    adjustments journal writer uses it for its fresh pre-write and readback reads, so both
+    hashes are directly comparable. Reads only.
+    """
     tab_id = workbook.tab_id(tab)
     captured_at = clock()
     values = _rectangular(workbook.read_values(tab))
@@ -1104,8 +1112,9 @@ def connect_own_read_client(
 ) -> SheetsClient:
     """Our own workbook, opened read-only: capture only READS the budget and Assumptions.
 
-    The write-scoped default client stays reserved for the adjustments journal (a later
-    step). Tests inject ``gspread_client``.
+    The write-scoped client stays reserved for the adjustments journal
+    (:func:`pta_finance.main_reports.adjustments.connect_journal_client`). Tests inject
+    ``gspread_client``.
     """
     if gspread_client is None:
         gspread_client = gspread.service_account(
@@ -1143,7 +1152,7 @@ def capture(
                 key=lambda c: c.alias,
             )
         )
-        assumptions = _capture_assumptions(own, main_reports.assumptions_tab, now)
+        assumptions = capture_assumptions(own, main_reports.assumptions_tab, now)
         budget = _capture_budget(own_sheets, now)
         changed = _changed_aliases(source, own, own_sheets, captures, assumptions, budget)
         if not changed:
@@ -1860,9 +1869,6 @@ def _atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
-_HEX_DIGEST = re.compile(r"[0-9a-f]{64}")
-
-
 def _stored_capture_hash(entry: Mapping[str, Any]) -> str:
     columns = entry["columns"]
     return _capture_hash(
@@ -1925,7 +1931,7 @@ def store_capture_set(capture_set: CaptureSet, root: Path) -> StoredCapture:
     never overwritten. The digest must be a 64-character lowercase hex string (path-safe).
     """
     digest = capture_set.aggregate_sha256
-    if _HEX_DIGEST.fullmatch(digest) is None:
+    if HEX_DIGEST_PATTERN.match(digest) is None:
         raise SourceCaptureError("invalid_digest", "aggregate hash is not a sha256 hex digest")
     directory = Path(root) / "captures"
     directory.mkdir(parents=True, exist_ok=True)
