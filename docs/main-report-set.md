@@ -55,6 +55,19 @@ fails prints a code (or, for an unexpected error, only its type name) and exits 
 exits `130`. Neither writes a failure record. Reading the
 service-account key file is its only local access beyond the inputs it checks.
 
+### Confirm on the first live run
+
+The adapters were built and tested against fictional workbooks. On the first real dry run,
+check these assumptions; each one fails visibly (an unverified control, a discrepancy, or a
+row issue) rather than producing a silent wrong total:
+
+- The published P&L tab has a month header row with categories in the first column, and
+  months with no activity show either `0` or a dash over an entered zero.
+- Posted bank rows use the status `Posted`; other statuses are reported as not posted.
+- Processor fees are signed the same way in the WIX and PayPal tabs (negative amounts).
+- The WIX and PayPal header labels match the defaults; if not, map them with `columns`
+  overrides in your private `[main_reports]` config.
+
 ## Run and publish
 
 ```powershell

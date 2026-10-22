@@ -11,7 +11,8 @@
 
 A command-line Python toolkit for budgets, financial reports, and reimbursement review.
 **Google Sheets holds the budget data**; a private local email archive and review bundle hold
-reimbursement evidence. It generates HTML reports, including a browser-readable review queue.
+reimbursement evidence. It generates HTML reports, including a browser-readable review queue and
+a five-report private Main Report Set built from a read-only CFO workbook (`end-to-end-run`).
 An optional, separate web proof offers a fixed six-request fictional queue with shared comments and
 an administrative reviewer-to-processor handoff, while retaining its single-request modes. Real Cloud Run comments acceptance (M6)
 has passed; hosted handoff acceptance (M7) has also passed. There is no LLM dependency or Apps Script; scheduled
@@ -29,6 +30,8 @@ financial reports use GitHub Actions.
 | Charts | `matplotlib` (Agg backend) |
 | Templating | `Jinja2`; optional `[pdf]` → `WeasyPrint` |
 | Native statement parsing (foundation) | optional `[slides]` → `pypdfium2`, Windows LPAC worker |
+| Receipt preparation (optional) | `[receipts]` → `pillow` |
+| Main Report Set export (optional) | `[reports]` → `playwright` Chromium (offline PDF/PNG of the four summaries) |
 | CLI / config | stdlib `argparse` / `tomllib` |
 | Web proof (optional) | `[web]` → `fastapi` + `uvicorn` + `google-cloud-firestore` + `cryptography` |
 | Scheduler | GitHub Actions cron (`0 9 1 * *`) + `workflow_dispatch` |
@@ -37,7 +40,9 @@ financial reports use GitHub Actions.
 ## 3. Key commands
 
 ```bash
-uv sync --extra dev --extra web     # add [slides] for native-parser tests, [pdf] for WeasyPrint
+uv sync --extra dev --extra web     # add [slides] for native-parser tests, [receipts]/[reports] for
+                                    # receipt prep + end-to-end-run export, [pdf] for WeasyPrint;
+                                    # uv sync removes extras you omit
 uv run playwright install chromium  # required to execute browser tests locally
 uv run pytest -q                    # test — with [web] installed this ALSO needs a loopback
                                     # Firestore emulator on FIRESTORE_EMULATOR_HOST, or 6 modules
@@ -226,9 +231,13 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
 
 ## 6. Current state
 
-**Phase CFO Step 62 (#101) adds `end-to-end-run`** (runner, CLI, guide, bounded CLI smoke with
-fake workbooks and real renderers/publication). Step 63 — the live regeneration against the real
-CFO workbook — has not run; no live Main Report Set exists yet.
+**Phase CFO Steps 57–62 (#96–#101) are DONE (2026-10-22)**: read-only CFO source import,
+processor-to-bank reconciliation, the append-only Assumptions adjustments journal, school-year/P&L
+facts, the five-report render/export, and `end-to-end-run` (runner, CLI, guide, bounded smoke with
+fake workbooks and real renderers/publication). Final gate: 2,176 passed, 3 environment skips,
+across every module except the six emulator modules. **Step 63 (#102) is next**: the live
+regeneration against the real CFO workbook has not run, and no live Main Report Set exists yet;
+the guide's "Confirm on the first live run" lists the fixture-only assumptions to check.
 
 **Phase 10 action queue is paused during Step 51 (#87).** The standalone archive scanner and
 fictional tests are unfinished in a preserved worktree, not merged to main. Focused and static
@@ -336,10 +345,16 @@ setup + M2 real-sheet smoke are DONE). **Next = operator-gated observation:** M3
 ## 7. Environment requirements
 
 - Windows 11 + Python `>=3.12`; `uv` on PATH. No `pip` (uv-managed).
-- **Playwright is a `[dev]` dependency, not screenshot-only.** Three test modules import it. Run
-  `uv run playwright install chromium` to execute browser tests locally; the receipt-viewer
-  browser test skips when the executable is absent. The shared-workflow browser tests and smoke
-  require the binary and fail without it.
+- **Playwright is a `[dev]` dependency, not screenshot-only.** Four test modules (plus
+  `tests/conftest.py`) import it. Run `uv run playwright install chromium` to execute browser tests
+  locally; the receipt-viewer and `test_chromium_*` Main Report Set tests skip when the executable
+  is absent (CI asserts exactly which). The shared-workflow browser tests and smoke require the
+  binary and fail without it.
+- **For a non-dry `end-to-end-run`:** `uv sync --extra dev --extra receipts --extra reports` plus
+  `uv run playwright install chromium` (PDF/PNG export runs offline in headless Chromium,
+  sandboxed on Windows); the CFO workbook shared **read-only** with the service account; an
+  optional private `[main_reports]` block in `config.toml` (see config.example.toml and
+  docs/main-report-set.md).
   The README capture helper additionally pins Playwright 1.58.0 ephemerally, and exporting the
   example slide requires desktop PowerPoint on Windows.
 - **For the full local suite with `[web]`:** a loopback Firestore emulator reachable via
