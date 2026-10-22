@@ -6,8 +6,10 @@ UTF-8 (see :func:`canonical_json_bytes`). Floats are never used for arithmetic.
 
 Source capture owns the records defined here: :class:`SourceCapture`, :class:`CaptureSet`,
 :class:`SourceRef`, :class:`Transaction`, :class:`Allocation`, plus the row-level
-:class:`RowIssue` / :class:`ExcludedRow` diagnostics and :class:`SourceChange`. Reconciliation,
-adjustments, facts and run manifests add their own records here and consume these unchanged.
+:class:`RowIssue` / :class:`ExcludedRow` diagnostics and :class:`SourceChange`. Reconciliation
+owns :class:`Reconciliation` and its parts (:class:`Discrepancy`, :class:`SourceMatch`,
+:class:`MonthlyCategoryCell`, :class:`PnlControlCheck`, :class:`CrosswalkCell`, ...).
+Adjustments, facts and run manifests add their own records here and consume these unchanged.
 
 Identifiers (contract section 10): ``record_key`` is
 ``v1:<source-alias>:<sha256-of-identity>:<occurrence>``; a revision hash covers every source
@@ -19,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -35,11 +37,19 @@ __all__ = [
     "ROW_ROLES",
     "STATUS_CLASSES",
     "SOURCE_ALIAS_PATTERN",
+    "RECONCILIATION_STATES",
+    "MATCH_KINDS",
+    "DISCREPANCY_STATES",
+    "CELL_CLASSES",
+    "CLASSIFICATION_STATUSES",
+    "PNL_CONTROL_STATUSES",
     "is_valid_source_alias",
     "canonical_json_bytes",
     "sha256_hex",
     "content_hash",
     "make_record_key",
+    "make_discrepancy_id",
+    "make_match_id",
     "money_str",
     "CoverageInterval",
     "FormulaCell",
@@ -57,6 +67,16 @@ __all__ = [
     "NormalizationResult",
     "SourceChange",
     "CoverageStatus",
+    "Discrepancy",
+    "SourceMatch",
+    "MonthlyCategoryCell",
+    "PnlMonthTotal",
+    "PnlControlCheck",
+    "CrosswalkCell",
+    "ProcessorClassification",
+    "ProcessorSummary",
+    "CoverageFlag",
+    "Reconciliation",
 ]
 
 SCHEMA_VERSION = 1
@@ -85,6 +105,32 @@ STATUS_CLASSES: tuple[str, ...] = (
 )
 
 SOURCE_ALIAS_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,39}\Z")
+
+# How reconciliation treats each normalized row. ``unreconciled`` is the normalization default.
+RECONCILIATION_STATES: tuple[str, ...] = (
+    "unreconciled",
+    "source_view",  # bank row contributing to the CFO source P&L
+    "transfer_excluded",  # bank row allocated wholly to the exact transfer category
+    "processor_primary",  # processor movement counted once in the processor view
+    "overlap_secondary",  # the other feed's representation of a matched cross-feed overlap
+    "detail_enrichment",  # PayPal item detail: allocation evidence, never a balance movement
+    "processor_fee",
+    "processor_refund",
+    "processor_transfer",
+    "non_movement",  # declined / authorized / pending: no money moved
+    "conflict",  # unresolved identity or status conflict: excluded from every total
+)
+MATCH_KINDS: tuple[str, ...] = (
+    "processor_overlap",
+    "processor_detail",
+    "processor_fee",
+    "processor_refund",
+    "bank_settlement",
+)
+DISCREPANCY_STATES: tuple[str, ...] = ("unresolved", "resolved")
+CELL_CLASSES: tuple[str, ...] = ("income", "expense", "zero")
+CLASSIFICATION_STATUSES: tuple[str, ...] = ("matched", "unmatched", "ambiguous", "no_text")
+PNL_CONTROL_STATUSES: tuple[str, ...] = ("matched", "mismatched", "unverified", "absent")
 
 
 def is_valid_source_alias(alias: str) -> bool:
@@ -131,6 +177,28 @@ def make_record_key(alias: str, identity: Sequence[str], occurrence: int) -> str
     if occurrence < 0:
         raise ValueError("occurrence must be non-negative")
     return f"{RECORD_KEY_VERSION}:{alias}:{content_hash(list(identity))}:{occurrence}"
+
+
+def _sorted_pairs(pairs: Iterable[tuple[str, str]]) -> list[list[str]]:
+    return sorted([key, revision] for key, revision in pairs)
+
+
+def make_discrepancy_id(
+    kind: str, affected: Iterable[tuple[str, str]], subject: Sequence[str] = ()
+) -> str:
+    """``DISC-`` + SHA-256 of the kind, sorted affected (key, revision) pairs and subject.
+
+    ``subject`` distinguishes control-cell findings that affect no source row (for example a
+    published P&L category/month cell); it is empty for row-level findings.
+    """
+    return "DISC-" + content_hash(
+        {"kind": kind, "affected": _sorted_pairs(affected), "subject": list(subject)}
+    )
+
+
+def make_match_id(kind: str, members: Iterable[tuple[str, str]]) -> str:
+    """``MATCH-`` + SHA-256 of the match kind and its sorted member (key, revision) pairs."""
+    return "MATCH-" + content_hash({"kind": kind, "members": _sorted_pairs(members)})
 
 
 def money_str(value: Decimal) -> str:
@@ -597,4 +665,341 @@ class CoverageStatus:
             "uncovered": [[a.isoformat(), b.isoformat()] for a, b in self.uncovered],
             "observed_first": _opt_date(self.observed_first),
             "observed_last": _opt_date(self.observed_last),
+        }
+
+
+def _ref_pairs(refs: Iterable[SourceRef]) -> list[tuple[str, str]]:
+    return [(ref.record_key, ref.revision_hash) for ref in refs]
+
+
+@dataclass(frozen=True)
+class Discrepancy:
+    """One visible reconciliation finding (contract section 10).
+
+    ``affected`` names the source rows involved; ``category`` / ``month`` / ``control_cell``
+    (one-based row and column of a published control cell) locate findings that affect no
+    single row. ``amount`` is set only when it is known exactly. ``explanation`` is fixed text
+    per ``kind`` and never carries a cell value. Findings are created ``unresolved``; only a
+    recorded, evidence-backed resolution may change that.
+    """
+
+    discrepancy_id: str
+    kind: str
+    impact: str
+    explanation: str
+    affected: tuple[SourceRef, ...] = ()
+    amount: Decimal | None = None
+    category: str | None = None
+    month: date | None = None
+    control_cell: tuple[int, int] | None = None
+    state: str = "unresolved"
+    resolution_evidence: tuple[str, ...] = ()
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        kind: str,
+        impact: str,
+        explanation: str,
+        affected: Iterable[SourceRef] = (),
+        amount: Decimal | None = None,
+        category: str | None = None,
+        month: date | None = None,
+        control_cell: tuple[int, int] | None = None,
+    ) -> Discrepancy:
+        subject: list[str] = []
+        if category is not None or month is not None or control_cell is not None:
+            subject = [
+                category or "",
+                _opt_date(month) or "",
+                "" if control_cell is None else f"{control_cell[0]}:{control_cell[1]}",
+            ]
+        refs = tuple(sorted(set(affected), key=lambda ref: (ref.record_key, ref.revision_hash)))
+        return cls(
+            discrepancy_id=make_discrepancy_id(kind, _ref_pairs(refs), subject),
+            kind=kind,
+            impact=impact,
+            explanation=explanation,
+            affected=refs,
+            amount=amount,
+            category=category,
+            month=month,
+            control_cell=control_cell,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "discrepancy_id": self.discrepancy_id,
+            "kind": self.kind,
+            "impact": self.impact,
+            "explanation": self.explanation,
+            "affected": [ref.to_dict() for ref in self.affected],
+            "amount": _opt_money(self.amount),
+            "category": self.category,
+            "month": _opt_date(self.month),
+            "control_cell": None if self.control_cell is None else list(self.control_cell),
+            "state": self.state,
+            "resolution_evidence": list(self.resolution_evidence),
+        }
+
+
+@dataclass(frozen=True)
+class SourceMatch:
+    """A matched group of source rows. Every member's raw row is retained, never deleted."""
+
+    match_id: str
+    kind: str
+    rule: str
+    members: tuple[SourceRef, ...]
+
+    @classmethod
+    def create(cls, *, kind: str, rule: str, members: Iterable[SourceRef]) -> SourceMatch:
+        refs = tuple(members)
+        return cls(
+            match_id=make_match_id(kind, _ref_pairs(refs)), kind=kind, rule=rule, members=refs
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "match_id": self.match_id,
+            "kind": self.kind,
+            "rule": self.rule,
+            "members": [ref.to_dict() for ref in self.members],
+        }
+
+
+@dataclass(frozen=True)
+class MonthlyCategoryCell:
+    """One CFO source P&L cell: the net of every bank allocation to a category in a month.
+
+    ``classification`` follows the source P&L: the SIGN OF THE MONTHLY NET decides income or
+    expense. ``inflow`` / ``outflow`` are the explicitly labeled gross activity behind it
+    (positive and negative allocations), which a transaction-sign view would report instead.
+    ``month`` is the first day of the bank DATE month.
+    """
+
+    category: str
+    month: date
+    net: Decimal
+    inflow: Decimal
+    outflow: Decimal
+    classification: str
+    contributors: tuple[SourceRef, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "category": self.category,
+            "month": self.month.isoformat(),
+            "net": money_str(self.net),
+            "inflow": money_str(self.inflow),
+            "outflow": money_str(self.outflow),
+            "classification": self.classification,
+            "allocation_count": len(self.contributors),
+            "contributors": [ref.to_dict() for ref in self.contributors],
+        }
+
+
+@dataclass(frozen=True)
+class PnlMonthTotal:
+    """Source P&L month totals: income/expense are sums of positive/negative category nets."""
+
+    month: date
+    income: Decimal
+    expense: Decimal
+    net: Decimal
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "month": self.month.isoformat(),
+            "income": money_str(self.income),
+            "expense": money_str(self.expense),
+            "net": money_str(self.net),
+        }
+
+
+@dataclass(frozen=True)
+class PnlControlCheck:
+    """Comparison of the reproduced source view with the published P&L control capture.
+
+    ``status`` is ``matched`` only when every compared cell agrees exactly and no control
+    finding exists; ``unverified`` when the published layout could not be read; ``absent``
+    when no control was captured. Details are :class:`Discrepancy` records.
+    """
+
+    status: str
+    source_alias: str | None = None
+    snapshot_sha256: str | None = None
+    months: tuple[date, ...] = ()
+    compared_cells: int = 0
+    matched_cells: int = 0
+    matched_total_rows: int = 0
+    ignored_columns: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "source_alias": self.source_alias,
+            "snapshot_sha256": self.snapshot_sha256,
+            "months": [month.isoformat() for month in self.months],
+            "compared_cells": self.compared_cells,
+            "matched_cells": self.matched_cells,
+            "matched_total_rows": self.matched_total_rows,
+            "ignored_columns": self.ignored_columns,
+        }
+
+
+@dataclass(frozen=True)
+class CrosswalkCell:
+    """One share of a source monthly category cell mapped to a budget category.
+
+    The amounts of every target of one source cell sum exactly to that cell's net.
+    """
+
+    source_category: str
+    month: date
+    target_category: str
+    share: Decimal
+    amount: Decimal
+    crosswalk_version: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_category": self.source_category,
+            "month": self.month.isoformat(),
+            "target_category": self.target_category,
+            "share": str(self.share),
+            "amount": money_str(self.amount),
+            "crosswalk_version": self.crosswalk_version,
+        }
+
+
+@dataclass(frozen=True)
+class ProcessorClassification:
+    """Category Mapping guidance for one processor row (never applied to bank categories)."""
+
+    record_key: str
+    revision_hash: str
+    status: str
+    target_category: str | None = None
+    rule_rows: tuple[int, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "record_key": self.record_key,
+            "revision_hash": self.revision_hash,
+            "status": self.status,
+            "target_category": self.target_category,
+            "rule_rows": list(self.rule_rows),
+        }
+
+
+@dataclass(frozen=True)
+class ProcessorSummary:
+    """Processor enrichment totals for one source alias: each movement counted once.
+
+    ``gross`` sums ``processor_primary`` rows as the source signs them; ``fees`` and
+    ``refunds`` are magnitudes. ``secondary_count`` counts PAYMENTS represented by another
+    feed's row (overlap secondaries); their linked fee/refund rows are not counted.
+    ``consistent`` is false when a processor-view discrepancy touches this alias. Neither
+    total is ever added to the bank-based source view.
+
+    ``untied`` = (NET of every primary or secondary payment, fee and refund row across all
+    captured rows of the alias) + (SIGNED net movement of its transfers reference-matched to
+    bank rows). Sign convention: the processor's own sign, so a payout out of the processor
+    (withdrawal to the bank) is negative and offsets sales, while a deposit into the processor
+    (bank-funded top-up) is positive and adds to what must be accounted for; it never cancels
+    a payout. ``untied`` is ``None`` when it cannot be known exactly (an unresolved row, or a
+    balance row without a net). ``settled`` is true only when ``untied`` is exactly 0.00 AND
+    every transfer is matched: matched transfers then account for all processor money in the
+    capture. An alias with no balance movement and no transfers is trivially settled.
+    """
+
+    source_alias: str
+    gross: Decimal
+    fees: Decimal
+    refunds: Decimal
+    primary_count: int
+    secondary_count: int
+    non_movement_count: int
+    conflict_count: int
+    consistent: bool
+    settled: bool
+    untied: Decimal | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_alias": self.source_alias,
+            "gross": money_str(self.gross),
+            "fees": money_str(self.fees),
+            "refunds": money_str(self.refunds),
+            "primary_count": self.primary_count,
+            "secondary_count": self.secondary_count,
+            "non_movement_count": self.non_movement_count,
+            "conflict_count": self.conflict_count,
+            "consistent": self.consistent,
+            "settled": self.settled,
+            "untied": _opt_money(self.untied),
+        }
+
+
+@dataclass(frozen=True)
+class CoverageFlag:
+    """A coverage or basis limitation that marks affected totals partial or incomplete."""
+
+    code: str
+    source_alias: str | None = None
+    count: int = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"code": self.code, "source_alias": self.source_alias, "count": self.count}
+
+
+@dataclass(frozen=True)
+class Reconciliation:
+    """The CFO-compatible source view plus processor enrichment and visible findings.
+
+    ``allocations`` are the signed bank allocations the source P&L counts; allocations to the
+    exact transfer category are kept separately in ``transfer_allocations``. ``monthly_cells``
+    and ``pnl_totals`` derive ONLY from bank allocations: processor rows never add to them.
+    """
+
+    transactions: tuple[Transaction, ...]
+    allocations: tuple[Allocation, ...]
+    transfer_allocations: tuple[Allocation, ...]
+    monthly_cells: tuple[MonthlyCategoryCell, ...]
+    pnl_totals: tuple[PnlMonthTotal, ...]
+    pnl_control: PnlControlCheck
+    crosswalk_version: int | None
+    crosswalk_cells: tuple[CrosswalkCell, ...]
+    matches: tuple[SourceMatch, ...]
+    classifications: tuple[ProcessorClassification, ...]
+    processor_summaries: tuple[ProcessorSummary, ...]
+    discrepancies: tuple[Discrepancy, ...]
+    coverage_flags: tuple[CoverageFlag, ...]
+    # Row-level warnings from normalization and Category Mapping, kept visible (never dropped).
+    row_warnings: tuple[RowIssue, ...] = ()
+    schema_version: int = SCHEMA_VERSION
+
+    @property
+    def unresolved(self) -> tuple[Discrepancy, ...]:
+        return tuple(item for item in self.discrepancies if item.state == "unresolved")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "transactions": [txn.to_dict() for txn in self.transactions],
+            "allocations": [item.to_dict() for item in self.allocations],
+            "transfer_allocations": [item.to_dict() for item in self.transfer_allocations],
+            "monthly_cells": [cell.to_dict() for cell in self.monthly_cells],
+            "pnl_totals": [total.to_dict() for total in self.pnl_totals],
+            "pnl_control": self.pnl_control.to_dict(),
+            "crosswalk_version": self.crosswalk_version,
+            "crosswalk_cells": [cell.to_dict() for cell in self.crosswalk_cells],
+            "matches": [match.to_dict() for match in self.matches],
+            "classifications": [item.to_dict() for item in self.classifications],
+            "processor_summaries": [item.to_dict() for item in self.processor_summaries],
+            "discrepancies": [item.to_dict() for item in self.discrepancies],
+            "coverage_flags": [flag.to_dict() for flag in self.coverage_flags],
+            "row_warnings": [issue.to_dict() for issue in self.row_warnings],
         }

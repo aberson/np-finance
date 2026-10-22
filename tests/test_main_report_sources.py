@@ -10,12 +10,11 @@ from __future__ import annotations
 
 import ast
 import dataclasses
-import itertools
 import json
 import re
 import time
-from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, date, datetime, timedelta
+from collections.abc import Mapping, Sequence
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -25,7 +24,7 @@ import pytest
 from pta_finance import report_source
 from pta_finance.config import Config, ConfigError, load_config
 from pta_finance.main_reports import models, sources
-from pta_finance.main_reports.models import CaptureSet, Transaction, make_record_key
+from pta_finance.main_reports.models import Transaction, make_record_key
 from pta_finance.main_reports.sources import (
     READONLY_SCOPE,
     ReadOnlyWorkbook,
@@ -37,7 +36,6 @@ from pta_finance.main_reports.sources import (
     classify_status,
     compare_captures,
     compare_transactions,
-    connect_source_client,
     coverage_status,
     is_dash_placeholder,
     normalize,
@@ -49,32 +47,27 @@ from pta_finance.main_reports.sources import (
     require_bindings,
     store_capture_set,
 )
-from pta_finance.sheets import SheetsClient
 from tests.conftest import (
     _FULL_CONFIG,
-    FakeClient,
+    BANK_HEADER,
+    CARD_HEADER,
+    CFO_ID,
+    PAYPAL_HEADER,
+    WIX_GROUPS,
+    WIX_LABELS,
+    CfoHarness,
+    CfoWorksheet,
     FakeSpreadsheet,
-    FakeWorksheet,
-    RecordingSleep,
-    tagged_user_entered_grid,
+    TimeoutClient,
+    _clock,
+    _source_toml,
+    main_reports_toml,
 )
-
-CFO_ID = "fake-cfo-workbook-id"
 
 # --------------------------------------------------------------------------------------
 # Fictional source shapes
 # --------------------------------------------------------------------------------------
 
-BANK_HEADER = [
-    "DATE",
-    "DESCRIPTION",
-    "AMOUNT",
-    "CHECK #",
-    "STATUS",
-    "CATEGORY",
-    "OVERRIDE CATEGORY",
-    "FINAL CATEGORY",
-]
 BANK_ROWS = [
     [
         "1/5/2030",
@@ -110,51 +103,6 @@ BANK_ROWS = [
     ["1/15/2030", "Monthly service fee", "-3.00", "", "Posted", "Fees", "", "Fees"],
     ["", "Total", "668.50", "", "", "", "", ""],
     ["2/1/2030", "Pending deposit", "$40.00", "", "Pending", "Donations", "", "Donations"],
-]
-
-WIX_GROUPS = [
-    "Payment",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "Transaction",
-    "",
-    "",
-    "Order",
-    "",
-    "",
-    "",
-    "Billing",
-    "",
-    "Shipping",
-    "",
-]
-WIX_LABELS = [
-    "Provider Payment ID",
-    "Payment Date",
-    "Transaction Date",
-    "Time Zone",
-    "Currency",
-    "Amount",
-    "Processing Fee",
-    "Service Fee",
-    "Net",
-    "Status",
-    "Refund Amount",
-    "Payment Provider",
-    "Order ID",
-    "Product Name",
-    "Quantity",
-    "Status",
-    "Name",
-    "Country",
-    "Name",
-    "Country",
 ]
 
 
@@ -217,23 +165,6 @@ WIX_ROWS = [
     ],
 ]
 
-PAYPAL_HEADER = [
-    "Date",
-    "Time",
-    "TimeZone",
-    "Name",
-    "Type",
-    "Status",
-    "Currency",
-    "Gross",
-    "Fee",
-    "Net",
-    "Transaction ID",
-    "Reference Txn ID",
-    "Item Title",
-    "Quantity",
-    "Balance Impact",
-]
 _DETAIL = [
     "01/04/2030",
     "10:15:00",
@@ -347,61 +278,6 @@ PNL_FORMULAS = [['=QUERY({"example"}, "select *")', ""], ["", ""], ["", ""]]
 TRACKER_VALUES = [["Category", "Budget", "Actual"], ["Classroom Supplies", "500.00", "75.50"]]
 TRACKER_FORMULAS = [["", "", ""], ["", '=IMPORTRANGE("fake-own-budget-id", "B2")', ""]]
 MAPPING_VALUES = [["Keyword", "Target Category"], ["shirt", "Spirit Wear"], ["", ""]]
-CARD_HEADER = ["Date", "Description", "Amount"]
-
-BUDGET_GRID = [
-    list(report_source.TIMESERIES_COLUMNS),
-    ["2030", "Programs", "expense", "proposed", "500", "FALSE", "", "Classroom Supplies", "x"],
-    ["2030", "Programs", "expense", "actual", "75.5", "FALSE", "", "Classroom Supplies", "x"],
-    ["2030", "Fundraising", "income", "proposed", "1500", "TRUE", "", "Fundraiser Income", "x"],
-]
-ASSUMPTIONS_GRID = [["Assumption", "Value"], ["Example multiplier", "1.5"], ["Derived", "=B2*2"]]
-
-
-# --------------------------------------------------------------------------------------
-# Fake gspread layer with sheet ids, separate formula grids and changing reads
-# --------------------------------------------------------------------------------------
-
-
-class CfoWorksheet(FakeWorksheet):
-    def __init__(
-        self,
-        grid: list[list[str]],
-        *,
-        sheet_id: int,
-        formulas: list[list[str]] | None = None,
-        versions: list[list[list[str]]] | None = None,
-    ) -> None:
-        super().__init__([list(row) for row in grid])
-        self.id = sheet_id
-        self.formula_grid = formulas
-        self.versions = versions
-        self.value_reads = 0
-
-    def get_all_values(self, *, value_render_option: Any = None) -> list[list[str]]:
-        self.value_reads += 1
-        if self.versions:
-            self.grid = self.versions.pop(0) if len(self.versions) > 1 else self.versions[0]
-        return super().get_all_values()
-
-
-class CfoSpreadsheet(FakeSpreadsheet):
-    def fetch_sheet_metadata(self, params: Mapping[str, Any]) -> dict[str, Any]:
-        self.metadata_params.append(dict(params))
-        title = str(params["ranges"]).split("!", 1)[0].strip("'")
-        ws = self.worksheet(title)
-        grid = getattr(ws, "formula_grid", None) or ws.grid
-        rows = tagged_user_entered_grid(grid)
-        return {"sheets": [{"data": [{"rowData": [{"values": row} for row in rows]}]}]}
-
-
-class TimeoutClient(FakeClient):
-    def __init__(self, spreadsheet: FakeSpreadsheet) -> None:
-        super().__init__(spreadsheet)
-        self.timeouts: list[float] = []
-
-    def set_timeout(self, timeout: float) -> None:
-        self.timeouts.append(timeout)
 
 
 def _cfo_worksheets(**overrides: CfoWorksheet) -> dict[str, CfoWorksheet]:
@@ -418,70 +294,9 @@ def _cfo_worksheets(**overrides: CfoWorksheet) -> dict[str, CfoWorksheet]:
     return sheets
 
 
-def _own_worksheets() -> dict[str, CfoWorksheet]:
-    return {
-        report_source.BUDGET_TIMESERIES_TAB: CfoWorksheet(BUDGET_GRID, sheet_id=2001),
-        "Assumptions": CfoWorksheet(ASSUMPTIONS_GRID, sheet_id=2002),
-    }
-
-
 # --------------------------------------------------------------------------------------
 # Private-config fixture (written to tmp and loaded through the production loader)
 # --------------------------------------------------------------------------------------
-
-_WIX_STATUS = 'transaction_status = { label = "Status", group = "Transaction" }'
-
-
-def _source_toml(
-    alias: str, kind: str, tab: str, signature: Sequence[Sequence[str]], extra: str = ""
-) -> str:
-    return (
-        f"\n[main_reports.sources.{alias}]\nkind = {json.dumps(kind)}\ntab = {json.dumps(tab)}\n"
-        f"header_signature = {json.dumps([list(row) for row in signature])}\n{extra}"
-    )
-
-
-def main_reports_toml(
-    *,
-    omit: Sequence[str] = (),
-    wix_columns: str = _WIX_STATUS,
-    bank_extra: str = "",
-    bank_signature: Sequence[Sequence[str]] = (BANK_HEADER,),
-) -> str:
-    parts = {
-        "bank-checking": _source_toml(
-            "bank-checking",
-            "bank",
-            "Bank Checking",
-            bank_signature,
-            'tab_id = 1001\ncoverage = [{ start = "2030-01-01", end = "2030-01-31", '
-            'evidence = "example-statement-index" }]\n' + bank_extra,
-        ),
-        "wix": _source_toml(
-            "wix",
-            "wix",
-            "Store Transactions",
-            [WIX_GROUPS, WIX_LABELS],
-            'coverage = [{ start = "2030-01-01", end = "2030-12-31", '
-            'evidence = "example-export" }]\n'
-            + (f"[main_reports.sources.wix.columns]\n{wix_columns}\n" if wix_columns else ""),
-        ),
-        "paypal": _source_toml("paypal", "paypal", "Processor Transactions", [PAYPAL_HEADER]),
-        "pnl": _source_toml("pnl", "pnl", "Profit & Loss", []),
-        "budget-tracker": _source_toml("budget-tracker", "budget_tracker", "Budget Tracker", []),
-        "category-mapping": _source_toml(
-            "category-mapping", "category_mapping", "Category Mapping", [MAPPING_VALUES[0]]
-        ),
-        "credit-card": _source_toml(
-            "credit-card", "credit_card", "Credit Card Transactions", [CARD_HEADER]
-        ),
-    }
-    body = "".join(text for alias, text in parts.items() if alias not in omit)
-    return (
-        "\n[main_reports]\n"
-        f'source_spreadsheet_id = "{CFO_ID}"\n'
-        'output_dir = "reports/output/main-report-runs"\n' + body
-    )
 
 
 def _config(tmp_path: Path, **kwargs: Any) -> Config:
@@ -497,50 +312,9 @@ def _store_root(tmp_path: Path) -> Path:
     return main.output_path
 
 
-def _clock() -> Callable[[], datetime]:
-    counter = itertools.count()
-    start = datetime(2030, 2, 1, 12, 0, tzinfo=UTC)
-    return lambda: start + timedelta(seconds=next(counter))
-
-
-class Harness:
-    def __init__(
-        self,
-        config: Config,
-        cfo: Mapping[str, CfoWorksheet] | None = None,
-    ) -> None:
-        self.config = config
-        self.cfo_sheets = dict(cfo or _cfo_worksheets())
-        self.own_sheets = _own_worksheets()
-        self.cfo_spreadsheet = CfoSpreadsheet(self.cfo_sheets)
-        self.own_spreadsheet = CfoSpreadsheet(self.own_sheets)
-        self.cfo_client = TimeoutClient(self.cfo_spreadsheet)
-        self.own_client = FakeClient(self.own_spreadsheet)
-
-    def source(self) -> ReadOnlyWorkbook:
-        return connect_source_client(
-            self.config, gspread_client=self.cfo_client, sleep=RecordingSleep()
-        )
-
-    def own(self) -> SheetsClient:
-        return SheetsClient(self.config, gspread_client=self.own_client, sleep=RecordingSleep())
-
-    def capture(self, clock: Callable[[], datetime] | None = None) -> CaptureSet:
-        return capture(
-            self.config,
-            source_workbook=self.source(),
-            own_client=self.own(),
-            clock=clock or _clock(),
-        )
-
-    def assert_no_writes(self) -> None:
-        for ws in [*self.cfo_sheets.values(), *self.own_sheets.values()]:
-            assert ws.batch_update_calls == []
-            assert ws.append_rows_calls == []
-            assert ws.update_calls == []
-            assert ws.delete_rows_calls == []
-        assert self.cfo_spreadsheet.add_worksheet_calls == []
-        assert self.own_spreadsheet.add_worksheet_calls == []
+class Harness(CfoHarness):
+    def __init__(self, config: Config, cfo: Mapping[str, CfoWorksheet] | None = None) -> None:
+        super().__init__(config, cfo or _cfo_worksheets())
 
 
 def _by_alias(transactions: Sequence[Transaction], alias: str) -> list[Transaction]:
@@ -788,6 +562,20 @@ def test_control_tabs_capture_formulas_without_evaluating_them(tmp_path: Path) -
     rules = read_category_mapping(captured.by_alias["category-mapping"])
     assert [(r.keyword, r.target_category, r.row_number) for r in rules] == [
         ("shirt", "Spirit Wear", 2)
+    ]
+
+
+def test_strict_category_mapping_reader_rejects_incomplete_rows(tmp_path: Path) -> None:
+    mapping = CfoWorksheet(
+        [MAPPING_VALUES[0], ["shirt", "Spirit Wear"], ["hat", ""]], sheet_id=1006
+    )
+    captured = Harness(
+        _config(tmp_path), _cfo_worksheets(**{"Category Mapping": mapping})
+    ).capture()
+    with pytest.raises(SourceValidationError) as caught:
+        read_category_mapping(captured.by_alias["category-mapping"])
+    assert [(i.row_number, i.code, i.field) for i in caught.value.issues] == [
+        (3, "missing_value", "target_category")
     ]
 
 

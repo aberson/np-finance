@@ -1292,7 +1292,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 58: Reconcile processor activity to the CFO bank basis
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-21)
 - **Type:** code
 - **Problem:** Reconcile source identities, signed category splits, processor overlap, transfers, refunds, and fees into a CFO-compatible source view with explicit unresolved discrepancies. Do not count processor sales and bank settlements as additive revenue.
 - **Issue:** #97

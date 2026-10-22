@@ -93,12 +93,14 @@ __all__ = [
     "normalize",
     "normalize_with_report",
     "is_dash_placeholder",
+    "entered_matches",
     "parse_money",
     "parse_source_date",
     "parse_allocations",
     "classify_status",
     "classify_paypal_type",
     "read_category_mapping",
+    "read_category_mapping_with_report",
     "coverage_status",
     "compare_transactions",
     "compare_captures",
@@ -550,6 +552,19 @@ _WIX_FEE_FIELDS = frozenset({"processing_fee", "service_fee"})
 def is_dash_placeholder(raw: str) -> bool:
     """True for a bare ``-`` / ``$ -`` money cell (Accounting zero OR a text placeholder)."""
     return _ACCOUNTING_ZERO.fullmatch(raw.strip()) is not None
+
+
+def entered_matches(entered: str, value: Decimal) -> bool:
+    """True when a numeric entered value equals ``value`` within binary-float noise.
+
+    The one rule for both checks on a displayed money cell: an entered number must agree with
+    the displayed cents (a format cannot hide sub-cent precision), and a bare dash is exact
+    zero only over an entered numeric zero (``entered_matches(entered, Decimal(0))``).
+    """
+    try:
+        return abs(Decimal(entered) - value) <= _FLOAT_NOISE
+    except InvalidOperation:
+        return False
 
 
 def _exact_cents(value: Decimal) -> Decimal:
@@ -1241,13 +1256,9 @@ class _RowCheck:
                 self.error("missing_value", name)
             return None
         if entered is not None:
-            try:
-                # Binary-float noise (0.30000000000000004) is tolerated; hidden sub-cent
-                # precision (>= 0.0001) is not.
-                matches = abs(Decimal(entered) - value) <= _FLOAT_NOISE
-            except InvalidOperation:
-                matches = False
-            if not matches:
+            # Binary-float noise (0.30000000000000004) is tolerated; hidden sub-cent
+            # precision (>= 0.0001) is not.
+            if not entered_matches(entered, value):
                 # The display format hides the entered value (e.g. sub-cent precision).
                 self.error("display_precision_mismatch", name)
                 return None
@@ -1267,11 +1278,7 @@ class _RowCheck:
         a countable ``dash_placeholder`` warning.
         """
         if entered is not None:
-            try:
-                is_zero = abs(Decimal(entered)) <= _FLOAT_NOISE
-            except InvalidOperation:
-                is_zero = False
-            if is_zero:
+            if entered_matches(entered, _ZERO_CENTS):
                 return _ZERO_CENTS
             self.error("display_precision_mismatch", name)
             return None
@@ -1744,6 +1751,20 @@ def normalize(
 
 def read_category_mapping(capture_item: SourceCapture) -> tuple[CategoryRule, ...]:
     """Read Category Mapping keyword rules (guidance only; never overrides FINAL CATEGORY)."""
+    rules, issues = read_category_mapping_with_report(capture_item)
+    if issues:
+        raise SourceValidationError(issues)
+    return rules
+
+
+def read_category_mapping_with_report(
+    capture_item: SourceCapture,
+) -> tuple[tuple[CategoryRule, ...], tuple[RowIssue, ...]]:
+    """Category Mapping rules from complete rows, plus a row issue for each incomplete row.
+
+    Guidance consumers that must not halt on one half-filled row use this form and surface
+    the issues; :func:`read_category_mapping` raises on them instead.
+    """
     if capture_item.kind != "category_mapping":
         raise SourceConfigError("wrong_kind", f"{capture_item.alias} is not a category mapping")
     rules: list[CategoryRule] = []
@@ -1757,9 +1778,7 @@ def read_category_mapping(capture_item: SourceCapture) -> tuple[CategoryRule, ..
             rules.append(
                 CategoryRule(keyword=keyword, target_category=target, row_number=row.row_number)
             )
-    if issues:
-        raise SourceValidationError(issues)
-    return tuple(rules)
+    return tuple(rules), tuple(issues)
 
 
 # --------------------------------------------------------------------------------------
