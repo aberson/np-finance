@@ -78,6 +78,20 @@ jobs:
           }
           assert required_budget <= {case.attrib['name'] for case in budget}, 'Decode budget cases were not collected'
           assert all(case.find('skipped') is None for case in budget), 'Decode budget coverage was omitted'
+          main = [case for case in everything
+                  if case.attrib['classname'] == 'tests.test_main_report_render']
+          browser = {case.attrib['name'] for case in main if case.attrib['name'].startswith('test_chromium_')}
+          assert browser == {
+              'test_chromium_export_produces_readable_pdf_and_png',
+              'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport0]',
+              'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport1]',
+              'test_chromium_export_never_runs_page_scripts',
+              'test_chromium_export_aborts_every_request_but_the_document',
+              'test_chromium_unreadable_export_output_is_refused_and_earlier_files_kept',
+          }, 'Main Report Set browser cases changed'
+          assert len(main) > len(browser), 'Main Report Set content tests were not collected'
+          assert all((case.find('skipped') is not None) == (case.attrib['name'] in browser)
+                     for case in main), 'Main Report Set content was skipped or browser cases ran'
           PY
           uv run pytest -q tests/test_treasurer_slides_bank_statements_native.py -k "extractor_never_reads_a_pdf_if_the_sandbox_cannot_start"
 
@@ -135,6 +149,23 @@ jobs:
           }
           assert len(cases) == 2 and {case.attrib['name'] for case in cases} == expected
           assert all(case.find('skipped') is None for case in cases), 'Receipt browser coverage was omitted'
+          PY
+      - name: Main Report Set browser export tests
+        run: |
+          uv run pytest -q tests/test_main_report_render.py -k test_chromium_ --junitxml=main-report-browser-results.xml
+          uv run python - <<'PY'
+          from xml.etree import ElementTree
+          cases = list(ElementTree.parse('main-report-browser-results.xml').getroot().iter('testcase'))
+          expected = {
+              'test_chromium_export_produces_readable_pdf_and_png',
+              'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport0]',
+              'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport1]',
+              'test_chromium_export_never_runs_page_scripts',
+              'test_chromium_export_aborts_every_request_but_the_document',
+              'test_chromium_unreadable_export_output_is_refused_and_earlier_files_kept',
+          }
+          assert {case.attrib['name'] for case in cases} == expected
+          assert all(case.find('skipped') is None for case in cases), 'Main Report Set browser coverage was omitted'
           PY
       - name: Full-package strict mypy
         run: uv run mypy --strict pta_finance

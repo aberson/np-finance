@@ -1,0 +1,35 @@
+{% extends 'main_reports/base.html.j2' %}
+{% import 'main_reports/macros.html.j2' as m %}
+{% block page_size %}letter landscape{% endblock %}
+{% block content %}
+  <p class="alert">No calendar-year budget is shown: adopted budgets are school-year targets (see the Budget Snapshot). Published P&amp;L control check: {{ data.control }}.</p>
+  {% if not data.complete %}<p class="alert stop">Bank coverage is partial for this calendar year ({{ data.uncovered_months }} month{% if data.uncovered_months != 1 %}s{% endif %} without declared coverage). Totals marked * are partial; a month without coverage is not zero.</p>{% endif %}
+
+  <section id="walk">
+    <div class="cap"><h2>Source, adjustments and adjusted totals</h2><p>Year to date. The source view reproduces the CFO workbook; adjustments are our recorded journal entries.</p></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th class="amt">CFO source</th><th class="amt">Adjustments</th><th class="amt">Adjusted</th></tr></thead>
+      <tbody>{% for row in data.walk %}<tr{% if row.total %} class="total"{% endif %}><td>{{ row.label }}</td><td class="amt{% if not data.complete %} partial{% endif %}">{{ row.source }}</td><td class="amt">{{ row.delta }}</td><td class="amt{% if not data.complete %} partial{% endif %}">{{ row.adjusted }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="legend">{{ shared.calendar_net.label }}: <b{% if shared.calendar_net.partial %} class="partial"{% endif %}>{{ shared.calendar_net.value }}</b>.</p>
+  </section>
+
+  <section id="monthly">
+    <div class="cap"><h2>Monthly P&amp;L (adjusted) and year to date</h2><p>Category nets by bank month. Income and expense rows sum each month's positive and negative category nets.</p></div>
+    <div class="tablewrap"><table class="pnl">
+      <thead><tr><th>Category</th>{% for month in data.months %}<th class="amt">{{ month }}</th>{% endfor %}<th class="amt">Year to date</th></tr></thead>
+      <tbody>
+        {% for row in data.category_rows %}<tr><td>{{ row.label }}</td>{% for c in row.cells %}<td class="amt {{ c.kind }}">{{ c.text }}</td>{% endfor %}<td class="amt{% if not data.complete %} partial{% endif %}">{{ row.ytd }}</td></tr>{% endfor %}
+        {% for row in data.total_rows %}<tr class="total"><td>{{ row.label }}</td>{% for c in row.cells %}<td class="amt {{ c.kind }}">{{ c.text }}</td>{% endfor %}<td class="amt{% if not data.complete %} partial{% endif %}">{{ row.ytd }}</td></tr>{% endfor %}
+        <tr class="sub"><td>{{ data.source_row.label }}</td>{% for c in data.source_row.cells %}<td class="amt {{ c.kind }}">{{ c.text }}</td>{% endfor %}<td class="amt">{{ data.source_row.ytd }}</td></tr>
+        <tr class="sub"><td>{{ data.adjustment_row.label }}</td>{% for c in data.adjustment_row.cells %}<td class="amt">{{ c.text }}</td>{% endfor %}<td class="amt">{{ data.adjustment_row.ytd }}</td></tr>
+      </tbody>
+    </table></div>
+    <p class="legend">“Not covered”: no declared bank coverage for that month, so no amount is known. * Partial: the month or total is only partly covered. $0.00 in a covered month is an observed zero.</p>
+  </section>
+
+  <section id="bridges">
+    <div class="cap"><h2>Reconciliation bridges</h2><p>Captured source P&amp;L to this calendar year, our adjustments, and the calendar year to the school year.</p></div>
+    {% for item in data.bridges %}{{ m.bridge(item) }}{% endfor %}
+  </section>
+{% endblock %}

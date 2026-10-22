@@ -1340,7 +1340,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 61: Render the complete Main Report Set
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-22)
 - **Type:** code
 - **Problem:** Reuse the existing queue and accepted summary styling to generate Reimbursement Queue, Reimbursement Summary, Budget Snapshot, Fundraising Summary, and CFO P&L Summary. Replace private edition constants with validated facts. Preserve queue copy text and receipt images. Show period, source freshness, run identity, and differences between CFO source and adjusted totals; do not invent a calendar-year budget.
 - **Issue:** #100

@@ -38,7 +38,9 @@ _OPERATOR_KEY_RE = re.compile(r"^operator-review:v1:[0-9a-f]{64}$")
 _OPERATOR_PAYMENT_KEY_RE = re.compile(r"^operator-payment:v1:[0-9a-f]{64}$")
 _EVENT_KEY_RE = re.compile(r"^event:v1:[0-9a-f]{64}$")
 _PNG_DATA_PREFIX = "data:image/png;base64,"
-_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# The PNG file signature; public so the Main Report Set exporter reuses this one owner.
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_PNG_SIGNATURE = PNG_SIGNATURE
 _TEMPLATE_NAME = "reimbursement_queue.html.j2"
 _TEMPLATE_DIR = Path(__file__).parent / "reports" / "templates"
 

@@ -1,0 +1,36 @@
+{% extends 'main_reports/base.html.j2' %}
+{% block content %}
+  {% set mark = ' unknown' if data.every_unknown else ('' if data.complete else ' partial') %}
+  {% if not data.complete %}<p class="alert">Some processor totals are incomplete; the reasons are listed beside each processor{% if data.unknown_count %}, and {{ data.unknown_count }} processor{% if data.unknown_count != 1 %}s have{% else %} has{% endif %} no rows and no declared coverage{% endif %}. Totals marked * include incomplete processors; “Unknown” means no rows and no declared coverage for the period.</p>{% endif %}
+  {% if data.combined %}<div class="score">
+    <div class="box"><div class="n{{ mark }}">{{ data.combined.gross }}</div><div class="k">Processor gross</div></div>
+    <div class="box"><div class="n{{ mark }}">{{ data.combined.fees }}</div><div class="k">Fees</div></div>
+    <div class="box"><div class="n{{ mark }}">{{ data.combined.refunds }}</div><div class="k">Refunds</div></div>
+    <div class="box a"><div class="n{{ mark }}">{{ data.combined.net }}</div><div class="k">Net (gross less fees and refunds)</div></div>
+  </div>{% endif %}
+
+  <section id="processors">
+    <div class="cap"><h2>Processor totals</h2><p>Each movement is counted once by its payment date. Fees and refunds are magnitudes; net is gross less fees and refunds.</p></div>
+    {% if data.processors %}<div class="tablewrap"><table>
+      <thead><tr><th>Processor</th><th class="amt">Gross</th><th class="amt">Fees</th><th class="amt">Refunds</th><th class="amt">Net</th><th class="amt">Payments</th><th class="amt">Fee rows</th><th class="amt">Refund rows</th><th class="amt">Excluded rows</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for p in data.processors %}{% set cls = ' unknown' if p.unknown else ('' if p.complete else ' partial') %}<tr><td>{{ p.alias }}</td><td class="amt{{ cls }}">{{ p.gross }}</td><td class="amt{{ cls }}">{{ p.fees }}</td><td class="amt{{ cls }}">{{ p.refunds }}</td><td class="amt{{ cls }}">{{ p.net }}</td><td class="amt">{{ p.payments }}</td><td class="amt">{{ p.fee_rows }}</td><td class="amt">{{ p.refund_rows }}</td><td class="amt">{{ p.excluded }}</td><td>{% if p.complete %}<span class="chip ok">Complete</span>{% else %}<span class="chip warn">Incomplete</span> {{ p.reasons|join('; ') }}{% endif %}</td></tr>{% endfor %}
+        <tr class="total"><td>All processors</td><td class="amt{{ mark }}">{{ data.combined.gross }}</td><td class="amt{{ mark }}">{{ data.combined.fees }}</td><td class="amt{{ mark }}">{{ data.combined.refunds }}</td><td class="amt{{ mark }}">{{ data.combined.net }}</td><td colspan="4"></td><td>{% if data.complete %}<span class="chip ok">Complete</span>{% else %}<span class="chip warn">Incomplete</span>{% endif %}</td></tr>
+      </tbody>
+    </table></div>{% else %}<p class="legend">No processor source is configured or captured.</p>{% endif %}
+  </section>
+
+  <section id="attribution">
+    <div class="cap"><h2>Category attribution</h2><p>Sale gross attributed through Category Mapping guidance. A sale is attributed only on a unique keyword match; everything else is listed as not attributed with its reason.</p></div>
+    {% for p in data.processors %}<div class="tablewrap gap"><table>
+      <thead><tr><th>{{ p.alias }}: category</th><th>Classification</th><th class="amt">Sales</th><th class="amt">Gross</th></tr></thead>
+      <tbody>{% for c in p.categories %}<tr><td{% if not c.attributed %} class="unknown"{% endif %}>{{ c.category }}</td><td>{{ c.classification }}</td><td class="amt">{{ c.count }}</td><td class="amt">{{ c.gross }}</td></tr>{% else %}<tr><td colspan="4" class="none">No sales in the period.</td></tr>{% endfor %}</tbody>
+    </table></div>{% endfor %}
+  </section>
+
+  <section id="bank">
+    <div class="cap"><h2>Bank view (a different scope)</h2><p>The adjusted CFO bank view records processor payouts when they reach the bank. It is shown for context and is never added to the processor totals.</p></div>
+    <div class="score"><div class="box"><div class="n{% if not data.bank_complete %} partial{% endif %}">{{ data.bank_income }}</div><div class="k">Bank-basis income, all categories</div></div><div class="box"><div class="n{% if shared.school_net.partial %} partial{% endif %}">{{ shared.school_net.value }}</div><div class="k">{{ shared.school_net.label }}</div></div></div>
+    {% if not data.bank_complete %}<p class="legend">* Bank coverage is partial for this period.</p>{% endif %}
+  </section>
+{% endblock %}

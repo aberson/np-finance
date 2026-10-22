@@ -18,6 +18,7 @@ dependencies = [
 pdf = ["weasyprint"]
 slides = ["pypdfium2>=5.13.0"]
 receipts = ["pillow>=12.2"]
+reports = ["playwright"]
 web = ["fastapi", "uvicorn", "google-cloud-firestore", "cryptography"]
 dev = [
     "pytest",

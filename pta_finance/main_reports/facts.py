@@ -128,11 +128,13 @@ __all__ = [
     "PAYMENT_CLEARING_DAYS",
     "MIN_CHECK_REFERENCE_LENGTH",
     "RECORDED_PAYMENT_EVENT",
+    "APPROVED_STATUS",
     "BRIDGE_NAMES",
     "BRIDGE_ROW_KINDS",
     "ISSUE_CODES",
     "COVERAGE_PARTIAL_CODES",
     "FUNDRAISING_LIMITS",
+    "BUDGET_LINE_TYPES",
     # functions
     "reporting_periods",
     "build",
@@ -167,7 +169,8 @@ _ZERO = Decimal("0.00")
 # Bundle vocabulary read here (owned by reimbursement_report, which spells it inline): the
 # approved item status, the item statuses that are no obligation (declined, informational)
 # and the three ticket payment statuses. An unknown payment status fails closed at build.
-_APPROVED = "A"
+APPROVED_STATUS = "A"
+_APPROVED = APPROVED_STATUS
 _NOT_OBLIGATION = frozenset({"D", "-"})
 _NOT_PAID, _PAID, _PAID_PRIOR = "NOT_PAID", "PAID", "PAID_PRIOR"
 _PAYMENT_STATUSES = frozenset({_NOT_PAID, _PAID, _PAID_PRIOR})
@@ -314,7 +317,9 @@ FUNDRAISING_LIMITS: tuple[str, ...] = (
 )
 _INCONSISTENT, _UNSETTLED, _COVERAGE_PARTIAL, _ROWS_EXCLUDED = FUNDRAISING_LIMITS
 
-_BUDGET_TYPES = frozenset({"income", "expense"})
+# Recognized adopted budget line types.
+BUDGET_LINE_TYPES: tuple[str, ...] = ("income", "expense")
+_BUDGET_TYPES = frozenset(BUDGET_LINE_TYPES)
 
 
 # --------------------------------------------------------------------------------------

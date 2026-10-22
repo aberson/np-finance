@@ -4,14 +4,19 @@ Identity here is obviously-fake placeholders only (``Example PTA`` etc.). NOTHIN
 these fixtures touches the network: a ``FakeWorksheet`` / ``FakeSpreadsheet`` / ``FakeClient``
 stand in for the gspread objects, and :class:`~pta_finance.sheets.SheetsClient` is always
 constructed with ``gspread_client=`` so :func:`gspread.service_account` is never called.
+The fictional Main Report Set scenario (:class:`Scenario`: CFO source shapes, adopted budget,
+crosswalk and a schema-v2 reimbursement bundle, driven through capture, reconciliation,
+recorded adjustments and facts) is shared by the facts and render tests.
 """
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -20,10 +25,21 @@ from gspread.exceptions import APIError
 from gspread.utils import a1_to_rowcol
 from requests.models import Response
 
-from pta_finance import report_source
+from pta_finance import reimbursement_report, report_source
 from pta_finance.config import Config, load_config
-from pta_finance.main_reports.models import CaptureSet
+from pta_finance.main_reports import reconcile
+from pta_finance.main_reports.adjustments import acquire_run_lock, project, read_journal, record
+from pta_finance.main_reports.facts import build, build_from, reporting_periods
+from pta_finance.main_reports.models import (
+    AdjustedLedger,
+    Adjustment,
+    CaptureSet,
+    ReportFacts,
+    Transaction,
+    make_adjustment_id,
+)
 from pta_finance.main_reports.sources import ReadOnlyWorkbook, capture, connect_source_client
+from pta_finance.reimbursement_report import ReimbursementReport
 from pta_finance.sheets import SheetsClient
 
 _FULL_CONFIG = """\
@@ -693,3 +709,587 @@ class CfoHarness:
         assert self.assumptions.add_rows_calls == []
         assert self.assumptions.add_cols_calls == []
         assert self.own_spreadsheet.add_worksheet_calls == []
+
+
+# --------------------------------------------------------------------------------------
+# Fictional source shapes (school year 2030-31, calendar year 2030, as of Aug 15 2030)
+# --------------------------------------------------------------------------------------
+
+AS_OF = date(2030, 8, 15)
+RECORDED_AT = datetime(2030, 8, 15, 12, 0, tzinfo=UTC)
+
+
+def _bank(day: str, description: str, amount: str, final: str, *, check: str = "") -> list[str]:
+    return [day, description, amount, check, "Posted", "", "", final]
+
+
+VENDOR_DEC = "Example vendor A"
+DONATION_JAN = "Deposit Example donation"
+VENDOR_JUNE = "Example vendor B"
+PAYOUT_JULY = "Deposit Example Store payout"
+CHECK_JULY = "Check 2001"
+VENDOR_AS_OF = "Example vendor C"
+VENDOR_LATER = "Example vendor D"
+BANK_ROWS = [
+    _bank("12/31/2029", VENDOR_DEC, "-10.00", "Classroom Supplies"),
+    _bank("1/1/2030", DONATION_JAN, "100.00", "Donations"),
+    _bank("6/30/2030", VENDOR_JUNE, "-40.00", "Field Trips"),
+    _bank("7/1/2030", PAYOUT_JULY, "48.25", "Fundraiser Income: 50.00, Processing Fees: -1.75"),
+    _bank("7/10/2030", CHECK_JULY, "-45.00", "Classroom Supplies", check="2001"),
+    _bank("7/12/2030", "Transfer to savings", "-500.00", reconcile.INTERNAL_TRANSFER_CATEGORY),
+    _bank("8/15/2030", VENDOR_AS_OF, "-5.00", "Field Trips"),
+    _bank("8/16/2030", VENDOR_LATER, "-7.00", "Field Trips"),
+]
+PNL_VALUES = [
+    ["Category", "Dec 2029", "Jan 2030", "Jun 2030", "Jul 2030", "Aug 2030"],
+    ["Classroom Supplies", "-10.00", "", "", "-45.00", ""],
+    ["Donations", "", "100.00", "", "", ""],
+    ["Field Trips", "", "", "-40.00", "", "-12.00"],
+    ["Fundraiser Income", "", "", "", "50.00", ""],
+    ["Processing Fees", "", "", "", "-1.75", ""],
+]
+
+
+def _wix(
+    payment_id: str,
+    day: date,
+    amount: str,
+    status: str,
+    *,
+    fee: str,
+    net: str,
+    refund: str = "",
+    product: str = "Spirit Shirt",
+) -> list[str]:
+    row = [
+        payment_id,
+        f"{day.month}/{day.day}/{day.year}",
+        f"{day.isoformat()} 10:15:00",
+        "-08:00",
+        "USD",
+        amount,
+        fee,
+        "0.00",
+        net,
+        status,
+        refund,
+        "Wix Payments",
+        f"10{day.month:02d}{day.day:02d}",
+        product,
+        "1",
+        "Fulfilled",
+        "Example Buyer",
+        "US",
+        "Example Buyer",
+        "US",
+    ]
+    assert len(row) == len(WIX_LABELS)
+    return row
+
+
+WIX_ROWS = [
+    _wix("pi_ex_000", date(2030, 6, 20), "20.00", "Successful", fee="-0.80", net="19.20"),
+    _wix("pi_ex_001", date(2030, 7, 1), "50.00", "Successful", fee="-1.75", net="48.25"),
+]
+
+BUDGET_HEADER = [
+    "fiscal_year",
+    "category_group",
+    "type",
+    "measure",
+    "amount",
+    "is_fundraiser",
+    "grade",
+    "raw_category",
+    "source_tab",
+]
+
+
+def _budget_row(year: str, kind: str, measure: str, amount: str, category: str) -> list[str]:
+    return [year, "Programs", kind, measure, amount, "FALSE", "", category, "x"]
+
+
+BUDGET_ROWS = [
+    _budget_row("2031", "expense", "proposed", "500", "Classroom Supplies"),
+    _budget_row("2031", "expense", "proposed", "300", "Field Trips"),
+    _budget_row("2031", "income", "proposed", "1,500", "Fundraising"),
+    _budget_row("2031", "expense", "proposed", "200", "Assemblies"),
+    _budget_row("2031", "expense", "proposed", "100", "Library Books"),
+    _budget_row("2031", "expense", "actual", "75.5", "Classroom Supplies"),
+    _budget_row("2030", "expense", "proposed", "450", "Classroom Supplies"),
+]
+
+CROSSWALK_TOML = """
+[main_reports.crosswalk]
+version = 3
+[[main_reports.crosswalk.entries]]
+source_category = "Fundraiser Income"
+targets = [{ category = "Fundraising", share = "1" }]
+note = "one-to-one"
+[[main_reports.crosswalk.entries]]
+source_category = "Processing Fees"
+targets = [{ category = "Fees and Charges", share = "1" }]
+note = "one-to-one"
+[[main_reports.crosswalk.entries]]
+source_category = "Classroom Supplies"
+targets = [{ category = "Classroom Supplies", share = "1" }]
+note = "one-to-one"
+[[main_reports.crosswalk.entries]]
+source_category = "Field Trips"
+targets = [{ category = "Field Trips", share = "1" }]
+note = "one-to-one"
+[[main_reports.crosswalk.entries]]
+source_category = "Assemblies"
+targets = [{ category = "Assemblies", share = "1" }]
+note = "one-to-one, no activity yet"
+"""
+_DEFAULT_BANK_COVERAGE = 'start = "2030-01-01", end = "2030-01-31"'
+FULL_BANK_COVERAGE = 'start = "2029-07-01", end = "2030-08-31"'
+
+
+def _config(
+    tmp_path: Path,
+    *,
+    bank_coverage: str | None = FULL_BANK_COVERAGE,
+    crosswalk: str = CROSSWALK_TOML,
+    start_month: int = 7,
+    sources: str = "",
+) -> Config:
+    """``bank_coverage=None`` removes the bank source's declared coverage entirely."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    bank = main_reports_toml()
+    if bank_coverage is None:
+        declared = f"coverage = [{{ {_DEFAULT_BANK_COVERAGE}, "
+        start = bank.index(declared)
+        bank = bank[:start] + bank[bank.index("\n", start) + 1 :]
+    else:
+        bank = bank.replace(_DEFAULT_BANK_COVERAGE, bank_coverage)
+    toml = (
+        _FULL_CONFIG.replace("start_month = 1", f"start_month = {start_month}")
+        + bank
+        + sources
+        + crosswalk
+    )
+    path = tmp_path / "config.toml"
+    path.write_text(toml, encoding="utf-8")
+    return load_config(path)
+
+
+def _harness(
+    config: Config,
+    *,
+    bank: Sequence[Sequence[str]] = BANK_ROWS,
+    wix: Sequence[Sequence[str]] = WIX_ROWS,
+    paypal: Sequence[Sequence[str]] = (),
+    pnl: Sequence[Sequence[str]] = PNL_VALUES,
+    mapping: Sequence[Sequence[str]] = (),
+    budget: Sequence[Sequence[str]] = BUDGET_ROWS,
+    extra: Mapping[str, CfoWorksheet] | None = None,
+) -> CfoHarness:
+    sheets = {
+        "Bank Checking": CfoWorksheet([BANK_HEADER, *map(list, bank)], sheet_id=1001),
+        "Store Transactions": CfoWorksheet(
+            [WIX_GROUPS, WIX_LABELS, *map(list, wix)], sheet_id=1002
+        ),
+        "Processor Transactions": CfoWorksheet([PAYPAL_HEADER, *map(list, paypal)], sheet_id=1003),
+        "Profit & Loss": CfoWorksheet([list(row) for row in pnl], sheet_id=1004),
+        "Budget Tracker": CfoWorksheet([["Category", "Budget", "Actual"]], sheet_id=1005),
+        "Category Mapping": CfoWorksheet([MAPPING_HEADER, *map(list, mapping)], sheet_id=1006),
+        "Credit Card Transactions": CfoWorksheet([CARD_HEADER], sheet_id=1007),
+        **(extra or {}),
+    }
+    own = {"Budget Timeseries": CfoWorksheet([BUDGET_HEADER, *map(list, budget)], sheet_id=2001)}
+    return CfoHarness(config, sheets, own_extra=own)
+
+
+def _recorded_clock() -> Callable[[], datetime]:
+    counter = itertools.count()
+    return lambda: RECORDED_AT + timedelta(seconds=next(counter))
+
+
+# --------------------------------------------------------------------------------------
+# Fictional reimbursement bundle (schema v2, loaded by the production loader)
+# --------------------------------------------------------------------------------------
+
+
+def _item(
+    key: str, index: int, day: str, amount: str, status: str, category: str
+) -> dict[str, Any]:
+    return {
+        "item_key": key,
+        "source_index": index,
+        "source_date": day,
+        "source_description": "Fictional classroom materials",
+        "source_amount": amount,
+        "canonical_category": category,
+        "display_date": "",
+        "display_item": "",
+        "reviewed_amount": "",
+        "status": status,
+        "why": "Fictional evidence supports this test disposition.",
+    }
+
+
+def _ticket(
+    order: int,
+    ref: str,
+    origin: str,
+    submitted: str,
+    items: list[dict[str, Any]],
+    *,
+    status: str,
+    decision: str = "UNREVIEWED",
+    workflow: str = "ACTIVE",
+    payment_status: str = "NOT_PAID",
+    payment_date: str = "",
+    confirmations: Sequence[str] = (),
+) -> dict[str, Any]:
+    total = sum((Decimal(str(item["source_amount"])) for item in items), Decimal("0.00"))
+    review_key = (
+        f"submission:v1:{order:064x}" if origin == "submission" else f"legacy:v1:{ref.lower()}"
+    )
+    return {
+        "review_key": review_key,
+        "ref": ref,
+        "form_label": "",
+        "origin": origin,
+        "display_order": order,
+        "requestor_name": f"Fictional Person {order}",
+        "form_type": "Example Reimbursement Form",
+        "submitted": submitted,
+        "submitted_label": "",
+        "payment_method": "Check",
+        "source_evidence_sha256": f"{order:x}" * 64,
+        "source": {
+            "stated_total": f"{total:.2f}",
+            "mapped_total": f"{total:.2f}",
+            "categories": list(dict.fromkeys(i["canonical_category"] for i in items)),
+            "flags": [],
+        },
+        "live": {
+            "workflow_state": workflow,
+            "decision": decision,
+            "payment_status": payment_status,
+            "payment_date": payment_date,
+            "confirmations": list(confirmations),
+        },
+        "review": {
+            "status": status,
+            "action": "Complete the fictional next step",
+            "block": "Use the structured test evidence.",
+            "asks": [],
+            "note": "Fictional reviewer note.",
+            "email_questions": [],
+            "email_context": "",
+        },
+        "items": items,
+        "messages": [],
+        "archive_note": "Fictional archive note." if workflow == "SETTLED" else "",
+    }
+
+
+def _seal(record_: dict[str, Any]) -> None:
+    record_.pop("record_sha256", None)
+    record_["record_sha256"] = hashlib.sha256(
+        json.dumps(record_, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+PAID_TICKET = "NEW-01"  # June and July items, one check paid in July
+PAYMENT_REFERENCE = "2001"
+
+
+def _payment_records(
+    ticket_key: str, day: str, amount: str, reference: str, digest_char: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Sealed operator-payment evidence and its PAYMENT_RECORDED event for one ticket."""
+    digest = digest_char * 64
+    evidence: dict[str, Any] = {
+        "evidence_key": f"operator-payment:v1:{digest}",
+        "source_type": "OPERATOR_PAYMENT",
+        "message_id": "",
+        "in_reply_to": [],
+        "references": [],
+        "occurred_on": day,
+        "occurred_at": "",
+        "top_authored_sha256": digest,
+        "evidence_sha256": digest,
+        "attachments": [],
+    }
+    _seal(evidence)
+    event: dict[str, Any] = {
+        "event_key": "event:v1:"
+        + hashlib.sha256(
+            f"{evidence['evidence_key']}\0{ticket_key}\0PAYMENT_RECORDED".encode()
+        ).hexdigest(),
+        "evidence_key": evidence["evidence_key"],
+        "ticket_review_key": ticket_key,
+        "kind": "PAYMENT_RECORDED",
+        "occurred_on": day,
+        "occurred_at": "",
+        "evidence_sha256": digest,
+        "summary": "Synthetic configured-operator payment recorded.",
+        "amount": amount,
+        "reference": reference,
+        "discrepancy": "",
+    }
+    _seal(event)
+    return evidence, event
+
+
+def _record_payment(
+    payload: dict[str, Any], ticket: dict[str, Any], day: str, reference: str, digest_char: str
+) -> None:
+    """Settle an approved ticket as PAID with an exact recorded payment event."""
+    total = sum((Decimal(str(i["source_amount"])) for i in ticket["items"]), Decimal("0.00"))
+    ticket["live"] = {
+        "workflow_state": "SETTLED",
+        "decision": "APPROVED",
+        "payment_status": "PAID",
+        "payment_date": day,
+        "confirmations": [f"Reference {reference}; amount ${total:.2f}"],
+    }
+    ticket["archive_note"] = "Fictional archive note."
+    evidence, event = _payment_records(
+        ticket["review_key"], day, f"{total:.2f}", reference, digest_char
+    )
+    supplemental = payload["supplemental"]
+    supplemental["evidence"] = sorted(
+        [*supplemental["evidence"], evidence], key=lambda item: item["evidence_key"]
+    )
+    supplemental["events"] = sorted(
+        [*supplemental["events"], event], key=lambda item: item["event_key"]
+    )
+
+
+def _bundle_payload() -> dict[str, Any]:
+    paid = _ticket(
+        1,
+        PAID_TICKET,
+        "submission",
+        "2030-07-03",
+        [
+            _item("new-01:line:1", 1, "2030-06-28", "25.00", "A", "Classroom Supplies"),
+            _item("new-01:line:2", 2, "2030-07-02", "20.00", "A", "Classroom Supplies"),
+        ],
+        status="A",
+        decision="APPROVED",
+        workflow="SETTLED",
+        payment_status="PAID",
+        payment_date="2030-07-08",
+        confirmations=[f"Reference {PAYMENT_REFERENCE}; amount $45.00"],
+    )
+    old_outstanding = _ticket(
+        2,
+        "P-001",
+        "legacy",
+        "2029-05-20",
+        [_item("p-001:line:1", 1, "2029-05-10", "30.00", "A", "Field Trips")],
+        status="A",
+        decision="APPROVED",
+    )
+    undated = _ticket(
+        3,
+        "NEW-02",
+        "submission",
+        "2030-07-21",
+        [
+            _item("new-02:line:1", 1, "", "12.00", "Q", "Classroom Supplies"),
+            _item("new-02:line:2", 2, "2030-07-20", "8.00", "C", "Classroom Supplies"),
+        ],
+        status="C",
+    )
+    paid_prior = _ticket(
+        4,
+        "P-002",
+        "legacy",
+        "2030-03-02",
+        [_item("p-002:line:1", 1, "2030-03-01", "15.00", "A", "Classroom Supplies")],
+        status="A",
+        decision="APPROVED",
+        workflow="SETTLED",
+        payment_status="PAID_PRIOR",
+        payment_date="2030-03-05",
+        confirmations=["Fictional confirmation"],
+    )
+    partly_declined = _ticket(
+        5,
+        "NEW-03",
+        "submission",
+        "2030-07-06",
+        [
+            _item("new-03:line:1", 1, "2030-07-05", "10.00", "D", "Classroom Supplies"),
+            _item("new-03:line:2", 2, "2030-07-05", "5.00", "A", "Classroom Supplies"),
+        ],
+        status="D",
+    )
+    after_as_of = _ticket(
+        6,
+        "NEW-04",
+        "submission",
+        "2030-08-10",
+        [_item("new-04:line:1", 1, "2030-08-20", "9.00", "Q", "Field Trips")],
+        status="Q",
+    )
+    tickets = [paid, old_outstanding, undated, paid_prior, partly_declined, after_as_of]
+    submissions = sorted(t["review_key"] for t in tickets if t["origin"] == "submission")
+
+    evidence, event = _payment_records(
+        paid["review_key"], "2030-07-08", "45.00", PAYMENT_REFERENCE, "d"
+    )
+    return {
+        "schema_version": 2,
+        "report": {
+            "title": "Example Reimbursement Review",
+            "eyebrow": "Example Organization",
+            "subtitle": "Structured fictional review queue.",
+            "organization": "Example Organization",
+            "email_signoff": ["Thank you!", "Example Treasurer Team"],
+            "logo_data_uri": "",
+            "confirmed_outstanding": "35.00",
+            "cutoff_date": "2030-06-01",
+            "policy_version": "example-v1",
+            "as_of_date": "2030-08-15",
+        },
+        "provenance": {
+            "mapped_sha256": "1" * 64,
+            "policy_sha256": "2" * 64,
+            "source_snapshot_sha256": "3" * 64,
+            "accounted_review_keys": submissions,
+        },
+        "source_summary": {
+            "mapped_rows": 6,
+            "mapped_submissions": len(submissions),
+            "mapped_total": "84.00",
+            "first_received": "2030-06-02",
+            "last_received": "2030-08-10",
+        },
+        "tickets": tickets,
+        "appendix": {"amendments": [], "cfo_checks": [], "excluded": [], "defects": []},
+        "supplemental": {
+            "anchors_sha256": "f" * 64,
+            "evidence": [evidence],
+            "events": [event],
+            "unmatched": [],
+        },
+    }
+
+
+# --------------------------------------------------------------------------------------
+# Production-path scenario
+# --------------------------------------------------------------------------------------
+
+
+class Scenario:
+    """Fake workbooks + a bundle file, driven through every production caller."""
+
+    def __init__(
+        self,
+        tmp_path: Path,
+        *,
+        bank_coverage: str | None = FULL_BANK_COVERAGE,
+        crosswalk: str = CROSSWALK_TOML,
+        start_month: int = 7,
+        sources: str = "",
+        bundle: dict[str, Any] | None = None,
+        **sheets: Any,
+    ) -> None:
+        self.tmp_path = tmp_path
+        self.config = _config(
+            tmp_path,
+            bank_coverage=bank_coverage,
+            crosswalk=crosswalk,
+            start_month=start_month,
+            sources=sources,
+        )
+        self.harness = _harness(self.config, **sheets)
+        self.bundle_path = tmp_path / "reports" / "output" / "reimbursement-report.json"
+        self.bundle_path.parent.mkdir(parents=True, exist_ok=True)
+        self.bundle_path.write_text(
+            json.dumps(bundle or _bundle_payload(), ensure_ascii=False), encoding="utf-8"
+        )
+
+    def reconciled(self) -> tuple[CaptureSet, Any]:
+        capture_set = self.harness.capture()
+        return capture_set, reconcile.from_capture(capture_set, self.config)
+
+    def txn(self, description: str) -> Transaction:
+        _, rec = self.reconciled()
+        (found,) = [t for t in rec.transactions if t.description == description]
+        return found
+
+    def record(self, proposals: Sequence[Adjustment]) -> None:
+        capture_set, rec = self.reconciled()
+        with acquire_run_lock(self.config) as lock:
+            record(
+                proposals,
+                config=self.config,
+                client=self.harness.own(),
+                captured=capture_set.assumptions,
+                reconciliation=rec,
+                as_of=AS_OF,
+                lock=lock,
+                clock=_recorded_clock(),
+            )
+
+    def inputs(self, as_of: date = AS_OF) -> tuple[CaptureSet, AdjustedLedger, ReimbursementReport]:
+        capture_set, rec = self.reconciled()
+        ledger = project(rec, read_journal(capture_set.assumptions), as_of)
+        return capture_set, ledger, reimbursement_report.load_bundle(self.bundle_path)
+
+    def facts(self, as_of: date = AS_OF) -> ReportFacts:
+        capture_set, ledger, bundle = self.inputs(as_of)
+        return build_from(capture_set, ledger, bundle, self.config)
+
+    def build(
+        self, ledger: AdjustedLedger | None = None, **changes: Any
+    ) -> tuple[ReportFacts, CaptureSet]:
+        """Call :func:`facts.build` directly with this scenario's inputs, some replaced."""
+        capture_set, own_ledger, bundle = self.inputs()
+        assert self.config.main_reports is not None
+        arguments: dict[str, Any] = {
+            "bundle": bundle,
+            "periods": reporting_periods(AS_OF, 7),
+            "captures": capture_set.captures,
+            "crosswalk": self.config.main_reports.crosswalk,
+        }
+        arguments.update(changes)
+        result = build(
+            ledger or own_ledger,
+            arguments.pop("bundle"),
+            capture_set.adopted_budget,
+            arguments.pop("periods"),
+            **arguments,
+        )
+        return result, capture_set
+
+
+def _adjustment(kind: str, txn: Transaction | None = None, **fields: Any) -> Adjustment:
+    return Adjustment(
+        adjustment_id=make_adjustment_id(),
+        kind=kind,
+        effective_date=fields.pop("effective", date(2030, 7, 1)),
+        reason="Example correction",
+        evidence=fields.pop("evidence", ("example-statement-2030-07",)),
+        targets=() if txn is None else ((txn.record_key, txn.revision_hash),),
+        **fields,
+    )
+
+
+def _adjusted_scenario(tmp_path: Path, **kwargs: Any) -> tuple[Scenario, Adjustment, Adjustment]:
+    scenario = Scenario(tmp_path, **kwargs)
+    moved = _adjustment(
+        "date_override",
+        scenario.txn(VENDOR_JUNE),
+        prior_value="2030-06-30",
+        replacement_value="2030-07-01",
+    )
+    added = _adjustment(
+        "additive",
+        effective=date(2030, 8, 1),
+        category="Donations",
+        signed_amount=Decimal("25.00"),
+        evidence=("example-cash-count-2030-08",),
+    )
+    scenario.record([moved, added])
+    return scenario, moved, added

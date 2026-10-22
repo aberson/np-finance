@@ -1,0 +1,24 @@
+{% extends 'main_reports/base.html.j2' %}
+{% import 'main_reports/macros.html.j2' as m %}
+{% block content %}
+  <p class="basis"><b>Periods.</b> School-year summaries: {{ page.school.label }} ({{ page.school.range }}, through {{ page.school.through }}). CFO P&amp;L: {{ page.calendar.label }} ({{ page.calendar.range }}, through {{ page.calendar.through }}). Every report below was rendered from the same captured input set.</p>
+
+  <section id="reports">
+    <div class="cap"><h2>The five reports</h2><p>Open the HTML for the full report; PDF and PNG are print and image exports of the same page.</p></div>
+    <div class="reports">{% for link in links %}<article class="report"><h3><a href="{{ link.html }}">{{ link.title }}</a></h3><p>{{ link.period }}</p><p class="links"><a href="{{ link.html }}">HTML</a>{% for label, href in link.extras %}<a href="{{ href }}">{{ label }}</a>{% endfor %}</p></article>{% endfor %}</div>
+  </section>
+
+  <section id="shared">
+    <div class="cap"><h2>Totals shared between reports</h2><p>Each figure is computed once and shown identically wherever it appears; different scopes are explained by the bridges inside each report.</p></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Total</th><th class="amt">Amount</th><th>Shown in</th></tr></thead>
+      <tbody>{% for key, total in shared.items() %}<tr><td>{{ total.label }}</td><td class="amt{% if total.partial %} partial{% endif %}">{{ total.value }}</td><td>{{ total.reports|join(', ') }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if shared.values()|selectattr("partial")|list %}<p class="legend">* Partial: bank coverage is incomplete for the period, so the total is not complete.</p>{% endif %}
+  </section>
+
+  <section id="school-freshness">
+    <div class="cap"><h2>Source coverage for the school year</h2><p>The calendar-year coverage is in the source freshness table below.</p></div>
+    {{ m.freshness(page.school_freshness) }}
+  </section>
+{% endblock %}

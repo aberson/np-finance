@@ -13,8 +13,9 @@ Adjustments own :class:`Adjustment`, :class:`AdjustmentJournal` and :class:`Adju
 (with :class:`AdjustedAllocation`, :class:`AdjustmentDelta`, :class:`AdjustmentIssue`). Facts
 own :class:`Period`, :class:`ReportingPeriods`, :class:`ReportFacts` and its parts
 (:class:`PnlView`, :class:`Bridge`, :class:`ReimbursementFacts`, :class:`BudgetFacts`,
-:class:`FundraisingTotals`, ...). Run manifests add their own records here; every later record
-consumes these unchanged.
+:class:`FundraisingTotals`, ...). Rendering owns :class:`Artifact` / :class:`ArtifactSet` and
+the run-ID helpers (:func:`make_run_id`). Run manifests add their own records here; every later
+record consumes these unchanged.
 
 Identifiers (contract section 10): ``record_key`` is
 ``v1:<source-alias>:<sha256-of-identity>:<occurrence>``; a revision hash covers every source
@@ -63,6 +64,8 @@ __all__ = [
     "PAYMENT_JOIN_STATES",
     "BUDGET_ACTUAL_STATUSES",
     "CARRYOVER_BASES",
+    "RUN_ID_PATTERN",
+    "ARTIFACT_MEDIA_TYPES",
     "is_valid_source_alias",
     "is_valid_record_key",
     "canonical_json_bytes",
@@ -73,6 +76,8 @@ __all__ = [
     "make_match_id",
     "make_adjustment_id",
     "is_valid_adjustment_id",
+    "make_run_id",
+    "is_valid_run_id",
     "money_str",
     "monthly_cells_from",
     "month_totals_from",
@@ -125,6 +130,8 @@ __all__ = [
     "FundraisingTotals",
     "FactIssue",
     "ReportFacts",
+    "Artifact",
+    "ArtifactSet",
 ]
 
 SCHEMA_VERSION = 1
@@ -227,6 +234,10 @@ BUDGET_ACTUAL_STATUSES: tuple[str, ...] = (
 # What makes an outstanding request a prior-year carryover: a prior-year item expense date,
 # or (for an undated item) a submission before the period start.
 CARRYOVER_BASES: tuple[str, ...] = ("expense_date", "submitted")
+# ``run-<UTC YYYYMMDDTHHMMSSffffffZ>-<UUID4 hex>`` (contract section 10).
+RUN_ID_PATTERN = re.compile(r"run-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\Z")
+# Media types of the files a rendered run may contain.
+ARTIFACT_MEDIA_TYPES: tuple[str, ...] = ("text/html", "application/pdf", "image/png", "text/plain")
 
 
 def is_valid_source_alias(alias: str) -> bool:
@@ -318,6 +329,18 @@ def make_adjustment_id() -> str:
 def is_valid_adjustment_id(value: str) -> bool:
     """True for ``ADJ-`` + UUID4 hex (see :data:`ADJUSTMENT_ID_PATTERN`)."""
     return ADJUSTMENT_ID_PATTERN.match(value) is not None
+
+
+def make_run_id(now: datetime) -> str:
+    """A new run ID: ``run-`` + the UTC time of ``now`` (timezone-aware) + ``-`` + UUID4 hex."""
+    if now.tzinfo is None:
+        raise ValueError("timestamps must be timezone-aware UTC")
+    return f"run-{now.astimezone(UTC):%Y%m%dT%H%M%S%fZ}-{uuid.uuid4().hex}"
+
+
+def is_valid_run_id(value: str) -> bool:
+    """True for the exact :func:`make_run_id` shape (see :data:`RUN_ID_PATTERN`)."""
+    return RUN_ID_PATTERN.match(value) is not None
 
 
 def money_str(value: Decimal) -> str:
@@ -2026,4 +2049,52 @@ class ReportFacts:
             "pending_adjustments": list(self.pending_adjustments),
             "superseded_adjustments": list(self.superseded_adjustments),
             "adjustment_warnings": [issue.to_dict() for issue in self.adjustment_warnings],
+        }
+
+
+@dataclass(frozen=True)
+class Artifact:
+    """One rendered file of a run: its run-relative POSIX path, media type, size and hash."""
+
+    path: str
+    media_type: str
+    byte_length: int
+    sha256: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "media_type": self.media_type,
+            "byte_length": self.byte_length,
+            "sha256": self.sha256,
+        }
+
+
+@dataclass(frozen=True)
+class ArtifactSet:
+    """Every file rendered for one run (HTML, PDF, PNG and text, the queue's copy text
+    included), ordered by path. Paths are relative to the run directory.
+    ``export_sandboxed`` records whether the PDF/PNG export ran inside Chromium's process
+    sandbox (``None`` when the exporter did not say).
+    """
+
+    run_id: str
+    artifacts: tuple[Artifact, ...]
+    export_sandboxed: bool | None = None
+    schema_version: int = SCHEMA_VERSION
+
+    @property
+    def paths(self) -> tuple[str, ...]:
+        return tuple(item.path for item in self.artifacts)
+
+    def get(self, path: str) -> Artifact:
+        (found,) = [item for item in self.artifacts if item.path == path]
+        return found
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "run_id": self.run_id,
+            "artifacts": [item.to_dict() for item in self.artifacts],
+            "export_sandboxed": self.export_sandboxed,
         }

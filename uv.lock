@@ -1439,6 +1439,9 @@ pdf = [
 receipts = [
     { name = "pillow" },
 ]
+reports = [
+    { name = "playwright" },
+]
 slides = [
     { name = "pypdfium2" },
 ]
@@ -1465,13 +1468,14 @@ requires-dist = [
     { name = "pandas" },
     { name = "pillow", marker = "extra == 'receipts'", specifier = ">=12.2" },
     { name = "playwright", marker = "extra == 'dev'" },
+    { name = "playwright", marker = "extra == 'reports'" },
     { name = "pypdfium2", marker = "extra == 'slides'", specifier = ">=5.13.0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "uvicorn", marker = "extra == 'web'" },
     { name = "weasyprint", marker = "extra == 'pdf'" },
 ]
-provides-extras = ["pdf", "slides", "receipts", "web", "dev"]
+provides-extras = ["pdf", "slides", "receipts", "reports", "web", "dev"]
 
 [[package]]
 name = "pyasn1"
