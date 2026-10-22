@@ -7,7 +7,9 @@ workbook reader, dated source captures with provenance, and per-source adapters;
 :mod:`~pta_finance.main_reports.reconcile` builds the CFO-compatible source view, processor
 enrichment, published-P&L control checks, crosswalk and discrepancy records;
 :mod:`~pta_finance.main_reports.adjustments` reads and appends the bounded Assumptions
-adjustments journal and projects recorded corrections onto a copy of the source view.
+adjustments journal and projects recorded corrections onto a copy of the source view;
+:mod:`~pta_finance.main_reports.facts` projects school-year and calendar-year facts,
+reimbursement carryovers and reconciliation bridges from one captured input set.
 
 This ``__init__`` deliberately imports nothing: :mod:`pta_finance.config` imports the
 source-kind vocabulary from :mod:`~pta_finance.main_reports.models`, and

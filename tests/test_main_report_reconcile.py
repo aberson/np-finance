@@ -18,7 +18,13 @@ from typing import Any
 
 import pytest
 
-from pta_finance.config import Config, CrosswalkTarget, load_config
+from pta_finance.config import (
+    CategoryCrosswalk,
+    Config,
+    CrosswalkEntry,
+    CrosswalkTarget,
+    load_config,
+)
 from pta_finance.main_reports import reconcile
 from pta_finance.main_reports.models import (
     Allocation,
@@ -35,8 +41,10 @@ from pta_finance.main_reports.reconcile import (
     build,
     controls_from,
     crosswalk_amounts,
+    crosswalk_digest,
     from_capture,
     parse_month_label,
+    reference_token,
 )
 from pta_finance.main_reports.sources import normalize
 from tests.conftest import (
@@ -1340,3 +1348,102 @@ def test_reconcile_errors_never_echo_a_cell_value(tmp_path: Path) -> None:
         error = error.__cause__ or error.__context__
     for item in chain:
         assert CANARY not in str(item) and "9876.54" not in str(item)
+
+
+def _digest_crosswalk(**changes: Any) -> CategoryCrosswalk:
+    targets = changes.pop(
+        "targets",
+        (
+            CrosswalkTarget("Grade Supplies", Decimal("0.25")),
+            CrosswalkTarget("Shared Supplies", Decimal("0.75")),
+        ),
+    )
+    entry = CrosswalkEntry(
+        source_category=changes.pop("source_category", "Classroom Supplies"),
+        targets=targets,
+        note=changes.pop("note", "documented split"),
+    )
+    return CategoryCrosswalk(version=changes.pop("version", 1), entries=(entry,))
+
+
+# A fixed literal: the digest of the default ``_digest_crosswalk()`` content. Changing the
+# digest's canonical form must be a deliberate, visible edit here.
+KNOWN_CROSSWALK_DIGEST = "f29d30b8f04a4d154576b1dc596e1eee1ee7852778fbf61df069ba53e305828b"
+
+
+def test_crosswalk_digest_covers_every_component() -> None:
+    assert crosswalk_digest(None) is None
+    assert crosswalk_digest(_digest_crosswalk()) == KNOWN_CROSSWALK_DIGEST
+    # Shares are normalized: 0.25/0.75 and 0.250/0.750 are the same content.
+    same = _digest_crosswalk(
+        targets=(
+            CrosswalkTarget("Grade Supplies", Decimal("0.250")),
+            CrosswalkTarget("Shared Supplies", Decimal("0.750")),
+        )
+    )
+    assert crosswalk_digest(same) == KNOWN_CROSSWALK_DIGEST
+    changed = {
+        "version": _digest_crosswalk(version=2),
+        "source_category": _digest_crosswalk(source_category="Field Trips"),
+        "note": _digest_crosswalk(note="reworded"),
+        "target_category": _digest_crosswalk(
+            targets=(
+                CrosswalkTarget("Grade Supplies", Decimal("0.25")),
+                CrosswalkTarget("Other Supplies", Decimal("0.75")),
+            )
+        ),
+        "share_value": _digest_crosswalk(
+            targets=(
+                CrosswalkTarget("Grade Supplies", Decimal("0.5")),
+                CrosswalkTarget("Shared Supplies", Decimal("0.5")),
+            )
+        ),
+        # Target order decides which target gets leftover cents, so it is content.
+        "target_order": _digest_crosswalk(
+            targets=(
+                CrosswalkTarget("Shared Supplies", Decimal("0.75")),
+                CrosswalkTarget("Grade Supplies", Decimal("0.25")),
+            )
+        ),
+    }
+    # Entry order is content too: the digest records entries exactly as configured.
+    first, second = (
+        _digest_crosswalk().entries[0],
+        _digest_crosswalk(source_category="Field Trips").entries[0],
+    )
+    changed["entry_order"] = CategoryCrosswalk(version=1, entries=(second, first))
+    two_entries = CategoryCrosswalk(version=1, entries=(first, second))
+    assert crosswalk_digest(two_entries) != crosswalk_digest(changed["entry_order"])
+    digests = {name: crosswalk_digest(item) for name, item in changed.items()}
+    assert KNOWN_CROSSWALK_DIGEST not in digests.values()
+    assert len(set(digests.values())) == len(digests)
+
+
+def test_reconciliation_records_the_crosswalk_digest(tmp_path: Path) -> None:
+    result = _run(tmp_path)
+    config = _config(tmp_path)
+    assert config.main_reports is not None
+    assert result.crosswalk_sha256 == crosswalk_digest(config.main_reports.crosswalk)
+    assert result.to_dict()["crosswalk_sha256"] == result.crosswalk_sha256
+    # A second workbook directory whose config has no crosswalk at all records no digest.
+    without = tmp_path / "without-crosswalk"
+    without.mkdir()
+    assert _run(without, crosswalk="").crosswalk_sha256 is None
+
+
+@pytest.mark.parametrize(
+    ("reference", "text", "ignore_case", "found"),
+    [
+        ("TXN-EX-3", "PAYPAL TRANSFER TXN-EX-3", False, True),
+        ("TXN-EX-3", "PAYPAL TRANSFER txn-ex-3", False, False),
+        ("TXN-EX-3", "PAYPAL TRANSFER txn-ex-3", True, True),
+        ("TXN-EX-3", "PAYPAL TRANSFER TXN-EX-34", False, False),
+        ("TXN-EX-3", "PAYPAL TRANSFER XTXN-EX-3", True, False),
+        ("a.b", "ref aXb", False, False),
+    ],
+)
+def test_reference_token_is_a_whole_token(
+    reference: str, text: str, ignore_case: bool, found: bool
+) -> None:
+    token = reference_token(reference, ignore_case=ignore_case)
+    assert (token.search(text) is not None) is found

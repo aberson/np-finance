@@ -11,7 +11,10 @@ owns :class:`Reconciliation` and its parts (:class:`Discrepancy`, :class:`Source
 :class:`MonthlyCategoryCell`, :class:`PnlControlCheck`, :class:`CrosswalkCell`, ...).
 Adjustments own :class:`Adjustment`, :class:`AdjustmentJournal` and :class:`AdjustedLedger`
 (with :class:`AdjustedAllocation`, :class:`AdjustmentDelta`, :class:`AdjustmentIssue`). Facts
-and run manifests add their own records here and consume these unchanged.
+own :class:`Period`, :class:`ReportingPeriods`, :class:`ReportFacts` and its parts
+(:class:`PnlView`, :class:`Bridge`, :class:`ReimbursementFacts`, :class:`BudgetFacts`,
+:class:`FundraisingTotals`, ...). Run manifests add their own records here; every later record
+consumes these unchanged.
 
 Identifiers (contract section 10): ``record_key`` is
 ``v1:<source-alias>:<sha256-of-identity>:<occurrence>``; a revision hash covers every source
@@ -27,7 +30,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -53,6 +56,13 @@ __all__ = [
     "ADJUSTMENT_ID_PATTERN",
     "ALLOCATION_ORIGINS",
     "ISSUE_SEVERITIES",
+    "PERIOD_BASES",
+    "VIEW_BASES",
+    "EXPENSE_BUCKETS",
+    "PAYMENT_BUCKETS",
+    "PAYMENT_JOIN_STATES",
+    "BUDGET_ACTUAL_STATUSES",
+    "CARRYOVER_BASES",
     "is_valid_source_alias",
     "is_valid_record_key",
     "canonical_json_bytes",
@@ -99,6 +109,22 @@ __all__ = [
     "AdjustedAllocation",
     "AdjustmentDelta",
     "AdjustedLedger",
+    "Period",
+    "ReportingPeriods",
+    "PnlView",
+    "BridgeRow",
+    "Bridge",
+    "ReimbursementItemFact",
+    "ReimbursementTotal",
+    "QueueEntry",
+    "PaymentJoin",
+    "ReimbursementFacts",
+    "BudgetLine",
+    "BudgetFacts",
+    "FundraisingCategory",
+    "FundraisingTotals",
+    "FactIssue",
+    "ReportFacts",
 ]
 
 SCHEMA_VERSION = 1
@@ -170,6 +196,37 @@ ADJUSTMENT_KINDS: tuple[str, ...] = (
 ADJUSTMENT_ID_PATTERN = re.compile(r"ADJ-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\Z")
 ALLOCATION_ORIGINS: tuple[str, ...] = ("source", "additive")
 ISSUE_SEVERITIES: tuple[str, ...] = ("error", "warning")
+
+# Reporting periods (contract section 6B): July-June school summaries, January-December P&L.
+PERIOD_BASES: tuple[str, ...] = ("school", "calendar")
+# A P&L view either reproduces the CFO source or applies our recorded adjustments to a copy.
+VIEW_BASES: tuple[str, ...] = ("source", "adjusted")
+# Where a reimbursement item's expense date falls relative to a period: before its start,
+# inside it (through the as-of date), after its end or the as-of date, or unknown.
+EXPENSE_BUCKETS: tuple[str, ...] = ("prior", "current", "later", "undated")
+# The same positions for an item's payment date, plus ``unpaid``.
+PAYMENT_BUCKETS: tuple[str, ...] = ("unpaid", "prior", "current", "later", "undated")
+# How a recorded reimbursement payment joins a bank row: ``matched`` only on an exact
+# reference plus corroborating amount and date; anything else stays visibly unjoined.
+PAYMENT_JOIN_STATES: tuple[str, ...] = (
+    "matched",
+    "unmatched",
+    "ambiguous",
+    "no_reference",
+    # the corroborating bank window lies wholly outside the captured bank rows
+    "outside_capture_window",
+)
+# Whether a budget line's actual is an observed amount or unknown, and why it is unknown.
+BUDGET_ACTUAL_STATUSES: tuple[str, ...] = (
+    "observed",
+    "ambiguous",
+    "crosswalk_missing",
+    "category_unmapped",
+    "coverage_partial",
+)
+# What makes an outstanding request a prior-year carryover: a prior-year item expense date,
+# or (for an undated item) a submission before the period start.
+CARRYOVER_BASES: tuple[str, ...] = ("expense_date", "submitted")
 
 
 def is_valid_source_alias(alias: str) -> bool:
@@ -1090,6 +1147,8 @@ class Reconciliation:
     coverage_flags: tuple[CoverageFlag, ...]
     # Row-level warnings from normalization and Category Mapping, kept visible (never dropped).
     row_warnings: tuple[RowIssue, ...] = ()
+    # Content digest of the applied crosswalk (``None`` when none was configured).
+    crosswalk_sha256: str | None = None
     schema_version: int = SCHEMA_VERSION
 
     @property
@@ -1106,6 +1165,7 @@ class Reconciliation:
             "pnl_totals": [total.to_dict() for total in self.pnl_totals],
             "pnl_control": self.pnl_control.to_dict(),
             "crosswalk_version": self.crosswalk_version,
+            "crosswalk_sha256": self.crosswalk_sha256,
             "crosswalk_cells": [cell.to_dict() for cell in self.crosswalk_cells],
             "matches": [match.to_dict() for match in self.matches],
             "classifications": [item.to_dict() for item in self.classifications],
@@ -1358,4 +1418,612 @@ class AdjustedLedger:
             "conflicts": [issue.to_dict() for issue in self.conflicts],
             "warnings": [issue.to_dict() for issue in self.warnings],
             "source": self.source.to_dict(),
+        }
+
+
+_PRIOR, _CURRENT, _LATER, _UNDATED = EXPENSE_BUCKETS
+_UNPAID = PAYMENT_BUCKETS[0]
+_SCHOOL, _CALENDAR = PERIOD_BASES
+
+
+@dataclass(frozen=True)
+class Period:
+    """One reporting period: ``start`` inclusive, ``end_exclusive`` exclusive, ``as_of``
+    inclusive (contract section 10).
+
+    Activity is clipped to :attr:`clip_end` = ``min(end_exclusive, as_of + one day)``; filters
+    are half-open internally and displayed with the inclusive :attr:`end_inclusive`. ``basis``
+    is in :data:`PERIOD_BASES`. :attr:`year_label` is the legacy fiscal-year label (the
+    calendar year of the last day), shown beside the explicit :attr:`label`; stored FY labels
+    and IDs are never rewritten.
+    """
+
+    basis: str
+    start: date
+    end_exclusive: date
+    as_of: date
+
+    @property
+    def clip_end(self) -> date:
+        return min(self.end_exclusive, self.as_of + timedelta(days=1))
+
+    @property
+    def end_inclusive(self) -> date:
+        return self.end_exclusive - timedelta(days=1)
+
+    @property
+    def year_label(self) -> int:
+        return self.end_inclusive.year
+
+    @property
+    def label(self) -> str:
+        if self.basis == _CALENDAR:
+            return f"Calendar year {self.start.year}"
+        if self.start.year == self.year_label:
+            return f"School year {self.start.year}"
+        return f"School year {self.start.year}–{self.year_label % 100:02d}"
+
+    def position(self, day: date | None) -> str:
+        """The :data:`EXPENSE_BUCKETS` position of ``day`` (``None`` is ``undated``)."""
+        if day is None:
+            return _UNDATED
+        if day < self.start:
+            return _PRIOR
+        if day < self.clip_end:
+            return _CURRENT
+        return _LATER
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "basis": self.basis,
+            "label": self.label,
+            "year_label": self.year_label,
+            "start": self.start.isoformat(),
+            "end_exclusive": self.end_exclusive.isoformat(),
+            "end_inclusive": self.end_inclusive.isoformat(),
+            "as_of": self.as_of.isoformat(),
+            "clip_end": self.clip_end.isoformat(),
+        }
+
+
+@dataclass(frozen=True)
+class ReportingPeriods:
+    """The school-year summary period and the calendar-year P&L period of one as-of date."""
+
+    school: Period
+    calendar: Period
+
+    def to_dict(self) -> dict[str, Any]:
+        return {_SCHOOL: self.school.to_dict(), _CALENDAR: self.calendar.to_dict()}
+
+
+@dataclass(frozen=True)
+class PnlView:
+    """The bank-basis P&L of one period and view, clipped to the period.
+
+    ``view`` is in :data:`VIEW_BASES`: the CFO source view or our adjusted copy. Cells and
+    month totals follow the one source P&L rule (:func:`monthly_cells_from`,
+    :func:`month_totals_from`): the sign of each monthly category NET decides income or
+    expense. ``income`` / ``expense`` / ``net`` are period-to-date sums of the month totals.
+    ``complete`` is true only when declared coverage evidence covers the whole clipped window
+    for every bank source; otherwise the totals are partial, never zero-filled.
+    """
+
+    basis: str
+    view: str
+    cells: tuple[MonthlyCategoryCell, ...]
+    months: tuple[PnlMonthTotal, ...]
+    income: Decimal
+    expense: Decimal
+    net: Decimal
+    complete: bool
+
+    def category_totals(self) -> tuple[tuple[str, Decimal], ...]:
+        """Period-to-date net per category, ordered by category."""
+        totals: dict[str, Decimal] = defaultdict(lambda: _ZERO_MONEY)
+        for cell in self.cells:
+            totals[cell.category] += cell.net
+        return tuple(sorted(totals.items()))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "basis": self.basis,
+            "view": self.view,
+            "cells": [cell.to_dict() for cell in self.cells],
+            "months": [month.to_dict() for month in self.months],
+            "income": money_str(self.income),
+            "expense": money_str(self.expense),
+            "net": money_str(self.net),
+            "complete": self.complete,
+        }
+
+
+@dataclass(frozen=True)
+class BridgeRow:
+    """One explained step of a :class:`Bridge`, linked to the records behind its amount.
+
+    ``refs`` names source rows, ``adjustment_ids`` journal entries and ``item_keys``
+    reimbursement items (stable bundle keys, never rewritten). ``explanation`` is fixed text
+    per ``kind`` and never carries a value.
+    """
+
+    kind: str
+    amount: Decimal
+    explanation: str
+    refs: tuple[SourceRef, ...] = ()
+    adjustment_ids: tuple[str, ...] = ()
+    item_keys: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "amount": money_str(self.amount),
+            "explanation": self.explanation,
+            "refs": [ref.to_dict() for ref in self.refs],
+            "adjustment_ids": list(self.adjustment_ids),
+            "item_keys": list(self.item_keys),
+        }
+
+
+@dataclass(frozen=True)
+class Bridge:
+    """A traceable walk between two totals: ``from_amount + sum(rows) + residual`` equals
+    ``to_amount``.
+
+    ``residual`` is whatever the rows do not explain. It is computed, never forced to zero: a
+    nonzero residual stays visible (:attr:`balanced` is false). Shared-scope totals must
+    reconcile exactly; a different scope is explained by rows, not by artificial equality.
+    """
+
+    name: str
+    from_label: str
+    from_amount: Decimal
+    to_label: str
+    to_amount: Decimal
+    rows: tuple[BridgeRow, ...]
+
+    @property
+    def residual(self) -> Decimal:
+        return self.to_amount - self.from_amount - sum((r.amount for r in self.rows), _ZERO_MONEY)
+
+    @property
+    def balanced(self) -> bool:
+        return self.residual == _ZERO_MONEY
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "from_label": self.from_label,
+            "from_amount": money_str(self.from_amount),
+            "to_label": self.to_label,
+            "to_amount": money_str(self.to_amount),
+            "rows": [row.to_dict() for row in self.rows],
+            "residual": money_str(self.residual),
+            "balanced": self.balanced,
+        }
+
+
+@dataclass(frozen=True)
+class ReimbursementItemFact:
+    """One reimbursement item placed in the school-year period (identity kept as stored).
+
+    ``expense_date`` is the item's reviewed (display) date, else its source date; the email
+    received date (``received``) is kept separately and never substitutes for it.
+    ``expense_bucket`` / ``payment_bucket`` place the expense and payment dates
+    (:data:`EXPENSE_BUCKETS` / :data:`PAYMENT_BUCKETS`). An item is paid only when its ticket
+    is paid and the item is approved; a paid ticket's other lines stay ``unpaid``.
+    ``amount`` is the reviewed amount, else the source amount (``None`` when unknown).
+    ``open`` mirrors queue membership: the ticket is not settled.
+    """
+
+    review_key: str
+    ticket_ref: str
+    origin: str
+    item_key: str
+    category: str
+    status: str
+    amount: Decimal | None
+    expense_date: date | None
+    expense_bucket: str
+    received: date
+    payment_status: str
+    payment_date: date | None
+    payment_bucket: str
+    open: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "review_key": self.review_key,
+            "ticket_ref": self.ticket_ref,
+            "origin": self.origin,
+            "item_key": self.item_key,
+            "category": self.category,
+            "status": self.status,
+            "amount": _opt_money(self.amount),
+            "expense_date": _opt_date(self.expense_date),
+            "expense_bucket": self.expense_bucket,
+            "received": self.received.isoformat(),
+            "payment_status": self.payment_status,
+            "payment_date": _opt_date(self.payment_date),
+            "payment_bucket": self.payment_bucket,
+            "open": self.open,
+        }
+
+
+@dataclass(frozen=True)
+class ReimbursementTotal:
+    """Item count and known amount of one (expense bucket, payment bucket, status, open) group.
+
+    Every item belongs to exactly one group; ``unpriced`` counts items whose amount is unknown
+    (they add nothing to ``amount``).
+    """
+
+    expense_bucket: str
+    payment_bucket: str
+    status: str
+    open: bool
+    count: int
+    amount: Decimal
+    unpriced: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "expense_bucket": self.expense_bucket,
+            "payment_bucket": self.payment_bucket,
+            "status": self.status,
+            "open": self.open,
+            "count": self.count,
+            "amount": money_str(self.amount),
+            "unpriced": self.unpriced,
+        }
+
+
+@dataclass(frozen=True)
+class QueueEntry:
+    """One outstanding request: every unsettled ticket, whatever its dates (carryovers kept).
+
+    ``carryover`` marks a prior-year REQUEST still in the queue: an obligation item (any
+    status except declined or informational, paid or not) is dated before the school-year
+    start (``carryover_basis`` ``expense_date``), or is undated on a request submitted
+    before the start (``submitted``: an expense never postdates its request). It is a
+    membership flag, not an amount: the money still owed is ``pay_now`` (approved and not
+    yet paid, the existing reducer), which is 0.00 for a paid-but-unsettled request.
+    ``carryover_basis`` is in :data:`CARRYOVER_BASES`, ``None`` when not a carryover.
+    ``earliest_expense_date`` and ``undated_items`` (obligation items without an expense
+    date) use the same obligation items as the flag.
+    """
+
+    review_key: str
+    ticket_ref: str
+    origin: str
+    submitted: date
+    pay_now: Decimal
+    earliest_expense_date: date | None
+    carryover: bool
+    carryover_basis: str | None
+    undated_items: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "review_key": self.review_key,
+            "ticket_ref": self.ticket_ref,
+            "origin": self.origin,
+            "submitted": self.submitted.isoformat(),
+            "pay_now": money_str(self.pay_now),
+            "earliest_expense_date": _opt_date(self.earliest_expense_date),
+            "carryover": self.carryover,
+            "carryover_basis": self.carryover_basis,
+            "undated_items": self.undated_items,
+        }
+
+
+@dataclass(frozen=True)
+class PaymentJoin:
+    """How one paid ticket's recorded payment relates to bank rows.
+
+    ``state`` is in :data:`PAYMENT_JOIN_STATES`. ``reference`` / ``amount`` come from the
+    ticket's recorded payment event (``None`` for ``no_reference``). ``bank_refs`` lists the
+    joined row (``matched``) or every candidate (``ambiguous``). Joining never changes the
+    ticket's adjudication or payment state.
+    """
+
+    review_key: str
+    ticket_ref: str
+    state: str
+    payment_date: date | None
+    reference: str | None = None
+    amount: Decimal | None = None
+    bank_refs: tuple[SourceRef, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "review_key": self.review_key,
+            "ticket_ref": self.ticket_ref,
+            "state": self.state,
+            "payment_date": _opt_date(self.payment_date),
+            "reference": self.reference,
+            "amount": _opt_money(self.amount),
+            "bank_refs": [ref.to_dict() for ref in self.bank_refs],
+        }
+
+
+@dataclass(frozen=True)
+class ReimbursementFacts:
+    """Item-level reimbursement projection for the school-year period.
+
+    Expense activity (by item expense date) and payments (by ticket payment date) are separate
+    views of the same items, so a June expense paid in July is a prior-year expense with a
+    current-year payment and is never added to expense totals twice. ``queue`` holds every
+    outstanding request; ``cutoff_date`` / ``first_received`` / ``last_received`` repeat the
+    bundle's unchanged mail collection window.
+    """
+
+    items: tuple[ReimbursementItemFact, ...]
+    totals: tuple[ReimbursementTotal, ...]
+    queue: tuple[QueueEntry, ...]
+    outstanding: Decimal
+    joins: tuple[PaymentJoin, ...]
+    cutoff_date: date
+    first_received: date
+    last_received: date
+    bundle_as_of: date
+
+    def expense(self, bucket: str, status: str | None = None) -> Decimal:
+        """Known amount of items whose expense date is in ``bucket`` (optionally one status)."""
+        return sum(
+            (
+                total.amount
+                for total in self.totals
+                if total.expense_bucket == bucket and status in (None, total.status)
+            ),
+            _ZERO_MONEY,
+        )
+
+    def paid(self, bucket: str, expense_bucket: str | None = None) -> Decimal:
+        """Known amount of paid items whose payment date is in ``bucket``."""
+        return sum(
+            (
+                total.amount
+                for total in self.totals
+                if total.payment_bucket == bucket and expense_bucket in (None, total.expense_bucket)
+            ),
+            _ZERO_MONEY,
+        )
+
+    def open_amount(self, expense_bucket: str, status: str | None = None) -> Decimal:
+        """Known amount of UNPAID items on unsettled tickets whose expense date is in the bucket.
+
+        Paid items are never open, so the approved (``A``) open amounts over every bucket sum
+        to :attr:`outstanding`, the existing pay-now reducer.
+        """
+        return sum(
+            (
+                total.amount
+                for total in self.totals
+                if total.open
+                and total.payment_bucket == _UNPAID
+                and total.expense_bucket == expense_bucket
+                and status in (None, total.status)
+            ),
+            _ZERO_MONEY,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "items": [item.to_dict() for item in self.items],
+            "totals": [total.to_dict() for total in self.totals],
+            "queue": [entry.to_dict() for entry in self.queue],
+            "outstanding": money_str(self.outstanding),
+            "joins": [join.to_dict() for join in self.joins],
+            "cutoff_date": self.cutoff_date.isoformat(),
+            "first_received": self.first_received.isoformat(),
+            "last_received": self.last_received.isoformat(),
+            "bundle_as_of": self.bundle_as_of.isoformat(),
+        }
+
+
+@dataclass(frozen=True)
+class BudgetLine:
+    """One adopted annual target for the school year and its comparable bank-basis actual.
+
+    ``target`` is the adopted amount as entered (``None`` when unreadable). ``actual`` is the
+    signed adjusted bank net crosswalked to ``category`` for the period to date (inflow
+    positive), set ONLY when ``actual_status`` is ``observed``: the crosswalk is configured,
+    the category is a crosswalk target and the bank view's coverage is complete. An observed
+    zero is ``0.00``; anything else is ``None`` with its :data:`BUDGET_ACTUAL_STATUSES`
+    reason, never an invented zero. Targets are annual and carry no dates. ``position`` is
+    the one-based position among the captured adopted rows.
+    """
+
+    position: int
+    fiscal_year: int
+    line_type: str
+    category: str
+    target: Decimal | None
+    actual: Decimal | None
+    actual_status: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "position": self.position,
+            "fiscal_year": self.fiscal_year,
+            "line_type": self.line_type,
+            "category": self.category,
+            "target": _opt_money(self.target),
+            "actual": _opt_money(self.actual),
+            "actual_status": self.actual_status,
+        }
+
+
+def _amount_pairs(pairs: Sequence[tuple[str, Decimal]]) -> list[list[str]]:
+    return [[name, money_str(amount)] for name, amount in pairs]
+
+
+@dataclass(frozen=True)
+class BudgetFacts:
+    """Adopted school-year targets beside comparable crosswalked actuals.
+
+    ``mapped_actuals`` are budget-category totals; ``unmapped`` source categories have no
+    crosswalk entry; ``unbudgeted`` budget categories have actuals but no adopted line.
+    ``other_year_rows`` counts adopted rows of other fiscal years (outside this scope).
+    """
+
+    fiscal_year: int
+    crosswalk_version: int | None
+    lines: tuple[BudgetLine, ...]
+    mapped_actuals: tuple[tuple[str, Decimal], ...]
+    unmapped: tuple[tuple[str, Decimal], ...]
+    unbudgeted: tuple[tuple[str, Decimal], ...]
+    other_year_rows: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "fiscal_year": self.fiscal_year,
+            "crosswalk_version": self.crosswalk_version,
+            "lines": [line.to_dict() for line in self.lines],
+            "mapped_actuals": _amount_pairs(self.mapped_actuals),
+            "unmapped": _amount_pairs(self.unmapped),
+            "unbudgeted": _amount_pairs(self.unbudgeted),
+            "other_year_rows": self.other_year_rows,
+        }
+
+
+@dataclass(frozen=True)
+class FundraisingCategory:
+    """Processor sale gross attributed through Category Mapping guidance.
+
+    ``classification`` is the :class:`ProcessorClassification` status (or ``no_text`` when
+    the row has none); ``category`` is set only when it is ``matched``.
+    """
+
+    category: str | None
+    classification: str
+    count: int
+    gross: Decimal
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "category": self.category,
+            "classification": self.classification,
+            "count": self.count,
+            "gross": money_str(self.gross),
+        }
+
+
+@dataclass(frozen=True)
+class FundraisingTotals:
+    """Processor gross/fee/refund/net for one source alias, by processor payment date.
+
+    Each movement is counted once (primary payments and their linked fee/refund rows; an
+    overlap secondary is represented by its primary). ``fees`` and ``refunds`` are magnitudes
+    and ``net = gross - fees - refunds``. ``excluded_rows`` counts unresolved (conflict) rows
+    left out. ``complete`` is false when ``incomplete_reasons`` names any limitation. These
+    totals enrich, and are never added to, the bank-basis view.
+    """
+
+    source_alias: str
+    gross: Decimal
+    fees: Decimal
+    refunds: Decimal
+    net: Decimal
+    payment_count: int
+    fee_rows: int
+    refund_rows: int
+    excluded_rows: int
+    categories: tuple[FundraisingCategory, ...]
+    incomplete_reasons: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not self.incomplete_reasons
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_alias": self.source_alias,
+            "gross": money_str(self.gross),
+            "fees": money_str(self.fees),
+            "refunds": money_str(self.refunds),
+            "net": money_str(self.net),
+            "payment_count": self.payment_count,
+            "fee_rows": self.fee_rows,
+            "refund_rows": self.refund_rows,
+            "excluded_rows": self.excluded_rows,
+            "categories": [item.to_dict() for item in self.categories],
+            "complete": self.complete,
+            "incomplete_reasons": list(self.incomplete_reasons),
+        }
+
+
+@dataclass(frozen=True)
+class FactIssue:
+    """A visible, countable fact-projection finding. Never carries a money or cell value."""
+
+    code: str
+    count: int
+    subject: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"code": self.code, "count": self.count, "subject": self.subject}
+
+
+@dataclass(frozen=True)
+class ReportFacts:
+    """Every figure the Main Report Set renders, projected from one captured input set.
+
+    ``pnl_views`` holds the source and adjusted bank-basis views of both periods; ``bridges``
+    explain every scope, adjustment, window, recognition and payment difference. Coverage
+    gaps are flags, never zeroes. ``discrepancy_ids`` lists every unresolved reconciliation
+    finding carried from the source view. ``pending_adjustments`` (effective after the as-of
+    date), ``superseded_adjustments`` and ``adjustment_warnings`` repeat the adjusted ledger's
+    journal diagnostics so they can be shown beside the applied entries.
+    """
+
+    as_of: date
+    periods: ReportingPeriods
+    journal_sha256: str
+    applied_adjustments: tuple[str, ...]
+    pnl_views: tuple[PnlView, ...]
+    bridges: tuple[Bridge, ...]
+    reimbursements: ReimbursementFacts
+    budget: BudgetFacts
+    fundraising: tuple[FundraisingTotals, ...]
+    coverage: tuple[CoverageStatus, ...]
+    coverage_flags: tuple[CoverageFlag, ...]
+    issues: tuple[FactIssue, ...]
+    pnl_control_status: str
+    discrepancy_ids: tuple[str, ...]
+    pending_adjustments: tuple[str, ...]
+    superseded_adjustments: tuple[str, ...]
+    adjustment_warnings: tuple[AdjustmentIssue, ...]
+    schema_version: int = SCHEMA_VERSION
+
+    def view(self, basis: str, view: str) -> PnlView:
+        """The P&L view of one period basis and view basis."""
+        (found,) = [item for item in self.pnl_views if (item.basis, item.view) == (basis, view)]
+        return found
+
+    def bridge(self, name: str) -> Bridge:
+        (found,) = [item for item in self.bridges if item.name == name]
+        return found
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "as_of": self.as_of.isoformat(),
+            "periods": self.periods.to_dict(),
+            "journal_sha256": self.journal_sha256,
+            "applied_adjustments": list(self.applied_adjustments),
+            "pnl_views": [item.to_dict() for item in self.pnl_views],
+            "bridges": [item.to_dict() for item in self.bridges],
+            "reimbursements": self.reimbursements.to_dict(),
+            "budget": self.budget.to_dict(),
+            "fundraising": [item.to_dict() for item in self.fundraising],
+            "coverage": [item.to_dict() for item in self.coverage],
+            "coverage_flags": [flag.to_dict() for flag in self.coverage_flags],
+            "issues": [issue.to_dict() for issue in self.issues],
+            "pnl_control_status": self.pnl_control_status,
+            "discrepancy_ids": list(self.discrepancy_ids),
+            "pending_adjustments": list(self.pending_adjustments),
+            "superseded_adjustments": list(self.superseded_adjustments),
+            "adjustment_warnings": [issue.to_dict() for issue in self.adjustment_warnings],
         }

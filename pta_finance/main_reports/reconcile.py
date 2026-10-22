@@ -57,6 +57,7 @@ from pta_finance.main_reports.models import (
     SourceMatch,
     SourceRef,
     Transaction,
+    content_hash,
     month_totals_from,
     monthly_cells_from,
 )
@@ -84,6 +85,8 @@ __all__ = [
     "from_capture",
     "parse_month_label",
     "crosswalk_amounts",
+    "crosswalk_digest",
+    "reference_token",
     # types
     "ReconcileError",
     "ReconciliationControls",
@@ -982,7 +985,7 @@ class _ProcessorPass:
             referenced: list[Transaction] = []
             reference = transfer.native_id or ""
             if len(reference) >= MIN_SETTLEMENT_REFERENCE_LENGTH:
-                token = re.compile(rf"(?<![0-9A-Za-z]){re.escape(reference)}(?![0-9A-Za-z])")
+                token = reference_token(reference)
                 referenced = [
                     row
                     for row in self.bank
@@ -1147,6 +1150,49 @@ def crosswalk_amounts(
     return tuple((target.category, part) for target, part in zip(targets, parts, strict=True))
 
 
+def reference_token(reference: str, *, ignore_case: bool = False) -> re.Pattern[str]:
+    """The ONE whole-token pattern for a source reference inside free text or a cell.
+
+    The reference must stand alone: no letter or digit may touch either end. Compile it
+    once per reference and reuse it across rows. ``ignore_case`` is the single owner of
+    the case policy: processor settlement references here match exactly (case is part of
+    a provider ID); reimbursement payment references in the facts projection match with
+    ``ignore_case=True`` (a bank may print a confirmation code in another case).
+    """
+    pattern = rf"(?<![0-9A-Za-z]){re.escape(reference)}(?![0-9A-Za-z])"
+    return re.compile(pattern, re.IGNORECASE if ignore_case else 0)
+
+
+def crosswalk_digest(crosswalk: CategoryCrosswalk | None) -> str | None:
+    """SHA-256 of the whole crosswalk content (version, every entry, target and share).
+
+    Recorded on the reconciliation so later projections can prove they map categories
+    (including ones only an adjustment introduces) exactly as configured here.
+    Every component counts: version, entry order, source category, note, each target's
+    category and share, and TARGET ORDER (it decides which target receives the leftover
+    cents in :func:`crosswalk_amounts`). Shares are normalized, so ``0.5`` and ``0.50``
+    are the same share. ``None`` when no crosswalk is configured.
+    """
+    if crosswalk is None:
+        return None
+    return content_hash(
+        {
+            "version": crosswalk.version,
+            "entries": [
+                {
+                    "source_category": entry.source_category,
+                    "targets": [
+                        [target.category, format(target.share.normalize(), "f")]
+                        for target in entry.targets
+                    ],
+                    "note": entry.note,
+                }
+                for entry in crosswalk.entries
+            ],
+        }
+    )
+
+
 def _crosswalk(
     cells: Sequence[MonthlyCategoryCell],
     crosswalk: CategoryCrosswalk | None,
@@ -1264,6 +1310,7 @@ def build(transactions: Sequence[Transaction], controls: ReconciliationControls)
         pnl_totals=totals,
         pnl_control=pnl,
         crosswalk_version=controls.crosswalk.version if controls.crosswalk else None,
+        crosswalk_sha256=crosswalk_digest(controls.crosswalk),
         crosswalk_cells=crosswalk_cells,
         matches=tuple(sorted(processor_pass.matches, key=lambda m: (m.kind, m.match_id))),
         classifications=classifications,

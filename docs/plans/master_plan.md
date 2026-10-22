@@ -1324,7 +1324,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 60: Align school-year facts and preserve carryovers
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-22)
 - **Type:** code
 - **Problem:** Build item/transaction-level projections for July–June summaries and January–December P&L. Preserve June acquisition and historical evidence. Keep all outstanding requests in the queue; separate prior-year obligations and current payments of them from current-year expense activity. Explain period, recognition, and payment differences without changing stored IDs or receipt fingerprints.
 - **Issue:** #99
