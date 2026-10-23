@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 
 from pta_finance import report_source
-from pta_finance.config import Config, ConfigError, load_config
+from pta_finance.config import ColumnBinding, Config, ConfigError, SourceBinding, load_config
 from pta_finance.main_reports import models, sources
 from pta_finance.main_reports.models import Transaction, make_record_key
 from pta_finance.main_reports.sources import (
@@ -33,9 +33,12 @@ from pta_finance.main_reports.sources import (
     SourceSchemaError,
     SourceValidationError,
     capture,
+    classify_paypal_type,
     classify_status,
     compare_captures,
     compare_transactions,
+    connect_own_read_client,
+    connect_source_client,
     coverage_status,
     is_dash_placeholder,
     normalize,
@@ -45,6 +48,7 @@ from pta_finance.main_reports.sources import (
     parse_source_date,
     read_category_mapping,
     require_bindings,
+    resolve_binding,
     store_capture_set,
 )
 from tests.conftest import (
@@ -57,11 +61,15 @@ from tests.conftest import (
     WIX_LABELS,
     CfoHarness,
     CfoWorksheet,
+    FakeClient,
     FakeSpreadsheet,
+    FakeWorksheet,
+    RecordingSleep,
     TimeoutClient,
     _clock,
     _source_toml,
     main_reports_toml,
+    make_api_error,
 )
 
 # --------------------------------------------------------------------------------------
@@ -1761,3 +1769,326 @@ def test_wix_accounting_zero_fee_with_entered_zero_is_still_exact(tmp_path: Path
         ("processing_fee", Decimal("-1.00")),
         ("service_fee", Decimal("0.00")),
     )
+
+
+# --------------------------------------------------------------------------------------
+# Real export header shapes (fictional values): padded labels, time-zone suffixes,
+# alternative product label, comma timestamps and PayPal POS payments
+# --------------------------------------------------------------------------------------
+
+REAL_BANK_HEADER = [" AMOUNT " if label == "AMOUNT" else label for label in BANK_HEADER]
+# The real WIX export: one unique "Transaction Status"; other "Status" labels sit under the
+# Subscription and Chargebacks groups; billing/shipping name labels repeat.
+REAL_WIX_GROUPS = [
+    "Payment",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Transaction",
+    "",
+    "",
+    "Order",
+    "Products or Services",
+    "",
+    "Subscription",
+    "Chargebacks",
+    "Billing",
+    "",
+    "Shipping",
+    "",
+]
+REAL_WIX_LABELS = [
+    "Provider Payment ID",
+    "Payment Date GMT -07:00",
+    "Transaction Date GMT -07:00",
+    "Currency",
+    "Amount",
+    "Processing Fee",
+    "Service Fee",
+    "Net",
+    "Transaction Status",
+    "Refund Amount",
+    "Payment Provider",
+    "Order ID",
+    "Name",
+    "Quantity",
+    "Status",
+    "Status",
+    "First Name",
+    "Last Name",
+    "First Name",
+    "Last Name",
+]
+_REAL_WIX = {"payment_date": 1, "transaction_datetime": 2, "product_name": 12}
+
+
+def _real_wix_row(payment_id: str, paid: str, transacted: str, status: str) -> list[str]:
+    return [
+        payment_id,
+        paid,
+        transacted,
+        "USD",
+        "$20.00",
+        "-1.00",
+        "0.00",
+        "19.00",
+        status,
+        "",
+        "Example Payments",
+        f"2000{payment_id[-1]}",
+        "Spirit Shirt",
+        "1",
+        "Active",
+        "Open",
+        "Example",
+        "Buyer",
+        "Example",
+        "Buyer",
+    ]
+
+
+# Transaction stamps differ from payment stamps, so a swapped binding cannot pass.
+REAL_WIX_ROWS = [
+    _real_wix_row(
+        "pi_real_example_1", "1/4/2030, 10:15:00 AM", "1/3/2030, 9:00:00 AM", "Successful"
+    ),
+    _real_wix_row("pi_real_example_2", "1/9/2030, 11:59:59 PM", "1/8/2030, 1:00 PM", "Refunded"),
+    _real_wix_row("pi_real_example_3", "12/31/2030, 3:05 PM", "12/30/2030, 3:05 PM", "Declined"),
+]
+POS_ROW = [
+    "01/11/2030",
+    "14:30:00",
+    "PST",
+    "Example Buyer",
+    "POS Payment",
+    "Completed",
+    "USD",
+    "12.00",
+    "-0.50",
+    "11.50",
+    "TXN-EX-POS",
+    "",
+    "",
+    "",
+    "Credit",
+]
+
+
+def _real_shape_config(tmp_path: Path) -> Config:
+    # main_reports_toml has no WIX-signature parameter (and conftest is outside this change),
+    # so the generated WIX signature is swapped for the real-shaped one, guarded to one hit.
+    text = main_reports_toml(wix_columns="", bank_signature=(REAL_BANK_HEADER,))
+    old = json.dumps([WIX_GROUPS, WIX_LABELS])
+    assert text.count(old) == 1
+    text = text.replace(old, json.dumps([REAL_WIX_GROUPS, REAL_WIX_LABELS]))
+    path = tmp_path / "config.toml"
+    path.write_text(_FULL_CONFIG + text, encoding="utf-8")
+    return load_config(path)
+
+
+def test_real_export_header_shapes_resolve_and_normalize_without_overrides(
+    tmp_path: Path,
+) -> None:
+    config = _real_shape_config(tmp_path)
+    resolved = {item.binding.alias: item for item in require_bindings(config)}
+    assert all(item.binding.columns == () for item in resolved.values())
+    assert dict(resolved["bank-checking"].columns)["amount"] == 2
+    wix_columns = dict(resolved["wix"].columns)
+    assert {name: wix_columns[name] for name in _REAL_WIX} == _REAL_WIX
+    assert wix_columns["transaction_status"] == 8
+
+    cfo = _cfo_worksheets(
+        **{
+            "Bank Checking": CfoWorksheet([REAL_BANK_HEADER, *BANK_ROWS], sheet_id=1001),
+            "Store Transactions": CfoWorksheet(
+                [REAL_WIX_GROUPS, REAL_WIX_LABELS, *REAL_WIX_ROWS], sheet_id=1002
+            ),
+            "Processor Transactions": CfoWorksheet(
+                [PAYPAL_HEADER, *PAYPAL_ROWS, POS_ROW], sheet_id=1003
+            ),
+        }
+    )
+    harness = Harness(config, cfo)
+    result = normalize_with_report(harness.capture())
+
+    assert result.errors == ()
+    wix = _by_alias(result.transactions, "wix")
+    assert [txn.payment_date for txn in wix] == [
+        date(2030, 1, 4),
+        date(2030, 1, 9),
+        date(2030, 12, 31),
+    ]
+    assert [txn.original_timestamp for txn in wix] == [row[2] for row in REAL_WIX_ROWS]
+    assert [txn.source_status for txn in wix] == ["Successful", "Refunded", "Declined"]
+    assert {txn.product_name for txn in wix} == {"Spirit Shirt"}
+    assert len(_by_alias(result.transactions, "bank-checking")) == 6
+    pos_row_number = 1 + len(PAYPAL_ROWS) + 1
+    assert ("paypal", pos_row_number, "unknown_type") not in {
+        (i.source_alias, i.row_number, i.code) for i in result.warnings
+    }
+    pos = next(t for t in result.transactions if t.native_id == "TXN-EX-POS")
+    assert pos.row_role == "payment"
+    harness.assert_no_writes()
+
+
+def test_capture_header_signature_comparison_stays_exact(tmp_path: Path) -> None:
+    # Label RESOLUTION tolerates padding; the capture-time signature check never does.
+    cfo = _cfo_worksheets(
+        **{"Bank Checking": CfoWorksheet([REAL_BANK_HEADER, *BANK_ROWS], sheet_id=1001)}
+    )
+    with pytest.raises(SourceSchemaError) as caught:
+        Harness(_config(tmp_path), cfo).capture()
+    assert caught.value.code == "header_signature_mismatch"
+    assert caught.value.positions == ((0, 2),)
+
+
+def _wix_binding(
+    labels: Sequence[str], groups: Sequence[str], **columns: ColumnBinding
+) -> SourceBinding:
+    return SourceBinding(
+        alias="wix",
+        kind="wix",
+        tab="Store Transactions",
+        header_signature=(tuple(groups), tuple(labels)),
+        columns=tuple(columns.items()),
+    )
+
+
+def _code(binding: SourceBinding) -> str:
+    with pytest.raises(SourceConfigError) as caught:
+        resolve_binding(binding)
+    return caught.value.code
+
+
+def test_time_zone_suffix_match_is_exact_first_and_never_ambiguous() -> None:
+    base = list(REAL_WIX_LABELS)
+    groups = [*REAL_WIX_GROUPS, ""]
+    # An exact label wins over a suffixed one.
+    exact = [*base, "Payment Date"]
+    assert dict(resolve_binding(_wix_binding(exact, groups)).columns)["payment_date"] == len(base)
+    # Two suffixed candidates (and no exact label) are ambiguous.
+    assert _code(_wix_binding([*base, "Payment Date GMT +5:30"], groups)) == "ambiguous_column"
+    # The suffix pattern is anchored: other trailing text never matches.
+    loose = ["Payment Date (local)" if c == "Payment Date GMT -07:00" else c for c in base]
+    assert _code(_wix_binding(loose, REAL_WIX_GROUPS)) == "missing_column"
+    # A field without the suffix allowance (Amount) never matches a suffixed label.
+    suffixed_amount = ["Amount GMT -07:00" if c == "Amount" else c for c in base]
+    assert _code(_wix_binding(suffixed_amount, REAL_WIX_GROUPS)) == "missing_column"
+
+
+def test_explicit_overrides_never_use_suffix_or_alternative_fallbacks() -> None:
+    labels, groups = REAL_WIX_LABELS, REAL_WIX_GROUPS
+    date_override = _wix_binding(labels, groups, payment_date=ColumnBinding(label="Payment Date"))
+    assert _code(date_override) == "missing_column"
+    product_override = _wix_binding(
+        labels, groups, product_name=ColumnBinding(label="Product Name")
+    )
+    assert _code(product_override) == "missing_column"
+
+
+def test_alternative_product_label_is_group_checked_and_default_wins() -> None:
+    base = list(REAL_WIX_LABELS)
+    outside = list(REAL_WIX_GROUPS)
+    outside[12] = "Order"  # "Name" now sits in an Order group, not Products or Services
+    with pytest.raises(SourceConfigError) as caught:
+        resolve_binding(_wix_binding(base, outside))
+    assert caught.value.code == "missing_column"
+    # The error names every label it accepted, so the operator learns the fallbacks.
+    assert "'Product Name' or 'Name' under 'Products or Services'" in str(caught.value)
+    with_default = [*base, "Product Name"]
+    columns = dict(resolve_binding(_wix_binding(with_default, [*REAL_WIX_GROUPS, ""])).columns)
+    assert columns["product_name"] == len(base)
+    # Two alternative candidates in the group are ambiguous.
+    twice = [*base[:13], "Name", *base[14:]]  # Quantity's slot becomes a second product Name
+    assert _code(_wix_binding(twice, REAL_WIX_GROUPS)) == "ambiguous_column"
+
+
+def test_padded_labels_match_only_when_no_literal_label_exists() -> None:
+    padded = [f" {label}  " for label in BANK_HEADER]
+    binding = SourceBinding(
+        alias="bank-checking", kind="bank", tab="Bank Checking", header_signature=(tuple(padded),)
+    )
+    assert dict(resolve_binding(binding).columns)["amount"] == 2
+    override = dataclasses.replace(binding, columns=(("amount", ColumnBinding(label=" AMOUNT")),))
+    assert dict(resolve_binding(override).columns)["amount"] == 2
+    groups = [f" {group} " if group else group for group in REAL_WIX_GROUPS]
+    assert (
+        dict(resolve_binding(_wix_binding(REAL_WIX_LABELS, groups)).columns)["product_name"] == 12
+    )
+    # A literal label beats its padded twin (no ambiguity), as before padding tolerance.
+    twin = dataclasses.replace(binding, header_signature=((*BANK_HEADER, " AMOUNT "),))
+    assert dict(resolve_binding(twin).columns)["amount"] == 2
+    twin_first = dataclasses.replace(binding, header_signature=((" AMOUNT ", *BANK_HEADER),))
+    assert dict(resolve_binding(twin_first).columns)["amount"] == 3
+
+
+def test_occurrence_counts_literal_labels_only() -> None:
+    labels = list(REAL_WIX_LABELS)
+    labels[14], labels[15] = " Status", "Status"  # padded twin precedes the literal one
+    labels[19] = "Status"
+    groups = [*REAL_WIX_GROUPS]
+    second = _wix_binding(
+        labels, groups, transaction_status=ColumnBinding(label="Status", occurrence=2)
+    )
+    assert dict(resolve_binding(second).columns)["transaction_status"] == 19
+    third = _wix_binding(
+        labels, groups, transaction_status=ColumnBinding(label="Status", occurrence=3)
+    )
+    assert _code(third) == "missing_column"  # never falls through to the padded twin
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("1/5/2030, 10:15:00 PM", date(2030, 1, 5)), ("01/05/2030, 9:05 AM", date(2030, 1, 5))],
+)
+def test_parse_source_date_accepts_comma_timestamps(raw: str, expected: date) -> None:
+    assert parse_source_date(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["1/5/2030,10:15 PM", "1/5/2030, 10:15"])
+def test_parse_source_date_comma_forms_stay_strict(raw: str) -> None:
+    with pytest.raises(ValueError, match="invalid_date"):
+        parse_source_date(raw)
+
+
+def test_pos_payment_is_a_payment_but_pos_refunds_and_payouts_are_not() -> None:
+    assert classify_paypal_type("POS Payment") == ("payment", True)
+    # Refund/reversal keywords are classified before the payment vocabulary.
+    assert classify_paypal_type("POS Payment Reversal") == ("refund", True)
+    assert classify_paypal_type("POS Refund") == ("refund", True)
+    # An outgoing payout stays reviewable.
+    assert classify_paypal_type("Mass Pay Payment") == ("payment", False)
+
+
+# Six consecutive 429s: SheetsClient's shared default (5 attempts, ~15 s of backoff) gives up;
+# the capture policy waits 2+4+8+16+32+64 = 126 s (> the 60 s per-minute quota window).
+_QUOTA_429S = 6
+
+
+def _throttled_client() -> tuple[FakeClient, FakeWorksheet]:
+    sheet = FakeWorksheet(
+        [["Keyword", "Target Category"]],
+        fail_first={"get_all_values": [make_api_error(429) for _ in range(_QUOTA_429S)]},
+    )
+    return FakeClient(FakeSpreadsheet({"Category Mapping": sheet})), sheet
+
+
+def test_capture_clients_outlast_a_per_minute_read_quota(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    source_client, _ = _throttled_client()
+    source_sleep = RecordingSleep()
+    source = connect_source_client(config, gspread_client=source_client, sleep=source_sleep)
+    assert source.read_values("Category Mapping") == [["Keyword", "Target Category"]]
+    assert len(source_sleep.calls) == _QUOTA_429S
+    assert sum(source_sleep.calls) >= 60
+
+    own_client, _ = _throttled_client()
+    own_sleep = RecordingSleep()
+    own = connect_own_read_client(config, gspread_client=own_client, sleep=own_sleep)
+    assert own.read_values("Category Mapping") == [["Keyword", "Target Category"]]
+    assert len(own_sleep.calls) == _QUOTA_429S
+    assert sum(own_sleep.calls) >= 60

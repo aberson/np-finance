@@ -65,8 +65,14 @@ row issue) rather than producing a silent wrong total:
   months with no activity show either `0` or a dash over an entered zero.
 - Posted bank rows use the status `Posted`; other statuses are reported as not posted.
 - Processor fees are signed the same way in the WIX and PayPal tabs (negative amounts).
-- The WIX and PayPal header labels match the defaults; if not, map them with `columns`
-  overrides in your private `[main_reports]` config.
+- The bank, WIX and PayPal header labels resolve to the defaults. Padded labels (` AMOUNT `),
+  WIX date labels with a time-zone suffix (`Payment Date GMT -07:00`), the WIX product column
+  `Name` under `Products or Services`, and a unique `Transaction Status` label are recognized
+  without overrides; any other label needs a `columns` override in your private
+  `[main_reports]` config. WIX timestamps (`M/D/YYYY, H:MM:SS AM`) are dated as the export
+  shows them: the offset in the label is not applied.
+- PayPal `POS Payment` rows are incoming sales; any other unrecognized PayPal type (for
+  example `Mass Pay Payment`) is listed as an `unknown_type` warning for review.
 
 ## Run and publish
 

@@ -72,18 +72,23 @@ service_account_file = "secrets/service-account.json"
 #                      "OVERRIDE CATEGORY", "FINAL CATEGORY"]]
 # coverage = [{ start = "2030-01-01", end = "2030-06-30", evidence = "statement-index-2030" }]
 #
+# WIX date labels may carry the export's time-zone suffix (" GMT -07:00"), and "Name" under
+# "Products or Services" is the product column; neither needs an override. Only a label the
+# adapter does not recognize needs a [main_reports.sources.<alias>.columns] entry, such as
+# `product_name = { label = "Item", group = "Order" }` (group / occurrence pick a repeat).
+#
 # [main_reports.sources.wix]                   # two header rows: group headings, then labels
 # kind = "wix"
 # tab = "Store Transactions"
 # header_signature = [
-#   ["Payment", "", "", "", "", "", "", "", "", "Transaction", "", "", "Order", "", ""],
-#   ["Provider Payment ID", "Payment Date", "Transaction Date", "Time Zone", "Currency",
-#    "Amount", "Processing Fee", "Service Fee", "Net", "Status", "Refund Amount",
-#    "Payment Provider", "Order ID", "Product Name", "Quantity"],
+#   ["Payment", "", "", "", "", "", "", "", "", "Transaction", "", "", "Order",
+#    "Products or Services", "", "Subscription", "Chargebacks"],
+#   ["Provider Payment ID", "Payment Date GMT -07:00", "Transaction Date GMT -07:00",
+#    "Time Zone", "Currency", "Amount", "Processing Fee", "Service Fee", "Net",
+#    "Transaction Status", "Refund Amount", "Payment Provider", "Order ID", "Name", "Quantity",
+#    "Status", "Status"],
 # ]
 # coverage = [{ start = "2030-01-01", end = "2030-06-30", evidence = "store-export-2030-06" }]
-# [main_reports.sources.wix.columns]           # override a default label / disambiguate repeats
-# transaction_status = { label = "Status", group = "Transaction" }
 #
 # [main_reports.sources.paypal]
 # kind = "paypal"

@@ -82,6 +82,8 @@ __all__ = [
     # constants
     "READONLY_SCOPE",
     "HTTP_TIMEOUT_SECONDS",
+    "CAPTURE_MAX_RETRIES",
+    "CAPTURE_BASE_DELAY_SECONDS",
     "MAX_CAPTURE_ATTEMPTS",
     "ASSUMPTIONS_ALIAS",
     "ADAPTERS",
@@ -123,6 +125,13 @@ __all__ = [
 
 READONLY_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
 HTTP_TIMEOUT_SECONDS = 20.0
+# Quota-tolerant retry policy for the two read-only capture clients. A capture issues ~75
+# reads within seconds, and the Sheets read quota is per MINUTE per user, so a 429 can
+# outlast SheetsClient's shared default (~15 s of backoff). With these values the waits
+# before the final attempt are 2+4+8+16+32+64 = 126 s (> 60 s). Other commands keep the
+# SheetsClient defaults.
+CAPTURE_MAX_RETRIES = 7
+CAPTURE_BASE_DELAY_SECONDS = 1.0
 MAX_CAPTURE_ATTEMPTS = 2
 ASSUMPTIONS_ALIAS = "assumptions"
 _USD = "USD"
@@ -135,11 +144,20 @@ _USD = "USD"
 
 @dataclass(frozen=True)
 class FieldSpec:
-    """One adapter field: internal name, default header label, and whether it must exist."""
+    """One adapter field: internal name, default header label, and whether it must exist.
+
+    Only for the DEFAULT label (never an explicit ``columns`` override), and only when no
+    column carries the exact label: ``timezone_suffix`` accepts the label followed by an
+    export time-zone suffix such as ``" GMT -07:00"``, and ``alternatives`` lists further
+    labels (each with its own optional group) tried in order. Either fallback must match
+    exactly one column, or the binding is ambiguous.
+    """
 
     name: str
     label: str
     required: bool = True
+    timezone_suffix: bool = False
+    alternatives: tuple[ColumnBinding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -179,8 +197,9 @@ ADAPTERS: Mapping[str, AdapterSpec] = {
         header_rows=2,
         fields=(
             FieldSpec("provider_payment_id", "Provider Payment ID"),
-            FieldSpec("payment_date", "Payment Date"),
-            FieldSpec("transaction_datetime", "Transaction Date"),
+            # The real export appends the account time zone: "Payment Date GMT -07:00".
+            FieldSpec("payment_date", "Payment Date", timezone_suffix=True),
+            FieldSpec("transaction_datetime", "Transaction Date", timezone_suffix=True),
             FieldSpec("timezone_offset", "Time Zone", required=False),
             FieldSpec("currency", "Currency"),
             FieldSpec("amount", "Amount"),
@@ -191,7 +210,11 @@ ADAPTERS: Mapping[str, AdapterSpec] = {
             FieldSpec("refund_amount", "Refund Amount"),
             FieldSpec("payment_provider", "Payment Provider"),
             FieldSpec("order_id", "Order ID"),
-            FieldSpec("product_name", "Product Name"),
+            FieldSpec(
+                "product_name",
+                "Product Name",
+                alternatives=(ColumnBinding(label="Name", group="Products or Services"),),
+            ),
             FieldSpec("quantity", "Quantity"),
         ),
         date_field="payment_date",
@@ -341,40 +364,98 @@ def _forward_fill(row: Sequence[str], width: int) -> list[str]:
     return out
 
 
-def _locate(
+# An export time-zone suffix after a default label, e.g. "Payment Date GMT -07:00".
+# ASCII digits only ([0-9], not \d, which also matches other Unicode digits).
+_TIMEZONE_SUFFIX = r" GMT [+-][0-9]{1,2}:[0-9]{2}"
+# How one matching tier compares a label (and group) with the signature cells.
+_LITERAL, _STRIPPED, _SUFFIXED = "literal", "stripped", "suffixed"
+
+
+def _candidates(
     alias: str,
     spec_field: FieldSpec,
     ref: ColumnBinding,
     labels: Sequence[str],
     groups: Sequence[str] | None,
-) -> int | None:
-    # Labels come from private CONFIG (the expected signature), never from workbook cells.
-    candidates = [index for index, label in enumerate(labels) if label == ref.label]
+    mode: str,
+) -> list[int]:
+    """Positions whose label (and group) match ``ref`` under one tier, before ``occurrence``.
+
+    ``literal`` compares cells exactly; ``stripped`` ignores surrounding whitespace on both
+    sides (padded headers such as ``" AMOUNT "``); ``suffixed`` accepts the stripped label
+    followed by an anchored time-zone suffix.
+    """
+    if mode == _SUFFIXED:
+        pattern = re.compile(re.escape(ref.label.strip()) + _TIMEZONE_SUFFIX)
+        candidates = [
+            index for index, label in enumerate(labels) if pattern.fullmatch(label.strip())
+        ]
+    elif mode == _STRIPPED:
+        wanted = ref.label.strip()
+        candidates = [index for index, label in enumerate(labels) if label.strip() == wanted]
+    else:
+        candidates = [index for index, label in enumerate(labels) if label == ref.label]
     if ref.group is not None:
         if groups is None:
             raise SourceConfigError(
                 "column_group_unavailable",
                 f"{alias}.{spec_field.name}: a group needs a two-row header signature",
             )
-        candidates = [index for index in candidates if groups[index] == ref.group]
-    if ref.occurrence is not None:
-        if ref.occurrence <= len(candidates):
-            return candidates[ref.occurrence - 1]
-        candidates = []
-    if not candidates:
-        if spec_field.required:
+        if mode == _LITERAL:
+            candidates = [index for index in candidates if groups[index] == ref.group]
+        else:
+            group = ref.group.strip()
+            candidates = [index for index in candidates if groups[index].strip() == group]
+    return candidates
+
+
+def _describe(ref: ColumnBinding, mode: str) -> str:
+    text = repr(ref.label) + (" with a time-zone suffix" if mode == _SUFFIXED else "")
+    return text if ref.group is None else f"{text} under {ref.group!r}"
+
+
+def _locate(
+    alias: str,
+    spec_field: FieldSpec,
+    ref: ColumnBinding,
+    labels: Sequence[str],
+    groups: Sequence[str] | None,
+    *,
+    is_default: bool,
+) -> int | None:
+    # Labels come from private CONFIG (the expected signature), never from workbook cells.
+    # Tiers, first non-empty wins: the literal label, then the same label ignoring padding;
+    # for the DEFAULT label only, then its time-zone-suffixed form, then each alternative
+    # (literal, then stripped). Explicit overrides never get the suffix/alternative tiers.
+    # ``occurrence`` counts within the deciding tier, so it keeps its literal meaning.
+    tiers: list[tuple[ColumnBinding, str]] = [(ref, _LITERAL), (ref, _STRIPPED)]
+    if is_default:
+        if spec_field.timezone_suffix:
+            tiers.append((ref, _SUFFIXED))
+        for alternative in spec_field.alternatives:
+            tiers.extend(((alternative, _LITERAL), (alternative, _STRIPPED)))
+    for tier_ref, mode in tiers:
+        candidates = _candidates(alias, spec_field, tier_ref, labels, groups, mode)
+        if not candidates:
+            continue
+        if tier_ref.occurrence is not None:
+            if tier_ref.occurrence <= len(candidates):
+                return candidates[tier_ref.occurrence - 1]
+            break  # out of range in the deciding tier: missing, never a padded twin
+        if len(candidates) > 1:
             raise SourceConfigError(
-                "missing_column",
-                f"{alias}.{spec_field.name}: header signature has no column {ref.label!r}",
+                "ambiguous_column",
+                f"{alias}.{spec_field.name}: label {_describe(tier_ref, mode)} repeats; bind it "
+                "with a group or occurrence",
             )
-        return None
-    if len(candidates) > 1:
+        return candidates[0]
+    if spec_field.required:
+        tried = list(dict.fromkeys(_describe(tier_ref, mode) for tier_ref, mode in tiers))
         raise SourceConfigError(
-            "ambiguous_column",
-            f"{alias}.{spec_field.name}: label {ref.label!r} repeats; bind it with a group or "
-            "occurrence",
+            "missing_column",
+            f"{alias}.{spec_field.name}: header signature has no column {' or '.join(tried)}",
         )
-    return candidates[0]
+    return None
 
 
 def resolve_binding(binding: SourceBinding) -> ResolvedBinding:
@@ -402,8 +483,11 @@ def resolve_binding(binding: SourceBinding) -> ResolvedBinding:
     resolved: list[tuple[str, int]] = []
     used: set[int] = set()
     for spec_field in spec.fields:
-        ref = overrides.get(spec_field.name, ColumnBinding(label=spec_field.label))
-        position = _locate(binding.alias, spec_field, ref, labels, groups)
+        override = overrides.get(spec_field.name)
+        ref = override if override is not None else ColumnBinding(label=spec_field.label)
+        position = _locate(
+            binding.alias, spec_field, ref, labels, groups, is_default=override is None
+        )
         if position is None:
             continue
         if position in used:
@@ -507,8 +591,10 @@ def connect_source_client(
     """Open the CFO workbook through a separate client authorized only for read access.
 
     Production authorizes the service account with exactly :data:`READONLY_SCOPE` (Google then
-    rejects any write) and a finite HTTP timeout; retries reuse :class:`SheetsClient`'s
-    429/500/503 policy. Tests inject ``gspread_client`` (its scopes are the caller's concern).
+    rejects any write) and a finite HTTP timeout; 429/500/503 retries use
+    :class:`SheetsClient` with the quota-tolerant :data:`CAPTURE_MAX_RETRIES` /
+    :data:`CAPTURE_BASE_DELAY_SECONDS` policy. Tests inject ``gspread_client`` (its scopes are
+    the caller's concern).
     """
     main_reports = _main_reports(config)
     if gspread_client is None:
@@ -521,6 +607,8 @@ def connect_source_client(
         spreadsheet_id=main_reports.source_spreadsheet_id,
         gspread_client=gspread_client,
         sleep=sleep,
+        max_retries=CAPTURE_MAX_RETRIES,
+        base_delay=CAPTURE_BASE_DELAY_SECONDS,
     )
     return ReadOnlyWorkbook(client)
 
@@ -624,6 +712,8 @@ _DATE_FORMATS = (
     "%m/%d/%Y %H:%M",
     "%m/%d/%Y %I:%M:%S %p",
     "%m/%d/%Y %I:%M %p",
+    "%m/%d/%Y, %I:%M:%S %p",  # store export: "1/5/2030, 10:15:00 AM"
+    "%m/%d/%Y, %I:%M %p",
     "%b %d, %Y",
     "%B %d, %Y",
     "%b %d, %Y %I:%M %p",
@@ -767,6 +857,8 @@ _PAYPAL_PAYMENT_TYPES = frozenset(
         "general payment",
         "invoice payment",
         "pre-approved payment",
+        "pos payment",
+        # "Mass Pay Payment" is deliberately absent: an outgoing payout stays unknown_type.
     }
 )
 
@@ -1121,7 +1213,13 @@ def connect_own_read_client(
             filename=str(config.google.service_account_path), scopes=[READONLY_SCOPE]
         )
         gspread_client.set_timeout(HTTP_TIMEOUT_SECONDS)
-    return SheetsClient(config, gspread_client=gspread_client, sleep=sleep)
+    return SheetsClient(
+        config,
+        gspread_client=gspread_client,
+        sleep=sleep,
+        max_retries=CAPTURE_MAX_RETRIES,
+        base_delay=CAPTURE_BASE_DELAY_SECONDS,
+    )
 
 
 def capture(
