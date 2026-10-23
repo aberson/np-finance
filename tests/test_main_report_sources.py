@@ -27,6 +27,7 @@ from pta_finance.main_reports import models, sources
 from pta_finance.main_reports.models import Transaction, make_record_key
 from pta_finance.main_reports.sources import (
     READONLY_SCOPE,
+    UNALLOCATED_SPLIT_CATEGORY,
     ReadOnlyWorkbook,
     SourceCaptureError,
     SourceConfigError,
@@ -780,7 +781,6 @@ def test_signature_missing_a_required_column_is_rejected_before_reads(tmp_path: 
         (1, 2, "12.345", "invalid_money", "amount"),
         (1, 2, "12,34", "invalid_money", "amount"),
         (1, 2, "twelve", "invalid_money", "amount"),
-        (0, 7, "Fundraiser Income: 1,280.00, Processing Fees: -29.00", "split_sum_mismatch", None),
         (0, 7, "Fundraiser Income: 1,280.00, Processing Fees", "unparseable_split", None),
     ],
 )
@@ -808,6 +808,56 @@ def test_bank_row_errors_are_explicit_and_redacted(
     message = str(caught.value)
     assert code in message and f"row {row_index + 2}" in message
     assert "1,280.00" not in message and "Check 1001" not in message
+
+
+def test_bank_split_sum_mismatch_is_published_with_an_explicit_remainder(
+    tmp_path: Path,
+) -> None:
+    # Contract change (operator decision 2026-10-22): a split that does not add up is a
+    # WARNING; the row is emitted with the signed gap as its own explicit component.
+    rows = [list(row) for row in BANK_ROWS]
+    rows[1][2] = "-500.95"  # sheet row 3
+    rows[1][7] = "A: -300.00, B: -200.00"
+    cfo = _cfo_worksheets(**{"Bank Checking": CfoWorksheet([BANK_HEADER, *rows], sheet_id=1001)})
+    result = normalize_with_report(Harness(_config(tmp_path), cfo).capture())
+
+    assert result.errors == ()
+    mismatch = [i for i in result.issues if i.code == "split_sum_mismatch"]
+    assert [(i.row_number, i.field, i.severity) for i in mismatch] == [
+        (3, "final_category", "warning")
+    ]
+    row = next(
+        t for t in result.transactions if t.refs[0].row_number == 3 and t.source_kind == "bank"
+    )
+    assert [(a.category, a.amount) for a in row.allocations] == [
+        ("A", Decimal("-300.00")),
+        ("B", Decimal("-200.00")),
+        (UNALLOCATED_SPLIT_CATEGORY, Decimal("-0.95")),
+    ]
+    assert UNALLOCATED_SPLIT_CATEGORY == "Unallocated split difference"
+    assert sum((a.amount for a in row.allocations), Decimal(0)) == row.gross == Decimal("-500.95")
+    # Direct callers of the strict parser are unchanged: a mismatch still raises.
+    with pytest.raises(ValueError, match="split_sum_mismatch"):
+        parse_allocations("A: -300.00, B: -200.00", Decimal("-500.95"))
+
+
+@pytest.mark.parametrize(
+    ("final_category", "code"),
+    [
+        ("A: -300.00, B", "unparseable_split"),
+        ("A: -300.00, B: -", "split_dash_placeholder"),
+    ],
+)
+def test_other_split_errors_still_fail_closed(
+    tmp_path: Path, final_category: str, code: str
+) -> None:
+    rows = [list(row) for row in BANK_ROWS]
+    rows[1][2] = "-500.95"  # sheet row 3
+    rows[1][7] = final_category
+    cfo = _cfo_worksheets(**{"Bank Checking": CfoWorksheet([BANK_HEADER, *rows], sheet_id=1001)})
+    result = normalize_with_report(Harness(_config(tmp_path), cfo).capture())
+    assert [(i.row_number, i.code, i.field) for i in result.errors] == [(3, code, "final_category")]
+    assert 3 not in [t.refs[0].row_number for t in _by_alias(result.transactions, "bank-checking")]
 
 
 def test_unsupported_currency_and_missing_final_category(tmp_path: Path) -> None:

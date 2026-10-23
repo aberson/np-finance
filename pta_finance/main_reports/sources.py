@@ -86,6 +86,7 @@ __all__ = [
     "CAPTURE_BASE_DELAY_SECONDS",
     "MAX_CAPTURE_ATTEMPTS",
     "ASSUMPTIONS_ALIAS",
+    "UNALLOCATED_SPLIT_CATEGORY",
     "ADAPTERS",
     # functions
     "resolve_binding",
@@ -134,6 +135,10 @@ CAPTURE_MAX_RETRIES = 7
 CAPTURE_BASE_DELAY_SECONDS = 1.0
 MAX_CAPTURE_ATTEMPTS = 2
 ASSUMPTIONS_ALIAS = "assumptions"
+# The ONE category that carries a bank split's signed gap (amount minus its components) when
+# the components do not add up. The row is published with a ``split_sum_mismatch`` warning;
+# the gap is never absorbed into a real category (operator decision 2026-10-22).
+UNALLOCATED_SPLIT_CATEGORY = "Unallocated split difference"
 _USD = "USD"
 
 
@@ -789,9 +794,23 @@ def parse_allocations(text: str, amount: Decimal) -> tuple[tuple[str, Decimal], 
     amount written as a bare dash has no entered number to prove it is zero, so it is a
     placeholder in a required amount — never a silent zero or a spurious sum mismatch).
     """
+    components, remainder = _split_allocations(text, amount)
+    if remainder:
+        raise ValueError("split_sum_mismatch")
+    return components
+
+
+def _split_allocations(
+    text: str, amount: Decimal
+) -> tuple[tuple[tuple[str, Decimal], ...], Decimal]:
+    """:func:`parse_allocations` without the sum check: ``(components, amount - their sum)``.
+
+    Raises ``unparseable_split`` / ``split_dash_placeholder`` exactly as the strict parser does;
+    the caller decides what a nonzero remainder means.
+    """
     category = text.strip()
     if ":" not in category:
-        return ((category, amount),)
+        return ((category, amount),), Decimal(0)
     parts = _split_components(category)
     parsed: list[tuple[str, Decimal] | None] = []
     for part in parts:
@@ -808,11 +827,9 @@ def parse_allocations(text: str, amount: Decimal) -> tuple[tuple[str, Decimal], 
         if _SPLIT_HINT.search(category):
             raise ValueError("unparseable_split")
         # e.g. "Programs: Field Trips" — a category name containing a colon, not a split.
-        return ((category, amount),)
+        return ((category, amount),), Decimal(0)
     components = tuple(item for item in parsed if item is not None)
-    if sum((value for _, value in components), Decimal(0)) != amount:
-        raise ValueError("split_sum_mismatch")
-    return components
+    return components, amount - sum((value for _, value in components), Decimal(0))
 
 
 def classify_status(raw: str) -> str:
@@ -1511,9 +1528,15 @@ def _bank_drafts(capture_item: SourceCapture, out: _Collected) -> list[_Draft]:
         allocations: tuple[tuple[str, Decimal], ...] = ()
         if effective is not None and amount is not None:
             try:
-                allocations = parse_allocations(effective, amount)
+                allocations, remainder = _split_allocations(effective, amount)
             except ValueError as exc:
                 check.error(str(exc), "final_category")
+            else:
+                if remainder:
+                    # Published, not halted: the signed gap is its own explicit component, so
+                    # the allocations still conserve the bank amount exactly.
+                    check.warning("split_sum_mismatch", "final_category")
+                    allocations = (*allocations, (UNALLOCATED_SPLIT_CATEGORY, remainder))
         out.issues.extend(check.issues)
         if not check.ok or posting is None or amount is None or description is None:
             continue

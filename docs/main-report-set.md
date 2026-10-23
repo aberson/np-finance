@@ -73,6 +73,9 @@ row issue) rather than producing a silent wrong total:
   shows them: the offset in the label is not applied.
 - PayPal `POS Payment` rows are incoming sales; any other unrecognized PayPal type (for
   example `Mass Pay Payment`) is listed as an `unknown_type` warning for review.
+- A bank split in FINAL CATEGORY whose amounts do not add up to the bank amount is published,
+  not halted: the gap appears as an explicit `Unallocated split difference` line with a
+  `split_sum_mismatch` warning (an unreadable split or a dash amount still stops the run).
 
 ## Run and publish
 

@@ -46,7 +46,7 @@ from pta_finance.main_reports.reconcile import (
     parse_month_label,
     reference_token,
 )
-from pta_finance.main_reports.sources import normalize
+from pta_finance.main_reports.sources import UNALLOCATED_SPLIT_CATEGORY, normalize
 from tests.conftest import (
     _FULL_CONFIG,
     BANK_HEADER,
@@ -1243,6 +1243,32 @@ def test_normalization_row_warnings_stay_visible(tmp_path: Path) -> None:
     direct = build(normalize(captured), controls_from(captured, config))
     assert _one(direct, "paypal", native_id="TXN-EX-9").reconciliation_state == "conflict"
     assert _summary(direct, "paypal").gross == Decimal("60.00")
+
+
+def test_split_sum_mismatch_publishes_through_from_capture(tmp_path: Path) -> None:
+    # Operator decision 2026-10-22: a split that does not add up is flagged and published with
+    # an explicit remainder component, never a SourceValidationError for the whole run.
+    typo = _bank(
+        "1/16/2030", "Example split vendor", "-500.95", "Classroom Supplies: -300.00, Fees: -200.00"
+    )
+    result = _run(tmp_path, bank=[*BANK_ROWS, typo])
+    assert isinstance(result, Reconciliation)
+    assert ("bank-checking", "split_sum_mismatch") in _warned(result)
+    (warning,) = [i for i in result.row_warnings if i.code == "split_sum_mismatch"]
+    assert (warning.field, warning.severity) == ("final_category", "warning")
+
+    row = _one(result, "bank-checking", description="Example split vendor")
+    assert [(a.category, a.amount) for a in row.allocations] == [
+        ("Classroom Supplies", Decimal("-300.00")),
+        ("Fees", Decimal("-200.00")),
+        (UNALLOCATED_SPLIT_CATEGORY, Decimal("-0.95")),
+    ]
+    assert sum((a.amount for a in row.allocations), Decimal(0)) == row.gross
+    # The gap reaches the source view as its own category and stays visibly unmapped.
+    assert _cells(result)[(UNALLOCATED_SPLIT_CATEGORY, "2030-01")] == Decimal("-0.95")
+    assert UNALLOCATED_SPLIT_CATEGORY in {
+        d.category for d in _of_kind(result, "crosswalk_unmapped")
+    }
 
 
 def test_capture_coverage_warnings_become_coverage_flags(tmp_path: Path) -> None:
