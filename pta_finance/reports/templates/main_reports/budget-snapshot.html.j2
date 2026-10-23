@@ -1,39 +1,43 @@
 {% extends 'main_reports/base.html.j2' %}
 {% import 'main_reports/macros.html.j2' as m %}
 {% block content %}
-  <p class="alert">Budget comparisons cover the school year only. No calendar-year budget is derived from these annual targets.</p>
-  <div class="score">
-    {% for label, total in (('Adopted income targets', data.target_income), ('Adopted expense targets', data.target_expense)) %}<div class="box{% if total.missing %} c{% endif %}"><div class="n{% if total.missing %} partial{% endif %}">{{ total.value }}</div><div class="k">{{ label }}{% if total.missing %} · {{ total.missing }} line{% if total.missing != 1 %}s{% endif %} without a readable target{% endif %}</div></div>{% endfor %}
-    <div class="box"><div class="n{% if shared.school_net.partial %} partial{% endif %}">{{ shared.school_net.value }}</div><div class="k">{{ shared.school_net.label }}</div></div>
-    <div class="box{% if data.unknown_actuals %} c{% endif %}"><div class="n">{{ data.unknown_actuals }}</div><div class="k">Lines with an unknown actual</div></div>
+  {{ m.tiles(data.tiles) }}
+
+  <div class="overview" id="overview">
+    <div class="chart-copy">
+      <h2>Where money went</h2>
+      {% if data.went %}{{ m.stack('went', data.went, 'Expense categories by share of money spent') }}{% else %}<p class="chart-note">No spending in the period.</p>{% endif %}
+    </div>
+    <div class="bars" id="came">
+      <div class="bars-head"><h2>Where money came from</h2><span>Received · share</span></div>
+      <p class="sub">Income categories on one scale, bank basis.</p>
+      {% if data.came %}{{ m.bar_rows(data.came) }}{% else %}<p class="sub">No income in the period.</p>{% endif %}
+    </div>
   </div>
 
-  <section id="lines">
-    <div class="cap"><h2>Adopted lines for FY{{ data.fiscal_year }}</h2><p>Category crosswalk {{ data.crosswalk }}. Activity is money received (income) or spent (expense) to date; an unknown actual is never shown as zero.</p></div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Type</th><th>Category</th><th class="amt">Adopted target</th><th class="amt">Bank net (inflow +)</th><th class="amt">Activity to date</th><th class="amt">Target less activity</th><th>Actual</th></tr></thead>
-      <tbody>{% for line in data.lines %}<tr><td>{{ line.type }}</td><td>{{ line.category }}</td><td class="amt{% if line.target_unknown %} unknown{% endif %}">{{ line.target }}</td><td class="amt{% if line.unknown %} unknown{% endif %}">{{ line.actual }}</td><td class="amt{% if line.unknown %} unknown{% endif %}">{{ line.activity }}</td><td class="amt{% if line.unknown %} unknown{% endif %}">{{ line.remaining }}</td><td{% if line.unknown %} class="unknown"{% endif %}>{{ line.status }}</td></tr>{% endfor %}</tbody>
-    </table></div>
+  <section class="section" id="progress">
+    <div class="section-heading"><h2>Progress against the adopted budget</h2><span>{{ data.year }}% of the year has passed · income {{ m.pct_of(data.income_meter) }} · spending {{ m.pct_of(data.expense_meter) }} of target</span></div>
+    <div class="overview">
+      <div>{{ m.meter(data.income_meter, 'Income received toward the adopted income target') }}</div>
+      <div>{{ m.meter(data.expense_meter, 'Spending toward the adopted expense target') }}</div>
+    </div>
   </section>
 
-  <section id="outside">
-    <div class="cap"><h2>Outside the adopted lines</h2><p>Nothing is dropped: activity without a budget line or crosswalk entry is listed here.</p></div>
+  <section class="section" id="lines">
+    {{ m.section_heading('Largest budget lines', data.crosswalk) }}
     <div class="tablewrap"><table>
-      <thead><tr><th>Where</th><th>Category</th><th class="amt">Bank net (inflow +)</th></tr></thead>
+      <colgroup><col style="width:11%"><col style="width:19%"><col style="width:9%"><col style="width:9%"><col style="width:21%"><col style="width:31%"></colgroup>
+      <thead><tr><th>Type</th><th>Category</th><th class="amt">Target</th><th class="amt">To date</th><th class="amt">Target less to date</th><th>Status</th></tr></thead>
       <tbody>
-        {% for name, amount in data.unbudgeted %}<tr><td>Mapped, no adopted line</td><td>{{ name }}</td><td class="amt">{{ amount }}</td></tr>{% endfor %}
-        {% for name, amount in data.unmapped %}<tr><td>Source category without a crosswalk entry</td><td>{{ name }}</td><td class="amt">{{ amount }}</td></tr>{% endfor %}
-        {% if not data.unbudgeted and not data.unmapped %}<tr><td colspan="3" class="none">None.</td></tr>{% endif %}
+        {% for line in data.rows %}<tr><td>{{ m.label(line.type) }}</td><td><strong>{{ m.label(line.category) }}</strong></td>{{ m.amount(line.target) }}{{ m.amount(line.activity) }}{{ m.amount(line.remaining) }}<td>{{ m.label(line.status) }}</td></tr>{% else %}<tr><td colspan="6">No adopted lines.</td></tr>{% endfor %}
+        {% if data.other %}<tr class="other"><td colspan="2">{{ data.other.text }}</td>{{ m.amount(data.other.target) }}{{ m.amount(data.other.activity) }}{{ m.amount(data.other.remaining) }}<td>{{ data.other.meta }}</td></tr>{% endif %}
       </tbody>
     </table></div>
-    {% if data.target_income.missing or data.target_expense.missing %}<p class="legend">* Target totals marked * are partial: they leave out lines without a readable target.</p>{% endif %}
-    {% if data.untyped %}<p class="legend">{{ data.untyped }} line{% if data.untyped != 1 %}s{% endif %} with a type other than income or expense {% if data.untyped == 1 %}is{% else %}are{% endif %} in neither target total.</p>{% endif %}
-    {% if shared.school_net.partial %}<p class="legend">* The school-year bank net is partial: bank coverage is incomplete for the period.</p>{% endif %}
-    <p class="legend">{{ data.other_year_rows }} adopted row{% if data.other_year_rows != 1 %}s{% endif %} of other fiscal years {% if data.other_year_rows == 1 %}is{% else %}are{% endif %} outside this period.</p>
+    <p class="chart-note">{{ data.note }}</p>
   </section>
 
-  <section id="bridges">
-    <div class="cap"><h2>Reconciliation bridges</h2><p>Source P&amp;L to this school year, our recorded adjustments, and the budget crosswalk.</p></div>
-    {% for item in data.bridges %}{{ m.bridge(item) }}{% endfor %}
+  <section class="section" id="followups">
+    {{ m.section_heading('Data follow-ups', m.followup_qualifier(page)) }}
+    {{ m.followups(page.followups) }}
   </section>
 {% endblock %}

@@ -1,36 +1,67 @@
-{% macro freshness(rows) -%}
+{% macro label(l) -%}
+<span{% if l.title %} title="{{ l.title }}"{% endif %}>{{ l.text }}</span>
+{%- endmacro %}
+
+{% macro tiles(items) -%}
+<div class="metrics">{% for t in items %}<div class="metric{% if t.state %} {{ t.state }}{% endif %}"><strong{% if t.cls %} class="{{ t.cls }}"{% endif %}>{{ t.value }}</strong><span>{{ t.label }}</span>{% if t.note %}<small>{{ t.note }}</small>{% endif %}</div>{% endfor %}</div>
+{%- endmacro %}
+
+{% macro pie(id, p, title, desc) -%}
+<svg class="pie" viewBox="0 0 160 160" role="img" aria-labelledby="{{ id }}-title {{ id }}-desc"><title id="{{ id }}-title">{{ title }}</title><desc id="{{ id }}-desc">{{ desc }}</desc><circle cx="80" cy="80" r="68" fill="{{ p.base }}"/>{% if p.wedge %}<path d="{{ p.wedge }}" fill="#edb528" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>{% endif %}</svg>
+{%- endmacro %}
+
+{% macro pct_of(mt) -%}
+{% if mt.missing %}–{% else %}<span{% if mt.partial %} class="partial"{% endif %}>{{ mt.of_target }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro meter(mt, title) -%}
+{% if mt.missing %}<p class="chart-note">No readable target</p>{% else %}<svg class="meter" viewBox="0 0 365 50" role="img" aria-labelledby="{{ mt.id }}-title {{ mt.id }}-desc"><title id="{{ mt.id }}-title">{{ title }}</title><desc id="{{ mt.id }}-desc">{{ mt.desc }}</desc><rect x="0" y="15" width="365" height="14" rx="4" fill="#ccd9d6"/>{% if mt.shape == 'full' %}<rect x="0" y="15" width="365" height="14" rx="4" fill="{{ mt.fill }}"/>{% elif mt.shape == 'rect' %}<rect x="0" y="15" width="{{ mt.width }}" height="14" fill="{{ mt.fill }}"/>{% elif mt.shape == 'path' %}<path d="{{ mt.path }}" fill="{{ mt.fill }}"/>{% endif %}<line x1="{{ mt.marker }}" x2="{{ mt.marker }}" y1="12" y2="34" stroke="#ffffff" stroke-width="6"/><line x1="{{ mt.marker }}" x2="{{ mt.marker }}" y1="12" y2="34" stroke="#123f4a" stroke-width="2"/><text x="{{ mt.top_x }}" y="10" font-size="9.5" fill="#475d69" text-anchor="middle">{{ mt.top }}</text><text x="0" y="46" font-size="10.5" font-weight="700" fill="#123f4a">{{ mt.left }}</text><text x="365" y="46" font-size="10.5" fill="#475d69" text-anchor="end">{{ mt.right }}</text></svg>{% endif %}
+{%- endmacro %}
+
+{% macro bar_rows(rows) -%}
+{% for r in rows %}<div class="route"><span>{{ label(r.label) }}</span><span class="track">{% if r.width %}<span class="bar" style="width:{{ r.width }}%"></span>{% endif %}</span><span class="val{% if not r.width %} unk{% elif r.partial %} partial{% endif %}">{{ r.value }}</span></div>{% endfor %}
+{%- endmacro %}
+
+{% macro stack(id, segments, title) -%}
+<div class="stack" id="{{ id }}" role="img" aria-label="{{ title }}">{% for s in segments %}<span style="width:{{ s.width }}%;background:{{ s.colour }}"></span>{% endfor %}</div>
+{% for s in segments %}<div class="cat"><span class="swatch" style="background:{{ s.colour }}"></span><span>{{ label(s.label) }}</span><span class="amt{% if s.partial %} partial{% endif %}">{{ s.amount }}</span><span class="pct">{{ s.share }}</span></div>{% endfor %}
+{%- endmacro %}
+
+{% macro section_heading(title, qualifier) -%}
+<div class="section-heading"><h2>{{ title }}</h2><span>{{ qualifier }}</span></div>
+{%- endmacro %}
+
+{% macro unknown_cell(state) -%}
+<td class="amt unk" data-state="{{ state }}" title="{% if state == 'uncovered' %}No declared bank coverage{% else %}No readable amount{% endif %}">–</td>
+{%- endmacro %}
+
+{% macro amount(c) -%}
+{% if c.state %}{{ unknown_cell(c.state) }}{% else %}<td class="amt{% if c.zero %} zero{% endif %}{% if c.partial %} partial{% endif %}">{{ c.text }}</td>{% endif %}
+{%- endmacro %}
+
+{% macro followup_qualifier(page) -%}
+{% if page.followups_total > page.followups|length %}{{ page.followups|length }} of {{ page.followups_total }} shown; all are in records/facts.json{% else %}Counts only; details are in the run records{% endif %}
+{%- endmacro %}
+
+{% macro followups(cards) -%}
+{% if cards %}<div class="followups">{% for card in cards %}<div class="followup"><strong>{{ card.title }}</strong><p>{{ card.line }}</p></div>{% endfor %}</div>{% else %}<p class="chart-note">No data follow-ups.</p>{% endif %}
+{%- endmacro %}
+
+{% macro recon_table(bridges) -%}
 <div class="tablewrap"><table>
-  <thead><tr><th>Source</th><th>Kind</th><th>Captured</th><th>First to last dated row</th><th>Coverage for this period</th><th>Snapshot</th></tr></thead>
-  <tbody>{% for row in rows %}<tr><td>{{ row.label }}</td><td>{{ row.kind }}</td><td>{{ row.captured }}</td><td>{{ row.observed }}</td><td{% if row.partial %} class="unknown"{% endif %}>{{ row.coverage }}</td><td class="mono">{{ row.sha }}</td></tr>{% endfor %}</tbody>
+  <colgroup><col style="width:31%"><col style="width:14%"><col style="width:14%"><col style="width:13%"><col style="width:16%"><col style="width:12%"></colgroup>
+  <thead><tr><th>Bridge</th><th class="amt">From</th><th class="amt">Explained</th><th class="amt">Residual</th><th>Status</th><th class="amt">Records</th></tr></thead>
+  <tbody>{% for b in bridges %}<tr data-bridge="{{ b.name }}"><td><strong title="{{ b.full }}">{{ b.title }}</strong></td><td class="amt">{{ b.from }}</td><td class="amt">{{ b.explained }}</td><td class="amt">{{ b.residual }}</td><td>{% if b.balanced %}<span class="chip ok">Balanced</span>{% else %}<span class="chip stop">Residual</span>{% endif %}</td><td class="amt">{{ b.records }}</td></tr>{% endfor %}</tbody>
 </table></div>
 {%- endmacro %}
 
-{% macro bridge(item) -%}
-<div class="bridge" id="bridge-{{ item.name }}">
-  <h3>{{ item.title }}</h3>
-  <div class="tablewrap"><table>
-    <thead><tr><th>Step</th><th>Explanation</th><th class="amt">Amount</th><th>Underlying records</th></tr></thead>
-    <tbody>
-      <tr class="total"><td>{{ item.from_label }}</td><td>Starting total</td><td class="amt">{{ item.from_amount }}</td><td></td></tr>
-      {% for row in item.rows %}<tr><td>{{ row.kind }}</td><td>{{ row.explanation }}</td><td class="amt">{{ row.amount }}</td><td class="ev">{% if row.evidence %}{{ row.evidence|length }} record{% if row.evidence|length != 1 %}s{% endif %}<ul>{% for entry in row.evidence %}<li>{{ entry }}</li>{% endfor %}</ul>{% else %}<span class="none">None linked</span>{% endif %}</td></tr>{% endfor %}
-      <tr class="resid{% if not item.balanced %} off{% endif %}"><td>Unexplained residual</td><td>{% if item.balanced %}Every difference is explained.{% else %}Not explained by any recorded row; left visible.{% endif %}</td><td class="amt">{{ item.residual }}</td><td></td></tr>
-      <tr class="total"><td>{{ item.to_label }}</td><td>Ending total</td><td class="amt">{{ item.to_amount }}</td><td></td></tr>
-    </tbody>
-  </table></div>
-</div>
+{% macro audit(a) -%}
+<p class="audit">Audit detail: Adjustments applied {{ a.applied }} · pending {{ a.pending }} · superseded {{ a.superseded }} · Adjustment warnings {{ a.warnings }} · Unresolved discrepancies {{ a.discrepancies }} · Findings {{ a.findings }} · Coverage flags {{ a.flags }}{% if a.bridges %} · Bridges balanced {{ a.balanced }} of {{ a.bridges }}{% endif %}. Listed in records/facts.json and records/reconciliation.json of this run.{% for r in a.residuals %} <span class="warn">{{ r.title }}: residual {{ r.residual }}</span>{% endfor %}</p>
 {%- endmacro %}
 
-{% macro findings(f) -%}
-<section id="findings">
-  <div class="cap"><h2>Findings, adjustments and discrepancies</h2><p>Every limitation stays visible. Published P&amp;L control check: {{ f.control }}.</p></div>
-  {% if f.issues %}<div class="tablewrap"><table><thead><tr><th>Finding</th><th class="amt">Count</th><th>Subject</th></tr></thead><tbody>{% for issue in f.issues %}<tr><td>{{ issue.code }}</td><td class="amt">{{ issue.count }}</td><td>{{ issue.subject }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="legend">No fact findings.</p>{% endif %}
-  {% if f.flags %}<div class="tablewrap gap"><table><thead><tr><th>Coverage flag</th><th>Source</th><th class="amt">Count</th></tr></thead><tbody>{% for flag in f.flags %}<tr><td>{{ flag.code }}</td><td>{{ flag.source }}</td><td class="amt">{{ flag.count }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
-  {% if f.warnings %}<div class="tablewrap gap"><table><thead><tr><th>Adjustment warning</th><th>Severity</th><th>Adjustment</th><th>Row</th><th>Field</th></tr></thead><tbody>{% for w in f.warnings %}<tr><td>{{ w.code }}</td><td>{{ w.severity }}</td><td class="mono">{{ w.adjustment }}</td><td>{{ w.row }}</td><td>{{ w.field }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
-  <ul class="plain">
-    <li>Adjustments applied: {% if f.applied %}<span class="mono">{{ f.applied|join(', ') }}</span>{% else %}none{% endif %}</li>
-    <li>Adjustments effective after the as-of date: {% if f.pending %}<span class="mono">{{ f.pending|join(', ') }}</span>{% else %}none{% endif %}</li>
-    <li>Adjustments superseded: {% if f.superseded %}<span class="mono">{{ f.superseded|join(', ') }}</span>{% else %}none{% endif %}</li>
-    <li>Unresolved discrepancies: {% if f.discrepancies %}{{ f.discrepancies|length }} (<span class="mono">{{ f.discrepancies|join(', ') }}</span>){% else %}none{% endif %}</li>
-  </ul>
-</section>
+{% macro footer(page) -%}
+<footer class="foot">
+  <div class="row"><span>Sources: CFO workbook capture{% if page.reimbursement_backed %} and the reimbursement queue as of {{ page.bundle.as_of }}{% endif %} · {{ page.coverage }} · Amounts rounded to whole dollars; exact cents are in the run records{% for note in page.footnotes %} · {{ note }}{% endfor %} · <a href="{{ page.index }}">Main Report Set index</a> · <a href="{{ page.queue }}">Reimbursement Queue</a></span><span>{% if page.period.range %}{{ page.period.range }}{% else %}{{ page.period.label }}{% endif %}{% if page.pages_label %}<br>{{ page.pages_label }}{% endif %}</span></div>
+  <div class="id"><span class="private">Private financial report.</span> Run <span class="mono">{{ page.run_id }}</span> · Input set <span class="mono">{{ page.input_sha[:16] }}</span> · Inputs captured {{ page.captured }}</div>
+</footer>
 {%- endmacro %}

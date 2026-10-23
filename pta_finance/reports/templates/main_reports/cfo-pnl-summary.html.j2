@@ -1,35 +1,48 @@
 {% extends 'main_reports/base.html.j2' %}
 {% import 'main_reports/macros.html.j2' as m %}
-{% block page_size %}letter landscape{% endblock %}
 {% block content %}
-  <p class="alert">No calendar-year budget is shown: adopted budgets are school-year targets (see the Budget Snapshot). Published P&amp;L control check: {{ data.control }}.</p>
-  {% if not data.complete %}<p class="alert stop">Bank coverage is partial for this calendar year ({{ data.uncovered_months }} month{% if data.uncovered_months != 1 %}s{% endif %} without declared coverage). Totals marked * are partial; a month without coverage is not zero.</p>{% endif %}
+  {{ m.tiles(data.tiles) }}
 
-  <section id="walk">
-    <div class="cap"><h2>Source, adjustments and adjusted totals</h2><p>Year to date. The source view reproduces the CFO workbook; adjustments are our recorded journal entries.</p></div>
+  <div class="overview" id="overview">
+    <div class="chart-copy">
+      <h2>Income and expenses by month <span class="key"><span class="swatch" style="background:#147d83"></span>Income <span class="swatch" style="background:#edb528"></span>Expenses</span></h2>
+      <svg class="months" viewBox="0 0 365 150" role="img" aria-labelledby="months-title months-desc"><title id="months-title">Income and expenses by month</title><desc id="months-desc">{{ data.bars.desc }}</desc><line x1="0" x2="365" y1="70" y2="70" stroke="#ccd9d6"/>{% for s in data.bars.slots %}{% for b in s.bars %}<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.fill }}"/>{% endfor %}{% if s.muted %}<text x="{{ s.x }}" y="74" font-size="9.5" text-anchor="middle" fill="#637881">–</text>{% endif %}<text x="{{ s.x }}" y="142" font-size="9.5" text-anchor="middle" fill="{% if s.muted %}#637881{% else %}#475d69{% endif %}">{{ s.label }}</text>{% endfor %}</svg>
+    </div>
+    <div class="callout">
+      <h2>Reconciliation</h2>
+      <p class="value">{{ data.balanced }} of {{ data.bridge_count }} <span>bridges balance</span></p>
+      <p class="split">Control check against the CFO P&amp;L: {{ data.control }}</p>
+      <p class="note">{{ data.applied }} adjustment{% if data.applied != 1 %}s{% endif %} applied · {{ data.pending }} pending after the as-of date. Uncovered months are unknown, not zero.</p>
+    </div>
+  </div>
+
+  <section class="section" id="categories">
+    {{ m.section_heading('Largest categories year to date', 'Adjusted view') }}
     <div class="tablewrap"><table>
-      <thead><tr><th></th><th class="amt">CFO source</th><th class="amt">Adjustments</th><th class="amt">Adjusted</th></tr></thead>
-      <tbody>{% for row in data.walk %}<tr{% if row.total %} class="total"{% endif %}><td>{{ row.label }}</td><td class="amt{% if not data.complete %} partial{% endif %}">{{ row.source }}</td><td class="amt">{{ row.delta }}</td><td class="amt{% if not data.complete %} partial{% endif %}">{{ row.adjusted }}</td></tr>{% endfor %}</tbody>
-    </table></div>
-    <p class="legend">{{ shared.calendar_net.label }}: <b{% if shared.calendar_net.partial %} class="partial"{% endif %}>{{ shared.calendar_net.value }}</b>.</p>
-  </section>
-
-  <section id="monthly">
-    <div class="cap"><h2>Monthly P&amp;L (adjusted) and year to date</h2><p>Category nets by bank month. Income and expense rows sum each month's positive and negative category nets.</p></div>
-    <div class="tablewrap"><table class="pnl">
-      <thead><tr><th>Category</th>{% for month in data.months %}<th class="amt">{{ month }}</th>{% endfor %}<th class="amt">Year to date</th></tr></thead>
+      <colgroup><col style="width:31%"><col style="width:14%"><col style="width:18%"><col style="width:20%"><col style="width:17%"></colgroup>
+      <thead><tr><th>Category</th><th>Type</th><th class="amt">Year to date</th><th class="amt wrap">Share of income or expenses</th><th class="amt wrap">Months with activity</th></tr></thead>
       <tbody>
-        {% for row in data.category_rows %}<tr><td>{{ row.label }}</td>{% for c in row.cells %}<td class="amt {{ c.kind }}">{{ c.text }}</td>{% endfor %}<td class="amt{% if not data.complete %} partial{% endif %}">{{ row.ytd }}</td></tr>{% endfor %}
-        {% for row in data.total_rows %}<tr class="total"><td>{{ row.label }}</td>{% for c in row.cells %}<td class="amt {{ c.kind }}">{{ c.text }}</td>{% endfor %}<td class="amt{% if not data.complete %} partial{% endif %}">{{ row.ytd }}</td></tr>{% endfor %}
-        <tr class="sub"><td>{{ data.source_row.label }}</td>{% for c in data.source_row.cells %}<td class="amt {{ c.kind }}">{{ c.text }}</td>{% endfor %}<td class="amt">{{ data.source_row.ytd }}</td></tr>
-        <tr class="sub"><td>{{ data.adjustment_row.label }}</td>{% for c in data.adjustment_row.cells %}<td class="amt">{{ c.text }}</td>{% endfor %}<td class="amt">{{ data.adjustment_row.ytd }}</td></tr>
+        {% for row in data.top %}<tr><td><strong>{{ m.label(row.label) }}</strong></td><td>{{ row.type }}</td>{{ m.amount(row.ytd) }}<td class="amt">{{ row.share }}</td><td class="amt">{{ row.months }}</td></tr>{% else %}<tr><td colspan="5">No activity in the period.</td></tr>{% endfor %}
+        {% if data.other %}<tr class="other"><td colspan="2">{{ data.other.text }}</td>{{ m.amount(data.other.ytd) }}<td></td><td></td></tr>{% endif %}
+        <tr class="total"><td colspan="2">Net</td>{{ m.amount(data.net) }}<td></td><td></td></tr>
       </tbody>
     </table></div>
-    <p class="legend">“Not covered”: no declared bank coverage for that month, so no amount is known. * Partial: the month or total is only partly covered. $0.00 in a covered month is an observed zero.</p>
   </section>
 
-  <section id="bridges">
-    <div class="cap"><h2>Reconciliation bridges</h2><p>Captured source P&amp;L to this calendar year, our adjustments, and the calendar year to the school year.</p></div>
-    {% for item in data.bridges %}{{ m.bridge(item) }}{% endfor %}
+  <section class="section" id="reconciliation">
+    {{ m.section_heading('Reconciliation', 'One line per bridge; records in the run folder') }}
+    {{ m.recon_table(data.bridges) }}
   </section>
+{% endblock %}
+{% block appendix %}
+<section class="sheet appendix" id="appendix">
+  {{ m.section_heading('Appendix: monthly P&L (adjusted) and year to date', 'Whole dollars; exact cents in records/facts.json') }}
+  {% for rows in data.pages %}<div class="tablewrap{% if not loop.first %} next-page{% endif %}"><table class="pnl"{% if loop.first %} id="monthly"{% endif %}>
+    <thead><tr><th>Category</th>{% for h in data.headers %}<th class="amt{% if h.endswith('*') %} starred{% endif %}">{{ h }}</th>{% endfor %}<th class="amt">Year to date</th></tr></thead>
+    <tbody>
+      {% for row in rows %}{% if row.kind == 'group' %}<tr class="group"><td colspan="{{ data.headers|length + 2 }}">{{ row.label.text }}</td></tr>{% else %}<tr{% if row.kind != 'row' %} class="{{ row.kind }}"{% endif %}><td>{{ m.label(row.label) }}</td>{% for c in row.cells %}{{ m.amount(c) }}{% endfor %}{{ m.amount(row.ytd) }}</tr>{% endif %}
+      {% endfor %}
+    </tbody>
+  </table></div>{% endfor %}
+</section>
 {% endblock %}

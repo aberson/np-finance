@@ -12,17 +12,15 @@
   <header class="mast">
     <div class="brandmark" aria-hidden="true">$</div>
     <div>
-      <div class="eyebrow">Private Main Report Set</div>
+      <p class="eyebrow">Private Main Report Set</p>
       <h1>Current published run</h1>
-      <p class="sub">As of {{ page.as_of }} · published {{ page.published }}</p>
+      <p class="audience">As of {{ page.as_of }} · published {{ page.published }}</p>
     </div>
   </header>
-  <div class="meta">
-    <div><div class="k">Run</div><div class="v mono">{{ page.run_id }}</div></div>
-    <div><div class="k">Input set</div><div class="v mono">{{ page.input_sha }}</div></div>
-  </div>
-  <section id="reports">
-    <div class="cap"><h2>Reports of this run</h2><p>Every report was rendered from that one captured input set. Earlier runs stay in their own folders; the compatibility copies beside this page are refreshed after it.</p></div>
+  <p class="scope">Run <span class="mono">{{ page.run_id }}</span> · Input set <span class="mono">{{ page.input_sha }}</span></p>
+  <section class="section" id="reports">
+    <div class="section-heading"><h2>Reports of this run</h2><span>One captured input set</span></div>
+    <p class="chart-note">Every report was rendered from that one captured input set. Earlier runs stay in their own folders; the compatibility copies beside this page are refreshed after it.</p>
     <ul>{% for link in links %}<li><a href="{{ link.href }}">{{ link.title }}</a></li>{% endfor %}</ul>
   </section>
   <footer class="foot"><span class="private">Private financial report.</span> This page is the single current-run pointer.</footer>

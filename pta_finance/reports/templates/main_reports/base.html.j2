@@ -5,7 +5,6 @@
   <title>{{ page.title }} · {{ page.period.label }}</title>
   <style>
 {% include 'main_reports/style.css.j2' %}
-@page{size:{% block page_size %}letter portrait{% endblock %};margin:.4in}
   </style>
 </head>
 {% import 'main_reports/macros.html.j2' as m %}
@@ -14,30 +13,21 @@
   <header class="mast">
     {% if page.logo %}<img class="logo" src="{{ page.logo }}" alt="{{ page.organization }} logo">{% else %}<div class="brandmark" aria-hidden="true">$</div>{% endif %}
     <div>
-      <div class="eyebrow">{{ page.organization }} · Private Main Report Set</div>
+      <p class="eyebrow" title="{{ page.organization }} · Private Main Report Set">{{ page.eyebrow }} · Private Main Report Set</p>
       <h1>{{ page.title }}</h1>
-      <p class="sub">{{ page.period.label }} · {{ page.period.range }} · through {{ page.period.through }}</p>
+      <p class="audience">For the board</p>
     </div>
+    <div class="edition">As of {{ page.as_of }}</div>
   </header>
-  <div class="meta">
-    <div><div class="k">Period</div><div class="v">{{ page.period.label }}{% if page.period.legacy %} ({{ page.period.legacy }}){% endif %}</div></div>
-    <div><div class="k">As of</div><div class="v">{{ page.as_of }}</div></div>
-    <div><div class="k">Run</div><div class="v mono">{{ page.run_id }}</div></div>
-    <div><div class="k">Input set</div><div class="v mono">{{ page.input_sha[:16] }}</div></div>
-    {% for count in page.counts %}<div><div class="k">{{ count.label }}</div><div class="v">{{ count.value }}</div></div>{% endfor %}
-  </div>
-  {% if page.basis %}<p class="basis"><b>Basis.</b> {{ page.basis }}</p>{% endif %}
+  {% block scope %}<p class="scope"><strong>{{ page.period.label }} · {{ page.period.range }} · through {{ page.period.through }}</strong>{% if page.period.legacy %} · {{ page.period.legacy }}{% endif %} · {{ page.basis }}{% for clause in page.scope_extra %} · {{ clause }}{% endfor %}</p>{% endblock %}
   {% block content %}{% endblock %}
-
-  <section id="freshness">
-    <div class="cap"><h2>Source freshness</h2><p>When each input of this run was read. First and last dated rows never prove coverage; only declared coverage does.</p></div>
-    {{ m.freshness(page.freshness) }}
-    <p class="legend">Reimbursement bundle as of {{ page.bundle.as_of }}; mail received {{ page.bundle.received }}; collection cutoff {{ page.bundle.cutoff }}.</p>
-  </section>
-
-  {{ m.findings(page.findings) }}
-
-  <footer class="foot"><span class="private">Private financial report.</span> Run <span class="mono">{{ page.run_id }}</span>. <a href="{{ page.index }}">Main Report Set index</a> · <a href="{{ page.queue }}">Reimbursement Queue</a>. Unknown amounts are shown as “Unknown”, never as zero.</footer>
+  {% block tail %}
+  {% if page.legend %}<p class="chart-note marks">– Unknown: no declared coverage or no readable amount, never zero. * Partial: incomplete coverage or an unreadable target. $0 is an observed zero.</p>{% endif %}
+  <section class="narrative"><h2>Where things stand</h2><p>{{ data.narrative }}</p></section>
+  {{ m.audit(page.audit) }}
+  {% endblock %}
+  {{ m.footer(page) }}
 </main>
+{% block appendix %}{% endblock %}
 </body>
 </html>

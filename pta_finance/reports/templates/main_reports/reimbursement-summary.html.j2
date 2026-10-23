@@ -1,58 +1,42 @@
 {% extends 'main_reports/base.html.j2' %}
 {% import 'main_reports/macros.html.j2' as m %}
 {% block content %}
-  <div class="score">{% for label, value, tone in data.headline %}<div class="box {{ tone }}"><div class="n">{{ value }}</div><div class="k">{{ label }}</div></div>{% endfor %}</div>
+  {{ m.tiles(data.tiles) }}
 
-  <section id="expense">
-    <div class="cap"><h2>Requested items by expense date</h2><p>Each item is placed by its own expense date; items without a date stay in the Undated row and are never assigned a year.</p></div>
+  <div class="overview" id="overview">
+    <div class="progress">
+      {{ m.pie('closed-share', data.pie, data.pie_title, data.closed ~ ' closed and ' ~ data.open ~ ' open of the tracked requests.') }}
+      <div class="chart-copy">
+        <h2>{{ data.pie_title }}</h2>
+        <p class="legend"><span class="swatch" style="background:#147d83"></span>Closed · {{ data.closed }}{% if data.pie.first_pct is not none %} ({{ data.pie.first_pct }}){% endif %}</p>
+        <p class="legend"><span class="swatch" style="background:#edb528"></span>Open · {{ data.open }}{% if data.pie.second_pct is not none %} ({{ data.pie.second_pct }}){% endif %}</p>
+        <p class="chart-note">Share of tracked requests, by count.</p>
+      </div>
+    </div>
+    <div class="callout">
+      <h2>Paid in the period</h2>
+      <p class="value">{{ data.paid }} <span>across {{ data.paid_requests }}</span></p>
+      <p class="split">{{ data.matched }} matched to a bank row · {{ data.unmatched }} not yet matched</p>
+      <p class="split">{{ data.prior_paid }} paid for prior-year expenses</p>
+      <p class="note">Payments are placed by payment date; prior-year expenses paid this year are never added to this year's expenses.</p>
+    </div>
+  </div>
+
+  <section class="section" id="open-requests">
+    {{ m.section_heading('Largest open requests', 'Approved and not yet paid: ' ~ data.outstanding) }}
     <div class="tablewrap"><table>
-      <thead><tr><th>Expense date</th>{% for label, css in data.statuses %}<th class="amt"><span class="chip {{ css }}">{{ label }}</span></th>{% endfor %}</tr></thead>
-      <tbody>{% for row in data.expense_rows %}<tr><td>{{ row.bucket }}</td>{% for cell in row.cells %}<td class="amt">{{ cell.amount }}<br><span class="none">{{ cell.count }} item{% if cell.count != 1 %}s{% endif %}{% if cell.unpriced %} · <span class="unknown">{{ cell.unpriced }} without an amount</span>{% endif %}</span></td>{% endfor %}</tr>{% endfor %}</tbody>
+      <colgroup><col style="width:29%"><col style="width:17%"><col style="width:13%"><col style="width:16%"><col style="width:25%"></colgroup>
+      <thead><tr><th>Request</th><th>Earliest expense</th><th class="amt">Undated items</th><th class="amt">Pay now</th><th>Prior-year carryover</th></tr></thead>
+      <tbody>
+        {% for row in data.rows %}<tr><td><strong>{% if row.anchor %}<a class="ref" href="{{ page.queue }}#{{ row.anchor }}">{{ m.label(row.ref) }}</a>{% else %}{{ m.label(row.ref) }}{% endif %}</strong> <span class="meta">submitted {{ row.submitted }}</span></td><td>{{ row.earliest }}</td><td class="amt">{{ row.undated }}</td>{{ m.amount(row.pay_now) }}<td>{% if row.carryover %}<span class="chip warn">{{ row.carryover }}</span>{% else %}<span class="zero">No</span>{% endif %}</td></tr>{% else %}<tr><td colspan="5">No open requests.</td></tr>{% endfor %}
+        {% if data.other %}<tr class="other"><td colspan="3"><a href="{{ page.queue }}">{{ data.other.text }}</a></td>{{ m.amount(data.other.pay_now) }}<td></td></tr>{% endif %}
+        <tr class="total"><td colspan="3">All open requests</td>{{ m.amount(data.total) }}<td></td></tr>
+      </tbody>
     </table></div>
   </section>
 
-  <section id="payments">
-    <div class="cap"><h2>Payments made in the period</h2><p>By ticket payment date, split by the expense date of the items paid. Prior-year obligations paid this year are shown separately and are never added to this year's expenses.</p></div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Items whose expense date is</th><th class="amt">Paid in the period</th></tr></thead>
-      <tbody>{% for row in data.paid_rows %}<tr><td>{{ row.bucket }}</td><td class="amt">{{ row.amount }}</td></tr>{% endfor %}<tr class="total"><td>Reimbursements paid in the period</td><td class="amt">{{ shared.paid.value }}</td></tr></tbody>
-    </table></div>
-  </section>
-
-  <section id="obligations">
-    <div class="cap"><h2>Approved and not yet paid</h2><p>Open requests only, by item expense date; prior-year obligations stay visible.</p></div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Items whose expense date is</th><th class="amt">Approved, not yet paid</th></tr></thead>
-      <tbody>{% for row in data.open_rows %}<tr><td>{{ row.bucket }}</td><td class="amt">{{ row.amount }}</td></tr>{% endfor %}<tr class="total"><td>{{ shared.outstanding.label }}</td><td class="amt">{{ shared.outstanding.value }}</td></tr></tbody>
-    </table></div>
-  </section>
-
-  <section id="queue">
-    <div class="cap"><h2>Open requests</h2><p>Every unsettled request, whatever its dates. Details, receipts and copy text are in the <a href="{{ page.queue }}">Reimbursement Queue</a>.</p></div>
-    {% if data.queue %}<div class="tablewrap"><table>
-      <thead><tr><th>Ref</th><th>Origin</th><th>Submitted</th><th>Earliest expense</th><th class="amt">Undated items</th><th class="amt">Pay now</th><th>Prior-year carryover</th></tr></thead>
-      <tbody>{% for entry in data.queue %}<tr><td>{{ entry.ref }}</td><td>{{ entry.origin }}</td><td>{{ entry.submitted }}</td><td>{{ entry.earliest }}</td><td class="amt">{{ entry.undated }}</td><td class="amt">{{ entry.pay_now }}</td><td>{% if entry.carryover %}<span class="chip warn">By {{ entry.carryover|lower }}</span>{% else %}<span class="none">No</span>{% endif %}</td></tr>{% endfor %}</tbody>
-    </table></div>{% else %}<p class="legend">No open requests.</p>{% endif %}
-  </section>
-
-  <section id="joins">
-    <div class="cap"><h2>Recorded payments and the bank</h2><p>A recorded payment joins a bank row only on an exact reference with a matching amount and date. Anything else stays visibly unjoined.</p></div>
-    {% if data.joins %}<div class="tablewrap"><table>
-      <thead><tr><th>Ref</th><th>Bank join</th><th>Payment date</th><th>Reference</th><th class="amt">Recorded amount</th><th>Bank rows</th></tr></thead>
-      <tbody>{% for join in data.joins %}<tr><td>{{ join.ref }}</td><td>{{ join.state }}</td><td>{{ join.date }}</td><td>{{ join.reference }}</td><td class="amt">{{ join.amount }}</td><td>{% if join.bank %}{{ join.bank|join('; ') }}{% else %}<span class="none">None</span>{% endif %}</td></tr>{% endfor %}</tbody>
-    </table></div>{% else %}<p class="legend">No paid requests.</p>{% endif %}
-  </section>
-
-  <section id="bridges">
-    <div class="cap"><h2>Reconciliation bridges</h2><p>How expense, payment and bank totals relate; each step lists its records.</p></div>
-    {% for item in data.bridges %}{{ m.bridge(item) }}{% endfor %}
-  </section>
-
-  <section id="groups">
-    <div class="cap"><h2>Detail: every item group</h2><p>Each item belongs to exactly one group.</p></div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Expense date</th><th>Payment date</th><th>Status</th><th>Request</th><th class="amt">Items</th><th class="amt">Known amount</th><th class="amt">Without an amount</th></tr></thead>
-      <tbody>{% for g in data.groups %}<tr><td>{{ g.expense }}</td><td>{{ g.payment }}</td><td>{{ g.status }}</td><td>{{ g.open }}</td><td class="amt">{{ g.count }}</td><td class="amt">{{ g.amount }}</td><td class="amt{% if g.unpriced %} unknown{% endif %}">{{ g.unpriced }}</td></tr>{% endfor %}</tbody>
-    </table></div>
+  <section class="section" id="followups">
+    {{ m.section_heading('Data follow-ups', m.followup_qualifier(page)) }}
+    {{ m.followups(page.followups) }}
   </section>
 {% endblock %}

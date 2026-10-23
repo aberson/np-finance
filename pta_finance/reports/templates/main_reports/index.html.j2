@@ -1,24 +1,36 @@
 {% extends 'main_reports/base.html.j2' %}
 {% import 'main_reports/macros.html.j2' as m %}
+{% block scope %}<p class="scope"><strong>{{ page.period.label }} · through {{ page.period.through }}</strong> · every report below was rendered from the same captured input set</p>{% endblock %}
 {% block content %}
-  <p class="basis"><b>Periods.</b> School-year summaries: {{ page.school.label }} ({{ page.school.range }}, through {{ page.school.through }}). CFO P&amp;L: {{ page.calendar.label }} ({{ page.calendar.range }}, through {{ page.calendar.through }}). Every report below was rendered from the same captured input set.</p>
-
-  <section id="reports">
-    <div class="cap"><h2>The five reports</h2><p>Open the HTML for the full report; PDF and PNG are print and image exports of the same page.</p></div>
+  <section class="section" id="reports">
+    {{ m.section_heading('The five reports', 'HTML for reading; PDF and PNG are exports of the same page') }}
     <div class="reports">{% for link in links %}<article class="report"><h3><a href="{{ link.html }}">{{ link.title }}</a></h3><p>{{ link.period }}</p><p class="links"><a href="{{ link.html }}">HTML</a>{% for label, href in link.extras %}<a href="{{ href }}">{{ label }}</a>{% endfor %}</p></article>{% endfor %}</div>
   </section>
 
-  <section id="shared">
-    <div class="cap"><h2>Totals shared between reports</h2><p>Each figure is computed once and shown identically wherever it appears; different scopes are explained by the bridges inside each report.</p></div>
+  <section class="section" id="shared">
+    {{ m.section_heading('Totals shared between reports', 'Exact cents; each figure is computed once') }}
     <div class="tablewrap"><table>
+      <colgroup><col style="width:44%"><col style="width:18%"><col style="width:38%"></colgroup>
       <thead><tr><th>Total</th><th class="amt">Amount</th><th>Shown in</th></tr></thead>
       <tbody>{% for key, total in shared.items() %}<tr><td>{{ total.label }}</td><td class="amt{% if total.partial %} partial{% endif %}">{{ total.value }}</td><td>{{ total.reports|join(', ') }}</td></tr>{% endfor %}</tbody>
     </table></div>
-    {% if shared.values()|selectattr("partial")|list %}<p class="legend">* Partial: bank coverage is incomplete for the period, so the total is not complete.</p>{% endif %}
+    {% if shared.values()|selectattr("partial")|list %}<p class="chart-note">* Partial: bank coverage is incomplete for the period, so the total is not complete.</p>{% endif %}
   </section>
 
-  <section id="school-freshness">
-    <div class="cap"><h2>Source coverage for the school year</h2><p>The calendar-year coverage is in the source freshness table below.</p></div>
-    {{ m.freshness(page.school_freshness) }}
+  <section class="section" id="inputs">
+    {{ m.section_heading('Inputs', 'Transaction feeds and their declared coverage') }}
+    <div class="tablewrap"><table>
+      <colgroup><col style="width:22%"><col style="width:10%"><col style="width:18%"><col style="width:25%"><col style="width:25%"></colgroup>
+      <thead><tr><th>Source</th><th>Kind</th><th>Captured (UTC)</th><th>School-year coverage</th><th>Calendar-year coverage</th></tr></thead>
+      <tbody>{% for feed in page.inputs.feeds %}<tr><td><strong>{{ m.label(feed.label) }}</strong></td><td>{{ feed.kind }}</td><td>{{ feed.captured }}</td><td{% if feed.partial[0] %} class="partial"{% endif %}>{{ feed.school }}</td><td{% if feed.partial[1] %} class="partial"{% endif %}>{{ feed.calendar }}</td></tr>{% else %}<tr><td colspan="5">No transaction feed was captured.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if page.inputs.others %}<p class="chart-note">Also captured: {{ page.inputs.others|join(', ') }} (not transaction feeds).</p>{% endif %}
+  </section>
+
+  <section class="section" id="records">
+    {{ m.section_heading('Run records', 'Full detail behind every count') }}
+    {{ m.audit(page.audit) }}
+    <p class="chart-note">{% for href in page.records %}<a class="ref" href="{{ href }}">{{ href }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
   </section>
 {% endblock %}
+{% block tail %}{% endblock %}
