@@ -465,7 +465,12 @@ class _TableParser(HTMLParser):
             self.row = []
         elif tag in ("td", "th") and self.row is not None:
             state = values.get("data-state")
-            classes = (values.get("class") or "") + (f" state:{state}" if state else "")
+            span = values.get("colspan")
+            classes = (
+                (values.get("class") or "")
+                + (f" state:{state}" if state else "")
+                + (f" colspan:{span}" if span else "")
+            )
             self.cell = ([], classes)
         elif tag == "li" and self.cell is not None:
             self.cell[0].append(" ")
@@ -803,6 +808,20 @@ def test_reimbursement_summary_follows_the_facts(rendered: RenderedSet) -> None:
     ) in [(unescape(t), unescape(line)) for t, line in cards]
 
 
+def _assert_other_budget_row(row: list[Cell], count: int) -> None:
+    """The Budget "Other lines" row is counts only: a sum would blend income with expense
+    targets and cover only the lines with a known actual, so target less to date would not
+    reconcile. One muted cell spans the three amount columns; it is neither the unknown
+    dash nor a partial star (those would wrongly explain known targets), and never $."""
+    assert row[0].text == f"Other lines ({count})"
+    assert len(row) == 3
+    note = row[1]
+    assert note.text == "not totaled; see run records" and "colspan:3" in note.classes
+    assert not note.classes & {"unk", "partial", "starred"}
+    assert not any(c.startswith("state:") for c in note.classes)
+    assert not any("$" in cell.text for cell in row)
+
+
 def test_budget_snapshot_follows_the_facts(rendered: RenderedSet) -> None:
     facts_ = rendered.facts
     budget = facts_.budget
@@ -862,22 +881,12 @@ def test_budget_snapshot_follows_the_facts(rendered: RenderedSet) -> None:
         kinds[line.line_type if line.line_type in ("income", "expense") else "other"] += 1
     assert rows[-1][0].text == f"Other lines ({len(rest)})"
     assert len(rows) == len(shown) + 1
-    # The Other row sums what it leaves out: known targets, known activity, never a zero.
-    targets = [x.target for x in rest]
-    known = [t for t in targets if t is not None]
-    assert rows[-1][1].text == format_whole(sum(known, Decimal("0.00")))
-    assert ("partial" in rows[-1][1].classes) == (len(known) != len(targets))
-    activities = [
-        None
-        if x.actual is None or x.line_type not in ("income", "expense")
-        else (x.actual if x.line_type == "income" else -x.actual)
-        for x in rest
-    ]
-    seen = [a for a in activities if a is not None]
-    assert rows[-1][2].text == (format_whole(sum(seen, Decimal("0.00"))) if seen else "–")
-    assert ("partial" in rows[-1][2].classes) == bool(seen and len(seen) != len(activities))
+    # The rest has unknown actuals beside a known one, and lines neither income nor expense.
+    assert any(x.actual is None for x in rest) and any(x.actual is not None for x in rest)
+    assert kinds["other"]
+    _assert_other_budget_row(rows[-1], len(rest))
     meta = " · ".join(f"{n} {kind} line{'' if n == 1 else 's'}" for kind, n in kinds.items() if n)
-    assert rows[-1][4].text == meta
+    assert rows[-1][2].text == meta
     outside = sum((a for _, a in (*budget.unmapped, *budget.unbudgeted)), Decimal("0.00"))
     count = len(budget.unmapped) + len(budget.unbudgeted)
     assert (
@@ -1473,6 +1482,20 @@ def test_the_legend_line_is_absent_without_a_dash_or_star(rendered: RenderedSet)
     pnl = rendered.html("cfo-pnl-summary.html")
     assert 'class="amt unk"' not in pnl and "starred" not in pnl
     assert LEGEND not in _text(pnl)
+
+
+def test_the_other_budget_row_alone_does_not_trigger_the_legend(tmp_path: Path) -> None:
+    # Five known lines: four shown in full and one counted in the Other row, which carries
+    # no unknown or partial marker, so the Budget page has no dash or star to explain.
+    inputs = _inputs(tmp_path)
+    inputs.write()
+    html = (inputs.run_dir / "budget-snapshot.html").read_text(encoding="utf-8")
+    rows = _body(_tables(html)["lines"])
+    assert len(rows) == 4 + 1
+    _assert_other_budget_row(rows[-1], 1)
+    assert 'title="The remaining lines and their amounts are in the run records"' in html
+    assert not re.search(r'class="[^"]*(?:unk|partial|starred)', html)
+    assert LEGEND not in _text(html)
 
 
 # --------------------------------------------------------------------------------------
@@ -2146,7 +2169,17 @@ def test_large_fixture_caps_every_list_and_sums_the_rest(tmp_path: Path) -> None
         format_whole(other),
     ]
     assert sum((a for _, a in ranked), Decimal("0.00")) == calendar.net  # table total is exact
-    assert len(_body(_tables(page("budget-snapshot"))["lines"])) == 4 + 1
+    budget_rows = _body(_tables(page("budget-snapshot"))["lines"])
+    assert len(budget_rows) == 4 + 1
+    ordered_lines = sorted(
+        facts_.budget.lines,
+        key=lambda x: (x.target is None, -(x.target or Decimal("0.00")), x.position),
+    )
+    tail = ordered_lines[4:]
+    # The rest mixes income and expense targets, and only some actuals are known.
+    assert {"income", "expense"} <= {x.line_type for x in tail}
+    assert any(x.actual is None for x in tail) and any(x.actual is not None for x in tail)
+    _assert_other_budget_row(budget_rows[-1], len(tail))
     income = [x for x in facts_.budget.lines if x.line_type == "income"]
     assert len(_body(_tables(page("fundraising-summary"))["income-lines"])) == 7 + 2
     assert len(income) > 7
@@ -2230,24 +2263,6 @@ def _money_pool(facts_: ReportFacts) -> set[str]:
     for line in lines:
         if line.target is not None and line.actual is not None:
             values.update({line.target - line.actual, line.target + line.actual})
-    # The Budget "Other lines" row sums a tail of the lines ordered by target.
-    ordered = sorted(lines, key=lambda x: (x.target is None, -(x.target or zero), x.position))
-    for start in range(len(ordered)):
-        tail = ordered[start:]
-        activity = [
-            x.actual if x.line_type == "income" else -x.actual
-            for x in tail
-            if x.actual is not None and x.line_type in ("income", "expense")
-        ]
-        remaining = [
-            x.target - (x.actual if x.line_type == "income" else -x.actual)
-            for x in tail
-            if x.target is not None
-            and x.actual is not None
-            and x.line_type in ("income", "expense")
-        ]
-        values.add(sum((x.target for x in tail if x.target is not None), zero))
-        values.update({sum(activity, zero), sum(remaining, zero)})
     values.add(sum((a for _, a in (*facts_.budget.unmapped, *facts_.budget.unbudgeted)), zero))
     data = facts_.reimbursements
     values.add(sum((data.open_amount(b, "C") for b in EXPENSE_BUCKETS), zero))

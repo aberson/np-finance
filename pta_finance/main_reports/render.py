@@ -64,7 +64,6 @@ from pta_finance.main_reports.models import (
     VIEW_BASES,
     Artifact,
     ArtifactSet,
-    BudgetLine,
     CaptureSet,
     CoverageStatus,
     Period,
@@ -1495,28 +1494,6 @@ def _of_target(amount: Decimal, target: Decimal | None) -> str:
     return pct(amount, target) if target is not None and target > 0 else "an unknown share"
 
 
-def _summed(values: Sequence[Decimal | None]) -> dict[str, Any]:
-    """A table total: the exact sum of the known values (partial when some are unknown),
-    or the dash when none is known; never an invented zero."""
-    found = [value for value in values if value is not None]
-    if not found:
-        return _cell(None)
-    return _cell(sum(found, _ZERO), partial=len(found) != len(values))
-
-
-def _activity(line: BudgetLine) -> Decimal | None:
-    """Money received (income) or spent (expense) on one adopted line; ``None`` if unknown."""
-    if line.actual is None or line.line_type not in facts.BUDGET_LINE_TYPES:
-        return None
-    return line.actual if line.line_type == _INCOME else -line.actual
-
-
-def _remaining(line: BudgetLine) -> Decimal | None:
-    """Target less activity to date; ``None`` when either is unknown."""
-    activity = _activity(line)
-    return None if line.target is None or activity is None else line.target - activity
-
-
 def _budget_snapshot(report: ReportFacts) -> dict[str, Any]:
     budget = report.budget
     period = report.periods.school
@@ -1581,10 +1558,10 @@ def _budget_snapshot(report: ReportFacts) -> dict[str, Any]:
         for line in rest:
             kinds[line.line_type if line.line_type in facts.BUDGET_LINE_TYPES else "other"] += 1
         other = {
+            # Counts only: a sum over the rest would blend income with expense targets and
+            # cover only the lines with a known actual, so it would not reconcile.
             "text": f"Other lines ({len(rest)})",
-            "target": _summed([line.target for line in rest]),
-            "activity": _summed([_activity(line) for line in rest]),
-            "remaining": _summed([_remaining(line) for line in rest]),
+            "title": "The remaining lines and their amounts are in the run records",
             "meta": " · ".join(
                 plural(kinds[kind], f"{kind} line", f"{kind} lines")
                 for kind in (_INCOME, _EXPENSE, "other")

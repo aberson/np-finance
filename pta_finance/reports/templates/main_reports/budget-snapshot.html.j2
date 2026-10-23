@@ -30,7 +30,7 @@
       <thead><tr><th>Type</th><th>Category</th><th class="amt">Target</th><th class="amt">To date</th><th class="amt">Target less to date</th><th>Status</th></tr></thead>
       <tbody>
         {% for line in data.rows %}<tr><td>{{ m.label(line.type) }}</td><td><strong>{{ m.label(line.category) }}</strong></td>{{ m.amount(line.target) }}{{ m.amount(line.activity) }}{{ m.amount(line.remaining) }}<td>{{ m.label(line.status) }}</td></tr>{% else %}<tr><td colspan="6">No adopted lines.</td></tr>{% endfor %}
-        {% if data.other %}<tr class="other"><td colspan="2">{{ data.other.text }}</td>{{ m.amount(data.other.target) }}{{ m.amount(data.other.activity) }}{{ m.amount(data.other.remaining) }}<td>{{ data.other.meta }}</td></tr>{% endif %}
+        {% if data.other %}<tr class="other" title="{{ data.other.title }}"><td colspan="2">{{ data.other.text }}</td><td colspan="3" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">not totaled; see run records</td><td>{{ data.other.meta }}</td></tr>{% endif %}
       </tbody>
     </table></div>
     <p class="chart-note">{{ data.note }}</p>
