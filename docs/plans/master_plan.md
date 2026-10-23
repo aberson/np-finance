@@ -1383,7 +1383,19 @@ uv run pta-finance report-reimbursements
 - **Existing context:** Run only after Step 62 is delivered. This observes real Sheets/authentication, source reconciliation, receipt images, and report publication; local fictional smoke is not live acceptance.
 - **Produces:** Updated private Main Report Set, adjustment/discrepancy evidence, and source-to-report reconciliation results.
 - **Done when:** All five reports open; the four summary pages and the index show one run/as-of identity with their correct periods, and the queue, its copy text and the PDF/PNG exports match the run manifest's hashes (the reused queue carries no in-file run ID); school-year summaries agree on comparable totals; every P&L difference is explained or explicitly unresolved; prior-year outstanding requests, receipt images/red circles, and copy text are present. The source workbook is unchanged. A second full unrelated native-PDF/shared-workflow test campaign is not part of this acceptance.
-- **Depends on:** 62
+- **Depends on:** 62, 64
+
+### Step 64: Rebuild the four summaries to the accepted one-page board design
+- **Status:** PLANNED
+- **Type:** code
+- **Problem:** The first live run (2026-10-22) showed that Step 61 did not reuse the accepted summary styling. The accepted briefs lived only in private files that the public build could not read, so it produced fluid audit pages: the summaries printed to 42-95 pages each against 1 for each accepted reference. Rebuild the Reimbursement Summary, Fundraising Summary, Budget Snapshot and CFO P&L Summary templates and their render models to the public design contract, preserving every fact, total, reconciliation rule and the run-identity/privacy guards.
+- **Issue:** #104
+- **Flags:** `--reviewers code`
+- **Files:** `pta_finance/main_reports/render.py`, `pta_finance/reports/templates/main_reports/*.j2`, `tests/test_main_report_render.py` (plus `tests/test_main_report_runner.py` only where it asserts rendered layout).
+- **Existing context:** Design contract: [main-report-design.md](../plan-reference/main-report-design.md) (operator decisions D1-D6 recorded 2026-10-23: template narratives only, bank-basis fundraising income labelled, net-flow Budget Snapshot without balances, default header wording, P&L appendix may take two landscape pages). Data contract unchanged: [cfo-main-report-set.md](../plan-reference/cfo-main-report-set.md). Audit detail moves to counts plus pointers to the run's `records/*.json`; unknown is still never shown as zero.
+- **Produces:** Four one-page portrait summaries (the P&L adds a landscape appendix), a short index, and deterministic one-page-fit tests on fictional fixtures.
+- **Done when:** With fictional fixtures, each of the three summaries prints exactly one US Letter portrait page and the P&L prints one portrait page plus its landscape appendix (Chromium export). No inline discrepancy-ID or bridge-evidence lists remain. Every spec section 5 acceptance item passes. Existing fact, privacy and run-identity tests pass. ruff, format, `mypy --strict` and the main-report test modules are green.
+- **Depends on:** 61, 62
 
 
 **Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
