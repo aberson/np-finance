@@ -1,6 +1,6 @@
 # Main Report Set — one-page summary design
 
-Status: design specification for master-plan Step 64; the operator's decisions are recorded in §7 (2026-10-23). It changes no behavior on its own.
+Status: DONE (Step 64, 2026-10-23; 96a57a5, follow-up 38efe36). This is the visual contract the shipped `render.py` and templates implement; where a row cap or label below differs from the code, the code constants win (see the as-built notes). Operator decisions are in §7.
 Owner of the visual contract for the four `end-to-end-run` summaries and the index. The data
 contract stays with [`cfo-main-report-set.md`](cfo-main-report-set.md); this document never
 changes a fact, a total or a reconciliation rule, only how they are shown.
@@ -10,7 +10,7 @@ changes a fact, a total or a reconciliation rule, only how they are shown.
 `end-to-end-run` renders four summaries (`reimbursement-summary`, `budget-snapshot`,
 `fundraising-summary`, `cfo-pnl-summary`) and the index `main-report-set.html` from
 `pta_finance/main_reports/render.py` and `pta_finance/reports/templates/main_reports/*.j2`.
-Today each summary is a fluid audit dump that prints to roughly 40–95 pages. Most of the
+Before Step 64 each summary was a fluid audit dump that printed to 42–95 pages. Most of the
 height comes from inline lists of discrepancy IDs, per-row bridge evidence, findings tables
 and per-cell "Not covered" markers.
 
@@ -226,7 +226,7 @@ Every `td`, `th`, `p` and `li` is ≥ 9.5 px. SVG text uses the sizes given in �
 <header class="mast">
   <!-- unchanged mark slot: page.logo data URI if configured, else the $ brandmark -->
   <div>
-    <p class="eyebrow">{{ page.organization }} · Private Main Report Set</p>
+    <p class="eyebrow">{{ page.eyebrow }} · Private Main Report Set</p>
     <h1>{{ page.title }}</h1>
     <p class="audience">For the board</p>
   </div>
@@ -236,6 +236,7 @@ Every `td`, `th`, `p` and `li` is ≥ 9.5 px. SVG text uses the sizes given in �
 ```
 
 * No metadata cards, run ID, hash, basis box or alert boxes above the content.
+* `page.eyebrow` is `page.organization` cut with an ellipsis to one line (the full name stays in `title`).
 * `page.basis` becomes one short clause (replace `_BASES` in `render.py`):
   reimbursement "items by their own expense date; payments by payment date";
   budget "adopted targets beside the adjusted bank view";
@@ -253,7 +254,7 @@ Exactly four `.metric` tiles in `.metrics` (`1fr 1fr 1fr 1.4fr`), 65–80 px tal
 States: `closed` (green: done/received), `open`/`amount` (amber: open or needs attention),
 `spent` (red tint: money out), none (neutral wash). Values are whole dollars, counts or
 whole percents. A value that is unknown is the word `Unknown` (never `$0`); a partial value
-carries `class="partial"` on the `strong` (renders `*`).
+carries `class="partial"` on the `strong` (renders `*`); a non-numeric value (`Unknown`, `Target reached`) gets `class="word"` (17 px).
 
 ### 1.6 Overview row
 
@@ -325,9 +326,11 @@ a 4 px sea left rule, a 9.5 px muted qualifier right-aligned on the same baselin
 `table-layout:fixed`, 1 px line border, deep header (9.5 px caps, .07em tracking), zebra rows,
 10.5 px cells, padding 4 × 8, first column 27–31 % (set per table with `<col>` widths). A cell
 holds a bold primary line plus an optional `.meta` second line rather than extra columns.
-Amount columns are right-aligned, tabular and `nowrap`. Every brief table has **at most 8
-body rows plus one "Other (n …)" row and one total row**; the rows it leaves out are summed
-into "Other", so table totals stay exact. Rows are ≤ 38 px at print width.
+Amount columns are right-aligned, tabular and `nowrap`. Every brief table has a fixed row
+cap (open requests 4, budget lines 4, P&L categories 4, income lines 7), then one "Other" row.
+A total row follows where the page has one (open requests, income lines, P&L Net). The
+Budget Snapshot "Other lines" row is a count, not a sum (see § 3.3 row 9). Rows are ≤ 38 px
+at print width.
 
 ### 1.10 Number and date formatting
 
@@ -355,13 +358,15 @@ into "Other", so table totals stay exact. Rows are ≤ 38 px at print width.
 * A single headline value that is unknown reads `Unknown`.
 * In tables and the P&L matrix an unknown or uncovered cell is a muted en dash:
   `<td class="amt unk" data-state="uncovered" title="No declared bank coverage">–</td>`
-  (`data-state` is `uncovered` or `unknown`; tests select on it). An observed zero is `$0`
+  (`data-state` is `uncovered` or `unknown`; tests select on it; the `title` is "No readable amount" for `unknown`). An observed zero is `$0`
   in `.zero`. Never bold amber, never repeated wording per cell.
 * A partial month is marked once in its column header (`Aug*`), not in each cell; a partial
   total carries `.partial`.
 * One legend line, shown only when a page contains a dash or a star:
-  "– Unknown: no declared coverage or no readable amount, never zero. * Partial: bank
-  coverage is incomplete for that month or total. $0 is an observed zero."
+  "– Unknown: no declared coverage or no readable amount, never zero. * Partial:
+  incomplete coverage or an unreadable target. $0 is an observed zero." It is the
+  `chart-note marks` paragraph in the `tail` block of `base.html.j2`, directly above
+  "Where things stand".
 
 ### 1.12 Narrative ("Where things stand")
 
@@ -388,8 +393,8 @@ beside the pointer, outside the run folder, where a relative `records/` link wou
 
 ```html
 <footer class="foot">
-  <div class="row"><span>Sources: CFO workbook capture{% if reimbursement-backed %} and the reimbursement queue as of {{ page.bundle.as_of }}{% endif %} · {{ coverage_clause }} · Amounts rounded to whole dollars; exact cents are in the run records · <a href="{{ page.index }}">Main Report Set index</a> · <a href="{{ page.queue }}">Reimbursement Queue</a></span><span>{{ page.period.range }}<br>{{ pages_label }}</span></div>
-  <div class="id"><span class="private">Private financial report.</span> Run <span class="mono">{{ page.run_id }}</span> · Input set <span class="mono">{{ page.input_sha[:16] }}</span> · As of {{ page.as_of }} · Inputs captured {{ page.captured }}</div>
+  <div class="row"><span>Sources: CFO workbook capture{% if page.reimbursement_backed %} and the reimbursement queue as of {{ page.bundle.as_of }}{% endif %} · {{ page.coverage }} · Amounts rounded to whole dollars; exact cents are in the run records{% for note in page.footnotes %} · {{ note }}{% endfor %} · <a href="{{ page.index }}">Main Report Set index</a> · <a href="{{ page.queue }}">Reimbursement Queue</a></span><span>{% if page.period.range %}{{ page.period.range }}{% else %}{{ page.period.label }}{% endif %}{% if page.pages_label %}<br>{{ page.pages_label }}{% endif %}</span></div>
+  <div class="id"><span class="private">Private financial report.</span> Run <span class="mono">{{ page.run_id }}</span> · Input set <span class="mono">{{ page.input_sha[:16] }}</span> · Inputs captured {{ page.captured }}</div>
 </footer>
 ```
 
@@ -397,7 +402,10 @@ beside the pointer, outside the run folder, where a relative `records/` link wou
   when all fall in the same minute; `YYYY-MM-DD HH:MM–HH:MM UTC` within one day; otherwise
   `{first} to {last} UTC`.
 * `coverage_clause`: "Bank coverage complete for the period" or "Bank coverage partial for
-  {k} source(s); see the index", from `report.coverage` for the page's period.
+  {k} source(s); see the index", from `report.coverage` for the page's period; "No bank
+  coverage declared; see the index" when there is no bank source; on the index, "Declared
+  coverage per source is in the Inputs table". The as-of date appears once, in the masthead
+  `.edition`, not in the footer id line.
 * `pages_label`: `1 page` (P&L: `1 page + appendix`).
 * The run ID appears once per page (footer only). The 11 metadata cards, the basis box, the
   freshness table and the findings section are removed from every summary.
@@ -419,8 +427,8 @@ Budget at print width (729.6 px), in px, against the 973 px Letter content box:
 | Scope line | 33 |
 | KPI tiles | 80 |
 | Overview row | 165 + 15 gap |
-| Section heading + table (≤ 8 rows + Other + total, header) | 300 + 12 gap |
-| Follow-ups (≤ 4, two columns) **or** second compact table | 120 + 12 gap |
+| Section heading + table (capped rows + Other + total, header) | 300 + 12 gap |
+| Follow-ups (≤ 4, or ≤ 2 on the Budget Snapshot; two columns) **or** second compact table | 120 + 12 gap |
 | Narrative (≤ 4 lines) | 78 + 12 gap |
 | Audit line (≤ 2 lines) | 34 |
 | Footer | 52 |
@@ -429,7 +437,7 @@ Budget at print width (729.6 px), in px, against the 973 px Letter content box:
 A page that needs more space drops rows into "Other", never adds a page.
 
 **How the private reference checks fit, translated into a public test**
-(`tests/test_main_report_layout.py`, Playwright + Chromium, fictional fixtures only):
+(`tests/test_main_report_render.py::test_chromium_every_summary_fits_its_pages`, Playwright + Chromium, fictional fixtures only):
 
 1. Load each summary from the rendered run folder (`page.goto(file URI)`), block every
    `http(s)` request, record page errors; assert no requests other than `file:`/`data:`
@@ -449,7 +457,7 @@ A page that needs more space drops rows into "Other", never adds a page.
 6. Phone at 390 × 844: no horizontal page overflow; `.metrics .metric` tops form exactly two
    rows; `.sheet` left padding ≥ 16 px.
 7. Bar rows: the common-scale check from § 1.7.
-8. **Stress fixture**: the same assertions with a fixture that maxes every cap (60 P&L
+8. **Stress fixture** (as built: the `large`, `large_uncovered` and `adversarial` worlds, which assert at least 45 P&L categories, 40 open requests and 80 budget lines): the same assertions with a fixture that maxes every cap (60 P&L
    categories, 40 open requests, 80 budget lines, 6 processors with 30 categories each,
    every month uncovered, labels of 200 characters of `W`, hostile `<script>` labels). This is
    what proves "bounded by construction"; the P&L appendix may then run to
@@ -461,14 +469,18 @@ A page that needs more space drops rows into "Other", never adds a page.
 
 * `render.py`: add `format_whole`, `pct`, `largest_remainder`, `year_elapsed`, `plural`,
   `truncate_label` and `captured_label` (pure helpers, unit-tested); keep `format_money`.
-  Replace `_counts`, `_findings` and `_freshness` usage on summaries with `_audit(report)`
-  (counts, § 4) and `_followups(report, name)` (reader text, § 4). Keep `_freshness` for the
-  index only. `_bridge` becomes `_bridge_line` (one row per bridge, § 3.4).
+  Replace `_counts`, `_findings` and `_freshness` usage on summaries with
+  `_audit(report, names)` (counts, § 4) and `_followups(report, name)` (reader text, § 4). Keep
+  `_freshness` for the index only. As built there is no `_bridge_line`: the per-bridge rows
+  (§ 3.4) are built inline in `_pnl_summary`.
 * `base.html.j2`: masthead + scope (§ 1.4), `{% block content %}`, narrative, audit line,
-  footer (§ 1.12–1.14). Remove the meta grid, basis box, freshness section and findings macro.
+  footer (§ 1.12–1.14); as built it has the `scope`, `content`, `tail` and `appendix` blocks,
+  and `audit` and `footer` are macros in `macros.html.j2`. Remove the meta grid, basis box,
+  freshness section and findings macro.
   Keep `head.html.j2` unchanged (CSP, `run_id_meta`, `input_set_meta`, robots).
 * `macros.html.j2`: replace `freshness`/`bridge`/`findings` with `tiles`, `pie`, `meter`,
-  `bar_rows`, `stack`, `section_heading`, `followups`, `recon_table`, `unknown_cell`.
+  `bar_rows`, `stack`, `section_heading`, `followups`, `recon_table`, `unknown_cell`, `audit`,
+  `footer`, `label`, `pct_of`, `amount`, `followup_qualifier`.
 * `index.html.j2` gets its own simple body (§ 3.5) instead of the base content.
 
 ---
@@ -498,7 +510,7 @@ private input, see D1). No GAP may be filled with an invented or typed number.
 | 5 | Tile 4 "Needs clarification" (`amount`) | whole dollars; `<small>` "{k} item(s) without an amount" when k > 0 | `sum(RF.open_amount(b, "C") for b in EXPENSE_BUCKETS)` (`models.py:1826`); k = `sum(t.unpriced for t in RF.totals if t.open and t.status == "C")` (`ReimbursementTotal`, `models.py:1687`) |
 | 6 | Overview left: pie "{p}% of requests are closed" + legend `closed`/`open` counts + chart note "Share of tracked requests, by count." | § 1.7 pie, first part = closed, wedge = open | tiles 2–4 |
 | 7 | Overview right: callout "Paid in the period" | value `format_whole(RF.paid("current"))` + `<span>` "across {m} request(s)"; split: "{x} matched to a bank row · {y} not yet matched"; second split line "{z} paid for prior-year expenses"; note "Payments are placed by payment date; prior-year expenses paid this year are never added to this year's expenses." | `RF.paid` (`models.py:1815`); m = `len({i.review_key for i in RF.items if i.payment_bucket == "current"})`; joins in period = `[j for j in RF.joins if R.periods.school.position(j.payment_date) == "current"]` (`PaymentJoin`, `models.py:1754`), x = state `matched`, y = the rest; z = `format_whole(RF.paid("current", "prior"))` |
-| 8 | Section "Largest open requests" (qualifier "Approved and not yet paid: {format_whole(RF.outstanding)}") | ≤ 5 rows sorted by `pay_now` desc, `submitted` asc, `ticket_ref`; columns Request (bold ref, `.meta` "submitted {iso}") · Earliest expense · Undated items · Pay now · Prior-year carryover (chip `warn` "By expense date"/"By submission", else muted "No"); then `tr.other` "{n} more open request(s) in the Reimbursement Queue" (link `page.queue`) and `tr.total` "All open requests" = `RF.outstanding` | `RF.queue[*].ticket_ref, submitted, earliest_expense_date, undated_items, pay_now, carryover_basis`; `RF.outstanding` |
+| 8 | Section "Largest open requests" (qualifier "Approved and not yet paid: {format_whole(RF.outstanding)}") | ≤ 4 rows (`_OPEN_REQUEST_ROWS`) sorted by `pay_now` desc, `submitted` asc, `ticket_ref`; columns Request (bold ref, `.meta` "submitted {iso}") · Earliest expense · Undated items · Pay now · Prior-year carryover (chip `warn` "By expense date"/"By submission", else muted "No"); then `tr.other` "{n} more open request(s) in the Reimbursement Queue" (link `page.queue`) and `tr.total` "All open requests" = `RF.outstanding` | `RF.queue[*].ticket_ref, submitted, earliest_expense_date, undated_items, pay_now, carryover_basis`; `RF.outstanding` |
 | 9 | Section "Data follow-ups" | ≤ 4 `.followup` cards from § 4 reader text for codes `reimbursement_*` and `bundle_as_of_outside_period`; "No data follow-ups." when none | `R.issues` (`FactIssue.code, count`, `models.py:1991`) |
 | 10 | Narrative | template below | facts above |
 | 11 | Audit + footer | § 1.13–1.14; bridges on this page: `school_payment_timing`, `school_expense_basis` | `R.bridge(name).balanced`, `.residual` (`models.py:1619–1623`) |
@@ -543,7 +555,7 @@ the same shape on the **bank basis** (all income categories) plus the processor 
 | 4 | Tile 3 "Still to reach the target by {end Mon D}" | `display(target) − display(received)`; when reached: value "Target reached", label "Above target: {x}" | tiles 2–3 |
 | 5 | Tile 4 "Processors complete" (`open` when not all) | "{c} of {n}"; `<small>` "{u} with no rows or coverage" when u > 0 | `R.fundraising[*].complete` (`models.py:1970`); u = processors with `"coverage_partial"` in `incomplete_reasons` and no rows (rule from `_fundraising_summary`) |
 | 6 | Overview left: "{p} of the adopted income target" + meter (§ 1.7, fill `#236c48`, verb "received") + months line "By month: Jul $X · Aug $Y …" + chart note "The marker shows how much of the school year has passed. It is not a target." | | `school.months[*].month, .income` (`PnlMonthTotal`, `models.py:1005`); year elapsed from `R.periods.school` |
-| 7 | Overview right: `.bars` "How processor money arrived" (head span "Gross · share of all processor gross"); one `.route` per processor (label = `source_alias`); sub line "Processor gross by payment date. Payouts reach the bank later and are already inside bank income; never add the two."; last line "Fees {f} · Refunds {r} · Net {n}" and "{a}% of gross attributed to a category; {k} sale(s) not attributed" | | `R.fundraising[*].source_alias, gross, fees, refunds, net, categories[*].category, count, gross` (`FundraisingTotals` `models.py:1947`, `FundraisingCategory` `models.py:1925`); unknown processor → value `–` |
+| 7 | Overview right: `.bars` "How processor money arrived" (head span "Gross · share of all processor gross"); one `.route` per processor (label = `source_alias`); sub line "Processor gross by payment date. Payouts reach the bank later and are already inside bank income; never add the two."; last line "Fees {f} · Refunds {r} · Net {n}" and "{a}% of gross attributed to a category; {k} sale(s) not attributed"; more than 4 processors (`_ROUTE_ROWS`): the 3 largest by gross plus one "Other (n processors)" row, and an unknown processor sorts last | | `R.fundraising[*].source_alias, gross, fees, refunds, net, categories[*].category, count, gross` (`FundraisingTotals` `models.py:1947`, `FundraisingCategory` `models.py:1925`); unknown processor → value `–` |
 | 8 | Section "Income lines this year" (qualifier "Adopted target and bank income to date") | ≤ 7 income lines by target desc, then `tr.other` "Other income lines ({n})", `tr.total`; columns Line (category) · Target · Received to date · Can we measure it yet? | `R.budget.lines` where `line_type == "income"`: `category`, `target`, `actual` (income activity = actual), `actual_status` (`BUDGET_ACTUAL_STATUSES`, `models.py:231`) |
 | 9 | Section "Data follow-ups" | ≤ 4 cards: `processor_rows_excluded` issue, processor coverage flags, per-processor `incomplete_reasons` | `R.issues`, `R.coverage_flags` (`CoverageFlag`, `models.py:1148`), `R.fundraising[*].incomplete_reasons` |
 | 10 | Narrative, audit, footer | no bridges on this page ("Bridges balanced" omitted) | |
@@ -585,13 +597,13 @@ balances, so the balance card becomes a net-flow tile.
 | 1 | Masthead, scope | § 1.4 | `R.periods.school` |
 | 2 | Tile 1 "Received (bank basis)" (`closed`) | whole dollars, `.partial` if incomplete | `school.income`, `school.complete` |
 | 3 | Tile 2 "Spent (bank basis)" (`spent`) | `format_whole(−school.expense)` | `school.expense` (negative by contract, `month_totals_from`) |
-| 4 | Tile 3 "Lines with an unknown actual" (`open` when > 0) | count; `<small>` "of {n} adopted lines" | `sum(l.actual is None for l in R.budget.lines)`, `len(R.budget.lines)` |
+| 4 | Tile 3 "Unknown actuals" (`open` when > 0) | count; `<small>` "of {n} adopted lines" | `sum(l.actual is None for l in R.budget.lines)`, `len(R.budget.lines)` |
 | 5 | Tile 4 (1.4fr) "{label} adjusted bank net" | `format_whole(school.net)`, `.partial`; `<small>` "A change over the period, not a balance" | `school.net` (same scope as `shared.school_net`) |
 | 6 | Overview left: "Where money went" — stacked bar + top 4 expense categories + Other | § 1.7 stacked bar; amounts are magnitudes | categories with net < 0 from `school.category_totals()` (`models.py:1554`), sorted by magnitude |
 | 7 | Overview right: `.bars` "Where money came from" — top 4 income categories + Other on one scale | § 1.7 bar rows | categories with net > 0 from `school.category_totals()` |
-| 8 | Section "Progress against the adopted budget" (qualifier "{y}% of the school year has passed") | two meters side by side (`.overview` grid): income received vs income target (fill `#236c48`, verb "received"); spending vs expense target (fill `#8a5716`, verb "spent"); under each: "{p} of target" | income target as in § 3.2 row 3; expense target = same over `line_type == "expense"`; amounts `school.income`, `−school.expense` |
-| 9 | Section "Largest budget lines" (qualifier "Crosswalk version {v}" or "No category crosswalk") | ≤ 6 lines by target desc; columns Type · Category · Target · To date · Target less to date · Status; `tr.other` "Other lines ({n})"; then one `.chart-note`: "{u} line(s) outside the adopted lines: {format_whole(sum)} · {o} row(s) of other fiscal years · {t} line(s) neither income nor expense" | `R.budget.lines[*].line_type, category, target, actual, actual_status`; activity = `actual` (income) or `−actual` (expense); `R.budget.crosswalk_version`, `.unmapped`, `.unbudgeted`, `.other_year_rows` (`BudgetFacts`, `models.py:1896`) |
-| 10 | Section "Data follow-ups" | ≤ 4 cards from `budget_*` issue codes and `crosswalk_absent` / `school_coverage_partial` / `bank_coverage_absent` flags | `R.issues`, `R.coverage_flags` |
+| 8 | Section "Progress against the adopted budget" (qualifier "{y}% of the year has passed · income {x} · spending {z} of target") | two meters side by side (`.overview` grid): income received vs income target (fill `#236c48`, verb "received"); spending vs expense target (fill `#8a5716`, verb "spent"); under each: "{p} of target" | income target as in § 3.2 row 3; expense target = same over `line_type == "expense"`; amounts `school.income`, `−school.expense` |
+| 9 | Section "Largest budget lines" (qualifier "Crosswalk version {v}" or "No category crosswalk") | ≤ 4 lines by target desc (`_BUDGET_ROWS`); columns Type · Category · Target · To date · Target less to date · Status; `tr.other` "Other lines ({n})", a count, not a sum: its amounts read "not totaled; see run records" and its status cell counts income / expense / other lines (a sum would blend income and expense targets and cover only known actuals); this table has no total row; then one `.chart-note`: "{u} line(s) outside the adopted lines: {format_whole(sum)} · {o} row(s) of other fiscal years · {t} line(s) neither income nor expense" | `R.budget.lines[*].line_type, category, target, actual, actual_status`; activity = `actual` (income) or `−actual` (expense); `R.budget.crosswalk_version`, `.unmapped`, `.unbudgeted`, `.other_year_rows` (`BudgetFacts`, `models.py:1896`) |
+| 10 | Section "Data follow-ups" | ≤ 2 cards (`_BUDGET_FOLLOWUPS`; the page also carries the progress meters; the qualifier reads `N of M shown; all are in records/facts.json` when truncated, else `Counts only; details are in the run records`) from `budget_*` issue codes and `crosswalk_absent` / `school_coverage_partial` / `bank_coverage_absent` flags | `R.issues`, `R.coverage_flags` |
 | 11 | Narrative, audit, footer | bridges on this page: `school_source_scope`, `school_adjustments`, `school_budget_crosswalk`; footer adds "No calendar-year budget is derived from these annual targets." | `R.bridge(...)` |
 
 Status text per line reuses `_BUDGET_REASONS` / "Observed"; an unknown "to date" or
@@ -626,12 +638,12 @@ GAPs (Budget Snapshot, 9):
 | 2 | Tile 1 "Income year to date" | whole dollars, `.partial` if incomplete | `calendar.income`, `calendar.complete` |
 | 3 | Tile 2 "Expenses year to date" (`spent`) | `format_whole(−calendar.expense)` | `calendar.expense` |
 | 4 | Tile 3 "Net year to date" | `format_whole(calendar.net)` | `calendar.net` (same as `shared.calendar_net`) |
-| 5 | Tile 4 "Months with declared bank coverage" (`open` when incomplete) | "{x} of {n}"; `<small>` "Control check: {humanized}" | `_month_covered` / `_month_starts` (`render.py:878–903`) with `R.coverage` (`CoverageStatus`, `models.py:844`); `R.pnl_control_status` |
+| 5 | Tile 4 "Months with declared bank coverage" (`open` when incomplete) | "{x} of {n}"; `<small>` "Control check: {humanized}" | `_month_covered` / `_month_starts` (`render.py:980–1006`) with `R.coverage` (`CoverageStatus`, `models.py:844`); `R.pnl_control_status` |
 | 6 | Overview left: "Income and expenses by month" + monthly bars (§ 1.7) + legend | | `calendar.months[*].month, income, expense`; coverage per month as tile 4 |
 | 7 | Overview right: callout "Reconciliation" | value "{b} of {n}" + span "bridges balance"; split "Control check against the CFO P&L: {status}"; note "{a} adjustment(s) applied · {p} pending after the as-of date. Uncovered months are unknown, not zero." | bridges `calendar_source_scope`, `calendar_adjustments`, `calendar_to_school`; `R.pending_adjustments` |
-| 8 | Section "Largest categories year to date" (qualifier "Adjusted view") | top 8 by \|YTD\|; columns Category · Type (Income/Expense by sign) · Year to date · Share of income or expenses · Months with activity; `tr.other` "Other ({n} categories)"; `tr.total` "Net" | `calendar.category_totals()`; months with activity = count of `calendar.cells` (`MonthlyCategoryCell`, `models.py:974`) for that category with `net != 0` |
+| 8 | Section "Largest categories year to date" (qualifier "Adjusted view") | 4 rows (`_PNL_ROWS`): the largest income and the largest expense category are always shown (`_PNL_SIDE_ROWS` = 1 each), the remaining rows fill by \|YTD\| desc then name; columns Category · Type (Income/Expense by sign; Zero for a 0 net category) · Year to date · Share of income or expenses · Months with activity; `tr.other` "Other, net ({n} categories)"; `tr.total` "Net" | `calendar.category_totals()`; months with activity = count of `calendar.cells` (`MonthlyCategoryCell`, `models.py:974`) for that category with `net != 0` |
 | 9 | Section "Reconciliation" (qualifier "One line per bridge; records in the run folder") | one row per bridge: Bridge (short title) · From · Explained · Residual · Status (`chip.ok` "Balanced" / `chip.stop` "Residual") · Records (count) | `Bridge.from_amount, to_amount, rows[*].amount, residual, balanced` (`models.py:1602`); records = Σ `len(refs) + len(adjustment_ids) + len(item_keys)` over rows (`BridgeRow`, `models.py:1575`) |
-| 10 | Narrative, audit, footer | footer adds "No calendar-year budget is shown: adopted budgets are school-year targets (see the Budget Snapshot)." | |
+| 10 | Narrative, audit, footer | footer adds "Budgets are school-year targets; see the Budget Snapshot." | |
 
 Short bridge titles: "Source months → calendar year", "Source view → adjusted view",
 "Calendar year → school year". Explained = Σ row amounts; From and Residual in whole dollars.
@@ -654,7 +666,7 @@ not zero}."
 * Cells: value → `format_whole`; no cell in a covered month → `$0` (`.zero`); no cell in an
   uncovered month → muted dash with `data-state="uncovered"`; a value in an uncovered month →
   the value (the column star says partial). YTD sums exact cents, then rounds.
-* Capacity: 40 body rows per landscape page at 9.5 px; beyond that the table continues on more
+* Capacity: 40 body rows per landscape page at 9.5 px (`_APPENDIX_ROWS`; the 40 counts every matrix row, including the Income/Expenses group rows, the Income/Expenses/Net total rows and the optional Source net/Adjustments rows, see `_appendix_pages`); beyond that the table continues on more
   landscape pages with the repeated header.
 
 P&L GAPs: 1 — P1 interpretive commentary (why a category moved) → omit; the template
@@ -718,6 +730,8 @@ Rules:
 | `budget_line_ambiguous` | Category on more than one line | {n} category(ies) have more than one adopted line. |
 | `budget_actual_unknown` | Lines with an unknown actual | {n} line(s) have no comparable bank amount yet. |
 | `processor_rows_excluded` | Processor rows left out | {n} conflicting processor row(s) are left out of every total. |
+| `processor_rows_excluded_reported` | Processor rows left out | {n} processor(s) left conflicting rows out of their totals. |
+| `processor_coverage_partial` | Processor coverage incomplete | {n} processor(s) have no declared coverage for the whole period. |
 | `school_coverage_partial` / `calendar_coverage_partial` | Bank coverage incomplete | Declared bank coverage does not span the whole period. |
 | `bank_coverage_absent` | No bank coverage declared | No declared bank coverage; bank totals are partial. |
 | `pnl_control_mismatched` / `_unverified` / `_absent` | CFO P&L control check | The control check against the CFO P&L is {mismatched / unverified / absent}. |
@@ -752,7 +766,7 @@ Rules:
 8. No summary contains a discrepancy ID (`DISC-` prefix), an adjustment ID (`ADJ-` prefix), a
    source row reference, or the word "Not covered"; the audit line's counts equal § 4's
    sources.
-9. Every money string on a summary is whole dollars and traces to a facts-derived value of
+9. Every money string on a summary is whole dollars (except a nonzero bridge residual that would round to $0, which prints in cents) and traces to a facts-derived value of
    § 3 (assert against a per-page allowed set built from the facts); the index's shared-total
    table still shows exact cents equal to `format_money` of the shared totals.
 10. Shares on each bar or stacked chart sum to exactly 100 (or 100.0); bar rows pass the
@@ -766,32 +780,9 @@ Rules:
 14. Full suite gate per the workspace rule (all test roots, emulator modules included), ruff,
     ruff format and `mypy --strict pta_finance` pass.
 
-## 6. Tests that will need deliberate updates
+## 6. Tests (as built)
 
-From `tests/test_main_report_render.py` (each asserts a layout detail this design removes;
-update to the new contract, never delete the behavior they protect):
-
-| Test (line) | Old detail asserted | New assertion |
-|---|---|---|
-| `test_every_page_names_its_period_basis_as_of_run_and_freshness` (461) | "Basis." text; meta-card strings "Period School year 2030–31 (FY2031)", "Period Calendar year 2030 As of"; per-source capture timestamp; alert sentences | scope line string (kept: "{label} · {range} · through …"), `FY2031` in the school scope only, `page.captured` in the footer, footnote sentences; the "Adjustments applied N", "Unresolved discrepancies N", "Findings N" strings survive in the audit line |
-| `test_freshness_table_lists_every_input_with_capture_time_and_coverage` (498) | freshness table on every summary | the index "Inputs" table |
-| `test_reimbursement_summary_tables_follow_the_facts` (525) | six detail tables in exact cents | tiles, callout, top-5 open requests, follow-ups (whole dollars) |
-| `test_budget_snapshot_tables_follow_the_facts` (634) | full lines table, outside table, legends, `Unknown` cells | top-6 lines + Other, chart note counts, dash cells |
-| `test_fundraising_summary_follows_the_facts_and_marks_incomplete_processors` (712) | processor table columns and classes; "Bank-basis income, all categories" | tiles, processor bar rows, income-lines table |
-| `test_pnl_rows_follow_the_calendar_views_month_by_month` (780) | walk table; exact-cents matrix; control-check sentence | tiles, top-8 table, appendix matrix in whole dollars with grouped rows |
-| `test_every_bridge_shows_its_rows_records_and_residual` (857) | full bridge tables with evidence lists | P&L one-line-per-bridge table; "Bridges balanced b of n"; records count |
-| `test_bridges_appear_in_their_reading_order` (887) | bridge sections order | reconciliation row order |
-| `test_fundraising_columns_and_an_all_unknown_total` (895) | `<div class="n unknown">Unknown</div><div class="k">Processor gross</div>`; processor count sentence | `Unknown` processor rows (`–`), tile 4 small note |
-| `test_an_unexplained_residual_stays_visible` (923) | `<tr class="resid off">` | `chip.stop` "Residual" row and the audit-line warning span |
-| `test_shared_scope_totals_match_in_every_report_that_shows_them` (949) | exact-cents strings on summaries; "School adjusted net Ending total" | whole-dollar tiles on summaries; exact cents on the index table |
-| `test_hostile_labels_are_escaped_at_every_site` (986) | bridge evidence, joins table, outside table sites | the new sites: queue refs, category labels, processor aliases, titles (still escaped) |
-| `test_partial_bank_coverage_shows_uncovered_months_and_unknown_actuals` (1042) | "Not covered" text, `uncovered`/`partial` cell kinds, alert sentence, `<b class="partial">` | dash cells with `data-state`, starred month headers, tile 4 "x of n", legend line |
-| `test_chromium_export_produces_readable_pdf_and_png` (1518) | P&L page 1 landscape; document height > 1400 px | P&L page 1 portrait and page 2 landscape; drop the height floor (a one-page sheet is ~1,100 px), keep PNG width 1100 |
-
-Unchanged and expected to pass: the readability/offline test (1554), the export and
-staging tests, `test_pointer_page_links_every_file_of_the_run_and_escapes_its_link`,
-`test_money_formatting_marks_unknown_and_keeps_exact_cents`, the runner tests (they check only
-the identity meta tags and records).
+Step 64 rewrote `tests/test_main_report_render.py` to this contract (86 cases). The fit gate is `test_chromium_every_summary_fits_its_pages` over four fixtures: `standard`, `large`, `large_uncovered` and `adversarial`.
 
 ## 7. Operator decisions (recorded 2026-10-23)
 

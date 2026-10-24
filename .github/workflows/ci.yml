@@ -83,6 +83,10 @@ jobs:
           browser = {case.attrib['name'] for case in main if case.attrib['name'].startswith('test_chromium_')}
           assert browser == {
               'test_chromium_export_produces_readable_pdf_and_png',
+              'test_chromium_every_summary_fits_its_pages[standard]',
+              'test_chromium_every_summary_fits_its_pages[large]',
+              'test_chromium_every_summary_fits_its_pages[large_uncovered]',
+              'test_chromium_every_summary_fits_its_pages[adversarial]',
               'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport0]',
               'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport1]',
               'test_chromium_export_never_runs_page_scripts',
@@ -168,6 +172,10 @@ jobs:
           cases = list(ElementTree.parse('main-report-browser-results.xml').getroot().iter('testcase'))
           expected = {
               'test_chromium_export_produces_readable_pdf_and_png',
+              'test_chromium_every_summary_fits_its_pages[standard]',
+              'test_chromium_every_summary_fits_its_pages[large]',
+              'test_chromium_every_summary_fits_its_pages[large_uncovered]',
+              'test_chromium_every_summary_fits_its_pages[adversarial]',
               'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport0]',
               'test_chromium_pages_are_readable_offline_at_desktop_and_phone_widths[viewport1]',
               'test_chromium_export_never_runs_page_scripts',

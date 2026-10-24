@@ -207,8 +207,9 @@ Private Drive upload is not built yet.
 mapping, the reimbursement review queue, and click-to-view source receipts in that queue.
 The reimbursement report prints linked and unlinked receipt counts. A claim with paid approved
 lines and declined lines can close with both outcomes visible in its case history. The
-`end-to-end-run` command builds and publishes the five-report Main Report Set; its first live
-regeneration is still pending.
+`end-to-end-run` command builds and publishes the five-report Main Report Set, with each
+summary laid out as a one-page board brief. It has run against the live workbooks; final
+acceptance and the category crosswalk are still pending.
 
 **Receipt autofill is partially built:** Steps38-40 delivered the browser gate repair, bounded image normalization and allowlisted fetcher. Step41 remains blocked on timing-risk disposition and a quiet-host full-suite gate; automatic end-to-end filling and attended acceptance remain pending. The [master plan](docs/plans/master_plan.md) records those boundaries. The Phase10 action queue is paused during Step51; its [resume handoff](docs/phase10-build-handoff.md) preserves the unfinished work.
 

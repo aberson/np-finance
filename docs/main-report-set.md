@@ -11,8 +11,11 @@ inputs:
 | Fundraising Summary | school year | HTML, PDF, PNG |
 | CFO P&L Summary | calendar year (January 1–December 31) | HTML, PDF, PNG |
 
-Every page names its period, basis, as-of date, run ID, input-set hash, source freshness and
-finding counts. The supporting design is in the
+Each summary is a one-page board brief (the P&L adds a landscape appendix) that names its
+period, basis, as-of date, run ID, input-set hash, when the inputs were captured, and counts of
+adjustments, discrepancies and findings with pointers to the run's `records/*.json`. The index
+adds per-source freshness and coverage. Layout contract:
+[main-report-design.md](plan-reference/main-report-design.md). The supporting design is in the
 [Main Report Set specification](plan-reference/cfo-main-report-set.md); the
 [master plan](plans/master_plan.md) owns status.
 
@@ -162,6 +165,12 @@ Identical inputs give an identical input-set hash, in a new run folder.
   under `<run-id>/publication/previous/`.
 - **`run_busy`:** another run holds `main-report-runs/main-report.lock`. If no run is active,
   check the process ID recorded in that file, then delete only that file.
+- **`capture_failed: WorksheetNotFound`:** a bound CFO tab was renamed or removed. Bindings
+  match the tab by name, so update that binding's `tab` in your private `[main_reports]`
+  config. If you set `tab_id`, the run also checks that the named tab still has that id (code
+  `tab_id_mismatch`); it does not find a renamed tab. A new tab in the CFO workbook is ignored until you bind it.
+- **`capture_failed: APIError 429`:** Google's read quota was exhausted beyond the built-in
+  backoff, which waits more than a minute in total. Wait a minute and run again.
 - **Ctrl+C** is recorded like any other failure (code `interrupted`, with the stage it
   reached) and the command exits `130` without a traceback. Before the current-run page is
   replaced, the previous set stays published. After it is replaced, the interrupt stops the

@@ -1261,20 +1261,20 @@ uv run pta-finance report-reimbursements
 ## Phase CFO: CFO workbook and Main Report Set v0
 
 **Objective:** Replace ongoing bank PDF imports with the CFO workbook's Wells Fargo, WIX and PayPal tabs, preserving CFO source treatment and evidence, and produce the five coordinated private reports.
-**Status:** Steps 57-62 DONE (2026-10-22; issues #96-#101 closed); Step 63 (#102) PLANNED — live operator acceptance is next. Do not re-dispatch 57-62.
+**Status:** Steps 57-62 DONE (2026-10-22; issues #96-#101 closed) and Step 64 DONE (2026-10-23; #104). Step 63 (#102) is IN PROGRESS: live runs were published on 2026-10-22 and 2026-10-23. Acceptance waits on the operator's review and the category crosswalk. Do not re-dispatch 57-62 or 64.
 **Scope:** This phase only. Master remains the only dispatch/status owner. Steps 57-62 were dispatched with `--phase CFO --steps 57,58,59,60,61,62`; never dispatch the entire master. Step 63 is separate live operator acceptance.
 **Contracts:** [CFO supporting specification](../plan-reference/cfo-main-report-set.md), including the inline record/identifier/quickstart contracts in section 10. Proposed files are explicitly new, not missing prerequisites.
 **Discovery:** Former CFO-0 is DONE: read-only access, all seven tabs, source formulas, occupied Assumptions cells and P&L reproduction were verified privately. No issue is needed for completed discovery.
-**Aliases:** CFO-1 = 57; CFO-2 = 58 + 59; CFO-3 = 60; CFO-4 = 61; CFO-5 = 62; CFO-6 = 63. No existing numeric step is renumbered.
-**Dependencies:** 57 -> 58 -> 59 -> 60 -> 61 -> 62 -> 63. Sequential because each step consumes the prior production contract. No parallel-safe code pair.
+**Aliases:** CFO-1 = 57; CFO-2 = 58 + 59; CFO-3 = 60; CFO-4 = 61; CFO-5 = 62; CFO-6 = 63; Step 64 has no alias. No existing numeric step is renumbered.
+**Dependencies:** 57 -> 58 -> 59 -> 60 -> 61 -> 62 -> 64 -> 63. Sequential because each step consumes the prior production contract. No parallel-safe code pair.
 **Accepted direction:** July-June school summaries; January-December P&L; all outstanding carryovers and June mail acquisition preserved; valid recorded adjustments apply immediately; receipt images/red marks and copy text retained. The five reports are Reimbursement Queue, Reimbursement Summary, Budget Snapshot, Fundraising Summary and CFO P&L Summary.
 **Overlap disposition:** Existing board-summary Steps 26-31 remain pending and are outside this invocation. Step 61 owns the shared summary render/export capability for this phase; Step 62 owns the combined runner. Future board-track dispatch must reuse that implementation and build only its additional accepted packet/single-page/launcher requirements. Do not mark any old acceptance complete or build a second competing renderer. Receipt 41-49 and actions 51-56 remain held/paused as recorded elsewhere.
 **Review scope:** Review/redline/wrap and issue sync cover only Phase CFO and its supporting specification. They do not certify unrelated master tracks. Review artifacts live in `docs/plan-reconciliation/cfo-{review,wrap,sync}.md` and the proposal in `docs/plan-reference/cfo-main-report-set-proposal.html`.
 **Model:** User selected an Opus session in Claude Code for the future build. The developer arm inherits that session; independent review lanes keep their own tier routing. No unsupported build-phase model flag is introduced. Codex cannot switch this session to Opus.
 **Verification:** Focused tests for changed contracts, lint/type checks, installed-wheel resource smoke and one bounded real-component CLI cycle; Step 63 observes one live cycle. The user's targeted-testing instruction overrides default unrelated full-suite reruns. Record exact suites and counts; never call a subset the full suite.
 **Stop/rollback:** Stop on source schema drift, invalid financial invariants, conflicting adjustments or private-data leakage. Preserve the prior complete publication and source snapshots. No CFO writes, payments, email sending, new scheduler or deployment.
-**Effort:** Six sequential code slices plus one live run; no wall-clock promise. Reassess after each slice against the user-visible command rather than adding infrastructure.
-**Build record (2026-10-22, Steps 57-62):** each step passed independent review (`deep` for 57-60 and 62, `code` for 61); checkpoint commits 448d7ec, fb4b60d, d5af712, 8f05d31, 6d23d94, fc1de4f on top of baseline 47877bf. Final post-merge gate: mypy --strict, ruff check/format, identity guard and every test module except the six Firestore-emulator `test_shared_workflow_*` modules — 2,176 passed, 3 environment skips; empty-browser run skips exactly the 7 `test_chromium_*` and 2 receipt-viewer cases; installed-wheel template smoke passed; `end-to-end-run` fixture cycle ~0.5 s browser-free / ~5 s with Chromium. Files beyond the per-step Files lines (all review-accepted): `report_source.py` (shared `row_measure`), `sources.py`/`reconcile.py`/`models.py` shared helpers across later steps, `sheets.py` (single owners: `SHEETS_FAILURES`, `http_status`, `is_transient_status`, `backoff_delay`, `pause`, `write_raw_ranges(retry=False)`, plus a fix for a pre-existing retry bug that doubled ranges), `reimbursement_report.py` (public `PNG_SIGNATURE` alias only), `tests/conftest.py` shared fakes, `ci.yml` browser-skip assertions, `config.example.toml`. Contract §10 signatures were amended to the shipped forms (`facts.build_from`, keyword-only `captures`/`crosswalk`, `render.write` context/exporter, `runner.run(options, config, ...)`, exit 130). Live-only assumptions for Step 63 are listed in docs/main-report-set.md ("Confirm on the first live run", plus the `output_dir` rule under "Before the first run"): published P&L layout and zero-as-dash, "Posted" status, WIX/PayPal fee sign, header-label overrides.
+**Effort:** Seven sequential code slices plus one live run; no wall-clock promise. Reassess after each slice against the user-visible command rather than adding infrastructure.
+**Build record (2026-10-22, Steps 57-62):** each step passed independent review (`deep` for 57-60 and 62, `code` for 61); checkpoint commits 448d7ec, fb4b60d, d5af712, 8f05d31, 6d23d94, fc1de4f on top of baseline 47877bf. Final post-merge gate: mypy --strict, ruff check/format, identity guard and every test module except the six Firestore-emulator `test_shared_workflow_*` modules — 2,176 passed, 3 environment skips; empty-browser run skips exactly the 7 `test_chromium_*` and 2 receipt-viewer cases (11 `test_chromium_*` after Step 64: 10 in test_main_report_render.py, 1 in test_main_report_runner.py); installed-wheel template smoke passed; `end-to-end-run` fixture cycle ~0.5 s browser-free / ~5 s with Chromium. Files beyond the per-step Files lines (all review-accepted): `report_source.py` (shared `row_measure`), `sources.py`/`reconcile.py`/`models.py` shared helpers across later steps, `sheets.py` (single owners: `SHEETS_FAILURES`, `http_status`, `is_transient_status`, `backoff_delay`, `pause`, `write_raw_ranges(retry=False)`, plus a fix for a pre-existing retry bug that doubled ranges), `reimbursement_report.py` (public `PNG_SIGNATURE` alias only), `tests/conftest.py` shared fakes, `ci.yml` browser-skip assertions, `config.example.toml`. Contract §10 signatures were amended to the shipped forms (`facts.build_from`, keyword-only `captures`/`crosswalk`, `render.write` context/exporter, `runner.run(options, config, ...)`, exit 130). Live-only assumptions for Step 63 are listed in docs/main-report-set.md ("Confirm on the first live run", plus the `output_dir` rule under "Before the first run"): published P&L layout and zero-as-dash, "Posted" status, WIX/PayPal fee sign, header-label overrides.
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 57: Import the three CFO feeds with provenance
@@ -1374,7 +1374,7 @@ uv run pta-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 63: Regenerate and reconcile the live Main Report Set
-- **Status:** PLANNED
+- **Status:** IN PROGRESS. Live runs were published on 2026-10-22 and 2026-10-23, after the live-only fixes and Step 64 recorded below. Still open: the category crosswalk (budget actuals read Unknown until it exists) and the operator's acceptance review.
 - **Type:** operator
 - **Problem:** Run the completed command against the authorized live source tabs and our workbook. Record defensible adjustments as authorized, generate all five current reports, and expose actual remaining discrepancies. Check the report experience and period bridge using retained snapshots; preserve originals and prior published outputs.
 - **Issue:** #102
@@ -1386,16 +1386,32 @@ uv run pta-finance report-reimbursements
 - **Depends on:** 62, 64
 
 ### Step 64: Rebuild the four summaries to the accepted one-page board design
-- **Status:** PLANNED
+- **Status:** DONE (2026-10-23; 96a57a5 + follow-up 38efe36)
 - **Type:** code
 - **Problem:** The first live run (2026-10-22) showed that Step 61 did not reuse the accepted summary styling. The accepted briefs lived only in private files that the public build could not read, so it produced fluid audit pages: the summaries printed to 42-95 pages each against 1 for each accepted reference. Rebuild the Reimbursement Summary, Fundraising Summary, Budget Snapshot and CFO P&L Summary templates and their render models to the public design contract, preserving every fact, total, reconciliation rule and the run-identity/privacy guards.
 - **Issue:** #104
 - **Flags:** `--reviewers code`
-- **Files:** `pta_finance/main_reports/render.py`, `pta_finance/reports/templates/main_reports/*.j2`, `tests/test_main_report_render.py` (plus `tests/test_main_report_runner.py` only where it asserts rendered layout).
+- **Files:** `pta_finance/main_reports/render.py`, `pta_finance/reports/templates/main_reports/*.j2`, `tests/test_main_report_render.py` (plus `tests/test_main_report_runner.py` only where it asserts rendered layout), `.github/workflows/ci.yml` (browser-case allowlists).
 - **Existing context:** Design contract: [main-report-design.md](../plan-reference/main-report-design.md) (operator decisions D1-D6 recorded 2026-10-23: template narratives only, bank-basis fundraising income labelled, net-flow Budget Snapshot without balances, default header wording, P&L appendix may take two landscape pages). Data contract unchanged: [cfo-main-report-set.md](../plan-reference/cfo-main-report-set.md). Audit detail moves to counts plus pointers to the run's `records/*.json`; unknown is still never shown as zero.
 - **Produces:** Four one-page portrait summaries (the P&L adds a landscape appendix), a short index, and deterministic one-page-fit tests on fictional fixtures.
 - **Done when:** With fictional fixtures, each of the three summaries prints exactly one US Letter portrait page and the P&L prints one portrait page plus its landscape appendix (Chromium export). No inline discrepancy-ID or bridge-evidence lists remain. Every spec section 5 acceptance item passes. Existing fact, privacy and run-identity tests pass. ruff, format, `mypy --strict` and the main-report test modules are green.
 - **Depends on:** 61, 62
+
+**Live-use record (2026-10-22/23, Step 63 in progress):**
+- *First live use exposed four adapter assumptions that held only for fictional fixtures* (`5dc3c93`, user-debug plus `code` review):
+  - padded header labels;
+  - WIX date labels carrying a `GMT ±H:MM` suffix, and the product column labelled `Name`;
+  - comma timestamps;
+  - the PayPal `POS Payment` type.
+  The same commit gave the read-only capture clients more than 60 s of 429 backoff, because one capture makes about 75 reads against Google's ~60-per-minute quota.
+- *A single CFO split typo blocked the whole set with no in-tool remedy* (`54595fc`). By operator decision, `split_sum_mismatch` is now a warning with an explicit "Unallocated split difference" remainder.
+- *Step 64* rebuilt the summaries (`525626b` contract, `96a57a5`, follow-up `38efe36`). Review was `code` plus a private visual-parity lens against the accepted briefs, over 3 iterations. The live set now prints 1/1/1 pages, and the P&L 1 portrait + 2 landscape pages, against 42-95 pages before.
+- *Root cause of the design miss:* Step 61 was told to reuse accepted styling that existed only in private files the public build could not read. Carry private designs into a public, identity-free contract before dispatch.
+- *Gates:* main-report, config and smoke modules: 831 passed. mypy --strict, ruff, format and the identity guard are clean. The full suite was not re-run: spec section 5 item 14 (full suite) was waived under the Verification clause above, and the CI allowlists in `ci.yml` were not exercised until the allowlist fix. Run the full suite or CI before flipping Step 63.
+- *Live configuration notes:*
+  - Bank coverage is declared privately, with operator evidence.
+  - Tab bindings match by name, so the CFO's 2026-10-23 tab renames ("Profit & Loss 2026", "Budget Tracker 2026-2027") required a config update.
+  - The new CFO tabs "Transactions" and "WIX Settlements" are not yet bound.
 
 
 **Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.

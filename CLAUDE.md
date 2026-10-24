@@ -224,6 +224,11 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
   `failed-runs/<run-id>.json` (stage, code, error type only, journal writes, bundle digests
   before/after the in-place refresh); Ctrl+C exits 130. `--dry-run` writes nothing and refuses
   mail/adjustment options. No bank PDF extraction, scheduler, mail sending or CFO workbook write.
+  The four summaries are one-page US Letter board briefs; the P&L adds a landscape appendix.
+  The visual contract, owned by
+  [docs/plan-reference/main-report-design.md](docs/plan-reference/main-report-design.md), is
+  enforced by Chromium page-count tests. Audit detail appears as counts plus pointers to
+  `records/*.json`. Source bindings match CFO tabs by NAME, so a CFO rename needs a config update.
 - **Access:** Sheet/Drive access uses a Google **service account** (the Sheet + Drive folder are
   shared with its email); its JSON key is gitignored locally and supplied as a base64 GitHub
   Actions secret in CI. Optional Gmail fetching uses a separate OAuth Desktop-app client plus a
@@ -235,9 +240,16 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
 processor-to-bank reconciliation, the append-only Assumptions adjustments journal, school-year/P&L
 facts, the five-report render/export, and `end-to-end-run` (runner, CLI, guide, bounded smoke with
 fake workbooks and real renderers/publication). Final gate: 2,176 passed, 3 environment skips,
-across every module except the six emulator modules. **Step 63 (#102) is next**: the live
-regeneration against the real CFO workbook has not run, and no live Main Report Set exists yet;
-the guide's "Confirm on the first live run" lists the fixture-only assumptions to check.
+across every module except the six emulator modules.
+
+**Step 63 (#102) is in progress.** Live sets were published on 2026-10-22/23.
+- Live-only fixes: `5dc3c93` (real export labels, dates, POS type, 429 backoff) and `54595fc`
+  (a split typo publishes with an explicit remainder).
+- **Step 64 (#104) DONE (2026-10-23):** the summaries were rebuilt as one-page board briefs.
+- Still open: a category crosswalk (budget actuals read Unknown without it), binding the CFO's
+  new "Transactions"/"WIX Settlements" tabs, and operator acceptance.
+- The reimbursement queue is current through 2026-10-23 mail, and the 10/21 Zelle batch is
+  recorded privately.
 
 **Phase 10 action queue is paused during Step 51 (#87).** The standalone archive scanner and
 fictional tests are unfinished in a preserved worktree, not merged to main. Focused and static

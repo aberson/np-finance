@@ -411,7 +411,8 @@ def test_config_example_main_reports_block_loads_and_resolves(tmp_path: Path) ->
     config = load_config(path)
     resolved = {item.binding.alias: item for item in require_bindings(config)}
     wix = dict(resolved["wix"].columns)
-    assert wix["transaction_status"] == 9  # the Transaction-group "Status", not the Order one
+    # the "Transaction Status" column, not the Subscription/Chargebacks "Status" ones
+    assert wix["transaction_status"] == 9
     assert config.main_reports is not None and config.main_reports.crosswalk is not None
 
 
