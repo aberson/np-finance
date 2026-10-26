@@ -1,4 +1,4 @@
-"""Tests for pta_finance.main_reports.reconcile — the CFO-compatible source view.
+"""Tests for np_finance.main_reports.reconcile — the CFO-compatible source view.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). Each scenario runs through the
 production path: private config loaded by the real loader -> read-only capture over fake
@@ -18,22 +18,22 @@ from typing import Any
 
 import pytest
 
-from pta_finance.config import (
+from np_finance.config import (
     CategoryCrosswalk,
     Config,
     CrosswalkEntry,
     CrosswalkTarget,
     load_config,
 )
-from pta_finance.main_reports import reconcile
-from pta_finance.main_reports.models import (
+from np_finance.main_reports import reconcile
+from np_finance.main_reports.models import (
     Allocation,
     Discrepancy,
     Reconciliation,
     Transaction,
     canonical_json_bytes,
 )
-from pta_finance.main_reports.reconcile import (
+from np_finance.main_reports.reconcile import (
     DISCREPANCY_KINDS,
     INTERNAL_TRANSFER_CATEGORY,
     ReconcileError,
@@ -46,7 +46,7 @@ from pta_finance.main_reports.reconcile import (
     parse_month_label,
     reference_token,
 )
-from pta_finance.main_reports.sources import UNALLOCATED_SPLIT_CATEGORY, normalize
+from np_finance.main_reports.sources import UNALLOCATED_SPLIT_CATEGORY, normalize
 from tests.conftest import (
     _FULL_CONFIG,
     BANK_HEADER,

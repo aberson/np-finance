@@ -24,7 +24,7 @@ import pytest
 from PIL import Image, ImageCms, PngImagePlugin
 from test_reimbursement_report import _bundle, _write_bundle
 
-from pta_finance import (
+from np_finance import (
     process_limits,
     receipt_assets,
     receipt_decode,
@@ -35,7 +35,7 @@ from pta_finance import (
 )
 
 _ROOT = Path(__file__).resolve().parents[1]
-_TEMPLATE = _ROOT / "pta_finance" / "reports" / "templates" / "receipt_viewer.js.j2"
+_TEMPLATE = _ROOT / "np_finance" / "reports" / "templates" / "receipt_viewer.js.j2"
 _INJECTION = "</script><script>window.injected=true</script>"
 _SUFFIXES = {"png": "png", "jpeg": "jpg", "pdf": "pdf"}
 # A baseline JPEG page may hold only these segments: JFIF APP0, quantization and Huffman
@@ -466,7 +466,7 @@ def test_two_runs_produce_byte_identical_pages(tmp_path: Path) -> None:
         "import sys\n"
         "from dataclasses import dataclass\n"
         "from pathlib import Path\n"
-        "from pta_finance import receipt_pages\n"
+        "from np_finance import receipt_pages\n"
         "@dataclass(frozen=True)\n"
         "class Asset:\n"
         "    asset_id: str\n"
@@ -1068,21 +1068,21 @@ def test_an_abort_before_the_ready_line_kills_and_reaps_the_child_promptly(
 def test_the_module_imports_without_pillow() -> None:
     script = (
         "import sys; sys.modules['PIL'] = None\n"
-        "import pta_finance.receipt_pages, pta_finance.receipt_decode"
+        "import np_finance.receipt_pages, np_finance.receipt_decode"
     )
     subprocess.run([sys.executable, "-c", script], check=True, capture_output=True)
 
 
 def test_the_decode_child_imports_only_the_standard_library_and_the_leaf() -> None:
-    source = (_ROOT / "pta_finance" / "receipt_decode.py").read_text(encoding="utf-8")
+    source = (_ROOT / "np_finance" / "receipt_decode.py").read_text(encoding="utf-8")
     top_level: set[str] = set()
     for node in ast.parse(source).body:
         if isinstance(node, ast.Import):
             top_level |= {alias.name for alias in node.names}
         elif isinstance(node, ast.ImportFrom):
             top_level |= {f"{node.module}.{alias.name}" for alias in node.names}
-    project = {name for name in top_level if name.startswith("pta_finance")}
-    assert project == {"pta_finance.process_limits"}
+    project = {name for name in top_level if name.startswith("np_finance")}
+    assert project == {"np_finance.process_limits"}
     assert all(name.split(".")[0] in sys.stdlib_module_names for name in top_level - project)
     assert not any(name.startswith("PIL") for name in top_level), "Pillow loads in main() only"
 
@@ -1090,7 +1090,7 @@ def test_the_decode_child_imports_only_the_standard_library_and_the_leaf() -> No
 def test_the_broker_never_opens_an_image() -> None:
     # No in-process seam: the broker hands untrusted bytes only to the child, and its Pillow
     # calls see validated pixels alone (Image.frombytes in pixels_to_page).
-    source = (_ROOT / "pta_finance" / "receipt_pages.py").read_text(encoding="utf-8")
+    source = (_ROOT / "np_finance" / "receipt_pages.py").read_text(encoding="utf-8")
     assert "Image.open" not in source and "_decode(" not in source
     assert "receipt_decode import" in source
 
@@ -1117,7 +1117,7 @@ def test_the_child_is_launched_minimally_and_its_directory_removed(
     with pytest.raises(receipt_pages.ReceiptPageError, match="too many pixels"):
         _pages(tmp_path, _asset(tmp_path, _png_header(9000, 9000)))
     ((command, options),) = launches
-    assert command[1:] == ["-I", "-m", "pta_finance.receipt_decode"]
+    assert command[1:] == ["-I", "-m", "np_finance.receipt_decode"]
     assert options["stderr"] is subprocess.DEVNULL and options["close_fds"] is True
     assert options["stdin"] is subprocess.PIPE and options["stdout"] is subprocess.PIPE
     if sys.platform == "win32":

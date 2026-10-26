@@ -36,11 +36,11 @@ def inspect(app: Path = Path("/app")) -> None:
         raise RuntimeError("Runtime configuration or test trust was baked into the image.")
     manifest = json.loads((app / "source-content-manifest.json").read_text())
     expected = {
-        name.removeprefix("pta_finance/"): digest
+        name.removeprefix("np_finance/"): digest
         for name, digest in manifest.items()
-        if name.startswith("pta_finance/")
+        if name.startswith("np_finance/")
     }
-    package = Path(str(files("pta_finance")))
+    package = Path(str(files("np_finance")))
     actual = {path.relative_to(package).as_posix() for path in package.rglob("*") if path.is_file()}
     if actual != set(expected):
         raise RuntimeError("Installed application inventory differs from the staged allowlist.")
@@ -50,8 +50,8 @@ def inspect(app: Path = Path("/app")) -> None:
             raise RuntimeError("Installed application content differs from the staged receipt.")
         if b'"private_key":' in content or b"PTA_PRIVATE_CANARY" in content:
             raise RuntimeError("Credential or synthetic private canary found in application files.")
-    from pta_finance.shared_workflow.catalog import REQUEST_CAP, load_catalog
-    from pta_finance.shared_workflow.models import load_source
+    from np_finance.shared_workflow.catalog import REQUEST_CAP, load_catalog
+    from np_finance.shared_workflow.models import load_source
 
     original = load_source()
     catalog = load_catalog()

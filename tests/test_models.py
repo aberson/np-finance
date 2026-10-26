@@ -1,4 +1,4 @@
-"""Tests for pta_finance.models — scalar parsers + row (de)serialization round-trips."""
+"""Tests for np_finance.models — scalar parsers + row (de)serialization round-trips."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from decimal import Decimal
 
 import pytest
 
-from pta_finance import schema
-from pta_finance.models import (
+from np_finance import schema
+from np_finance.models import (
     BudgetLine,
     Event,
     Receipt,

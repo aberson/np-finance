@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pta_finance.treasurer_slides import bank_statements, native_sandbox, native_worker
+from np_finance.treasurer_slides import bank_statements, native_sandbox, native_worker
 
 
 class _ReadyConnection:
@@ -77,9 +77,9 @@ def test_worker_command_only_carries_public_configuration() -> None:
     )
     command = native_sandbox._worker_command(
         runtime,
-        control_mapping=r"Local\pta-finance-native-control-mapping",
-        attested_event=r"Local\pta-finance-native-control-attested",
-        handles_ready_event=r"Local\pta-finance-native-control-handles-ready",
+        control_mapping=r"Local\np-finance-native-control-mapping",
+        attested_event=r"Local\np-finance-native-control-attested",
+        handles_ready_event=r"Local\np-finance-native-control-handles-ready",
         document_ordinal=1,
         limits_json='{"max_pdf_bytes":1}',
         ready_nonce="c" * 64,
@@ -112,11 +112,11 @@ def test_native_worker_rejects_an_unrecognized_source_path_argument() -> None:
         native_worker._parse_arguments(
             [
                 "--control-mapping",
-                r"Local\pta-finance-native-control-mapping",
+                r"Local\np-finance-native-control-mapping",
                 "--attested-event",
-                r"Local\pta-finance-native-control-attested",
+                r"Local\np-finance-native-control-attested",
                 "--handles-ready-event",
-                r"Local\pta-finance-native-control-handles-ready",
+                r"Local\np-finance-native-control-handles-ready",
                 "--document-ordinal",
                 "1",
                 "--limits-json",
@@ -132,9 +132,9 @@ def test_native_worker_rejects_an_unrecognized_source_path_argument() -> None:
 def test_control_handle_frame_binds_the_child_local_handles_to_the_ready_nonce() -> None:
     storage = ctypes.create_string_buffer(native_sandbox._WINDOWS_CONTROL_MAPPING_BYTES)
     channel = native_sandbox._WorkerControlChannel(
-        mapping_name=r"Local\pta-finance-native-control-mapping",
-        attested_event_name=r"Local\pta-finance-native-control-attested",
-        handles_ready_event_name=r"Local\pta-finance-native-control-handles-ready",
+        mapping_name=r"Local\np-finance-native-control-mapping",
+        attested_event_name=r"Local\np-finance-native-control-attested",
+        handles_ready_event_name=r"Local\np-finance-native-control-handles-ready",
         mapping_handle=None,
         mapping_view=ctypes.addressof(storage),
         attested_event_handle=None,
@@ -375,8 +375,8 @@ def test_public_runtime_copy_rejects_an_actual_directory_symlink_when_supported(
 
 
 def test_public_runtime_stages_only_the_native_worker_module_closure(tmp_path: Path) -> None:
-    source_root = tmp_path / "source" / "pta_finance"
-    destination = tmp_path / "stage" / "pta_finance"
+    source_root = tmp_path / "source" / "np_finance"
+    destination = tmp_path / "stage" / "np_finance"
     for relative_path in native_sandbox._PUBLIC_WORKER_PACKAGE_FILES:
         source = source_root / relative_path
         source.parent.mkdir(parents=True, exist_ok=True)

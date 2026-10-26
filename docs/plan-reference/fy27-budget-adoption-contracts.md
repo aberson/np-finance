@@ -16,7 +16,7 @@
 
 ## 1. What this is
 
-PTA members worked a **copy** of the sheet into an expense-only "Enrichment Emphasis Plan" — now the
+non-profit members worked a **copy** of the sheet into an expense-only "Enrichment Emphasis Plan" — now the
 `FY27 Pending Approval Expense Budget` tab — with two scenarios (*Initial Deficit* / *Zero Deficit*)
 and a written board rationale per line. The **Zero-Deficit column is the proposed budget**: it
 applies 18 expense cuts + 2 new lines and turns the projected deficit into a surplus. This plan
@@ -30,7 +30,7 @@ names) is confirmed. See the companion file.
 ## 2. Inputs and the mechanism this reuses
 
 - **The one live budget tab** is `FY2027 Budget` (editable). It syncs into the `Budget Timeseries`
-  database — the single source `report`/`analyze` read — via `uv run pta-finance sync-budget --fy 2027`
+  database — the single source `report`/`analyze` read — via `uv run np-finance sync-budget --fy 2027`
   (preview) / `--apply`. That tool already: snapshots first, writes only changed amount/notes cells,
   appends new lines, **carries notes through to the database**, never touches actuals/other-years/tags,
   and flags (never deletes) removed lines. This build **reuses that path** — no new tooling required.

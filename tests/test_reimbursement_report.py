@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import reimbursement_events, reimbursement_report
+from np_finance import reimbursement_events, reimbursement_report
 
 
 def _item(

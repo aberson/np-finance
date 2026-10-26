@@ -119,14 +119,14 @@ below. If you set the toolkit up yourself, you can run them too (see [SETUP.md](
 nothing.
 
 ```bash
-uv run pta-finance sync-budget --fy 2027
+uv run np-finance sync-budget --fy 2027
 ```
 
 Read the summary it prints (so many amount changes, so many new lines, anything flagged). When it
 looks right, **apply** it:
 
 ```bash
-uv run pta-finance sync-budget --fy 2027 --apply
+uv run np-finance sync-budget --fy 2027 --apply
 ```
 
 (Omit `--fy 2027` and it uses the **current** fiscal year automatically.)

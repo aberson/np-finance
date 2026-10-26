@@ -1,8 +1,8 @@
 """Shared test fixtures — fake-org config + a fake gspread layer (no live Google calls).
 
-Identity here is obviously-fake placeholders only (``Example PTA`` etc.). NOTHING in
+Identity here is obviously-fake placeholders only (``Example Non-profit`` etc.). NOTHING in
 these fixtures touches the network: a ``FakeWorksheet`` / ``FakeSpreadsheet`` / ``FakeClient``
-stand in for the gspread objects, and :class:`~pta_finance.sheets.SheetsClient` is always
+stand in for the gspread objects, and :class:`~np_finance.sheets.SheetsClient` is always
 constructed with ``gspread_client=`` so :func:`gspread.service_account` is never called.
 The fictional Main Report Set scenario (:class:`Scenario`: CFO source shapes, adopted budget,
 crosswalk and a schema-v2 reimbursement bundle, driven through capture, reconciliation,
@@ -25,12 +25,12 @@ from gspread.exceptions import APIError
 from gspread.utils import a1_to_rowcol
 from requests.models import Response
 
-from pta_finance import reimbursement_report, report_source
-from pta_finance.config import Config, load_config
-from pta_finance.main_reports import reconcile
-from pta_finance.main_reports.adjustments import acquire_run_lock, project, read_journal, record
-from pta_finance.main_reports.facts import build, build_from, reporting_periods
-from pta_finance.main_reports.models import (
+from np_finance import reimbursement_report, report_source
+from np_finance.config import Config, load_config
+from np_finance.main_reports import reconcile
+from np_finance.main_reports.adjustments import acquire_run_lock, project, read_journal, record
+from np_finance.main_reports.facts import build, build_from, reporting_periods
+from np_finance.main_reports.models import (
     AdjustedLedger,
     Adjustment,
     CaptureSet,
@@ -38,13 +38,13 @@ from pta_finance.main_reports.models import (
     Transaction,
     make_adjustment_id,
 )
-from pta_finance.main_reports.sources import ReadOnlyWorkbook, capture, connect_source_client
-from pta_finance.reimbursement_report import ReimbursementReport
-from pta_finance.sheets import SheetsClient
+from np_finance.main_reports.sources import ReadOnlyWorkbook, capture, connect_source_client
+from np_finance.reimbursement_report import ReimbursementReport
+from np_finance.sheets import SheetsClient
 
 _FULL_CONFIG = """\
 [organization]
-name = "Example PTA"
+name = "Example Non-profit"
 school_name = "Example Elementary"
 school_email = "office@example.org"
 

@@ -3,7 +3,7 @@
 Spine: root roadmap supplies project-wide authority; concrete scoped contracts replace overlapping summaries. User approved routine deduplication, sequencing and reference repair. Existing architecture holds remain.
 
 #### Plan: plan.md
-- Vision / goal: pta_finance — Plan (v1)
+- Vision / goal: np_finance — Plan (v1)
 - Phase list: 1: Scaffold + tooling + config + IDs; 2: Sheet schema + entity models; 3: Sheets client + backup; 4: ETL / normalize; 5: Analytics engine; 6: Report generation (internal + external); 7: End-to-end smoke gate (code); 8: GitHub Actions monthly report workflow; M1: Google Cloud + service-account setup; M2: Real-sheet smoke (round-trip); M3: Monthly-report observation run (end-to-end)
 - Data contracts: Identifiers; Tab column lists (single source of truth → `schema.py`); Private config schema (`config.toml`, gitignored — `config.example.toml` ships fake values)
 - External dependencies: none; 1; 2; 3; 4; 5; 6; 7; existing Python/uv and explicitly described private/Google/operator prerequisites remain.

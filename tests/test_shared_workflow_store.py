@@ -14,9 +14,9 @@ pytest.importorskip("cryptography")
 from google.api_core.exceptions import Aborted, ServiceUnavailable  # noqa: E402
 from test_shared_workflow_helpers import new_store, require_emulator  # noqa: E402
 
-from pta_finance.shared_workflow.config import Config  # noqa: E402
-from pta_finance.shared_workflow.models import Actor, Deadline, WorkflowError  # noqa: E402
-from pta_finance.shared_workflow.store import Store  # noqa: E402
+from np_finance.shared_workflow.config import Config  # noqa: E402
+from np_finance.shared_workflow.models import Actor, Deadline, WorkflowError  # noqa: E402
+from np_finance.shared_workflow.store import Store  # noqa: E402
 
 require_emulator()
 pytestmark = pytest.mark.integration

@@ -1,4 +1,4 @@
-"""Tests for pta_finance.main_reports.sources — read-only CFO capture and adapters.
+"""Tests for np_finance.main_reports.sources — read-only CFO capture and adapters.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). The CFO workbook and our own
 workbook are fake gspread layers; the production config loader, :func:`connect_source_client`,
@@ -21,11 +21,11 @@ from typing import Any
 
 import pytest
 
-from pta_finance import report_source
-from pta_finance.config import ColumnBinding, Config, ConfigError, SourceBinding, load_config
-from pta_finance.main_reports import models, sources
-from pta_finance.main_reports.models import Transaction, make_record_key
-from pta_finance.main_reports.sources import (
+from np_finance import report_source
+from np_finance.config import ColumnBinding, Config, ConfigError, SourceBinding, load_config
+from np_finance.main_reports import models, sources
+from np_finance.main_reports.models import Transaction, make_record_key
+from np_finance.main_reports.sources import (
     READONLY_SCOPE,
     UNALLOCATED_SPLIT_CATEGORY,
     ReadOnlyWorkbook,
@@ -1259,7 +1259,7 @@ def test_source_workbook_must_not_be_our_own_workbook(tmp_path: Path) -> None:
 
 
 def test_vocabularies_have_one_owner() -> None:
-    from pta_finance import config as config_module
+    from np_finance import config as config_module
 
     assert config_module.SOURCE_KINDS is models.SOURCE_KINDS
     assert sources.SOURCE_KINDS is models.SOURCE_KINDS

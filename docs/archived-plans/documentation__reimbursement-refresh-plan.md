@@ -10,9 +10,9 @@ generation, and Google Sheet writes as separate permission boundaries.
 
 ## 2. Existing Context
 
-- `pta_finance.gmail_source` and `fetch-mail` already provide idempotent, read-only Gmail
+- `np_finance.gmail_source` and `fetch-mail` already provide idempotent, read-only Gmail
   acquisition into a flat private `.eml` archive.
-- `pta_finance.receipt_ingest` parses lossless submission and line-item evidence; the existing
+- `np_finance.receipt_ingest` parses lossless submission and line-item evidence; the existing
   `receipt_map` projection intentionally keeps a smaller dashboard-oriented schema.
 - `map-receipts` owns the machine-managed `Reimbursements` replacement. It remains a separate,
   explicit write rather than being hidden inside report generation.
@@ -92,12 +92,12 @@ discrepancy histories cannot replay under v2 despite the reproducibility promise
 
 | File | Change Type | Reason | Verified |
 |---|---|---|---|
-| `pta_finance/receipt_ingest.py` | extend | Extract strict RFC ancestry, top-authored text, and decoded attachment evidence without changing original-submission identity | MIME, transfer-encoding, nested-message, and hash behavior covered by synthetic regression matrices |
-| `pta_finance/reimbursement_events.py` | add | Validate private anchors/actors/reviews and parse scoped proposals, payment evidence, and narrow approval replies | Parser inputs use fictional identities; adversarial grammar and ambiguity matrices fail closed |
-| `pta_finance/reimbursement_report.py` | add | Strict bundle model, validation, totals, emails, rendering entry point, atomic output | New module; existing report model/render pattern inspected in `pta_finance/reports/` |
-| `pta_finance/reimbursement_pipeline.py` | add | Parse/filter/deduplicate private evidence, preserve reviewed records, reduce linked supplemental lifecycle events, quarantine ambiguity, and orchestrate stages | Parser and mapper producers inspected; Message-ID consumers grep-checked in `receipt_map.py`, `cli.py`, and private Review overlay |
-| `pta_finance/reports/templates/reimbursement_queue.html.j2` | add | Complete data-driven reimbursement HTML without source-code literals or marker surgery | Existing Jinja loader and templates inspected |
-| `pta_finance/cli.py` | extend | Register offline report and refresh commands | All `build_parser`, `main`, `_cmd_fetch_mail`, and `_cmd_map_receipts` call sites grep-checked; CLI functions are local to this module/tests |
+| `np_finance/receipt_ingest.py` | extend | Extract strict RFC ancestry, top-authored text, and decoded attachment evidence without changing original-submission identity | MIME, transfer-encoding, nested-message, and hash behavior covered by synthetic regression matrices |
+| `np_finance/reimbursement_events.py` | add | Validate private anchors/actors/reviews and parse scoped proposals, payment evidence, and narrow approval replies | Parser inputs use fictional identities; adversarial grammar and ambiguity matrices fail closed |
+| `np_finance/reimbursement_report.py` | add | Strict bundle model, validation, totals, emails, rendering entry point, atomic output | New module; existing report model/render pattern inspected in `np_finance/reports/` |
+| `np_finance/reimbursement_pipeline.py` | add | Parse/filter/deduplicate private evidence, preserve reviewed records, reduce linked supplemental lifecycle events, quarantine ambiguity, and orchestrate stages | Parser and mapper producers inspected; Message-ID consumers grep-checked in `receipt_map.py`, `cli.py`, and private Review overlay |
+| `np_finance/reports/templates/reimbursement_queue.html.j2` | add | Complete data-driven reimbursement HTML without source-code literals or marker surgery | Existing Jinja loader and templates inspected |
+| `np_finance/cli.py` | extend | Register offline report and refresh commands | All `build_parser`, `main`, `_cmd_fetch_mail`, and `_cmd_map_receipts` call sites grep-checked; CLI functions are local to this module/tests |
 | `tests/test_reimbursement_report.py` | add | Bundle, rendering, privacy, email, determinism, and atomic-write gates | Standard pytest discovers `tests/` only |
 | `tests/test_reimbursement_pipeline.py` | add | Evidence-key, cutoff, source freshness, supplemental linkage/reduction, recommendation, stage ordering, and failure-stop gates | Existing synthetic receipt fixtures inspected |
 | `tests/test_reimbursement_events.py` | add | Anchor validation, exact proposal expansion, payment parsing, and approval-classifier safety gates | Fictional fixtures plus an independent adversarial grammar matrix |

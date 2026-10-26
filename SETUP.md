@@ -1,4 +1,4 @@
-# Setup guide — connecting pta_finance to your Google Sheet
+# Setup guide — connecting np-finance to your Google Sheet
 
 This walks a new operator from an empty checkout to a working toolkit talking to a live
 Google Sheet. It is **generic** — it never names a specific organization. All of *your*
@@ -54,13 +54,13 @@ In the [Google Cloud Console](https://console.cloud.google.com/):
    **Google Drive API** (Drive is needed even in v1 because `gspread` opens the file by key
    through Drive).
 3. **Create the service account.** APIs & Services → *Credentials* → *Create credentials* →
-   *Service account*. Give it any name (e.g. `pta-finance-bot`); no roles/grants are needed.
+   *Service account*. Give it any name (e.g. `np-finance-bot`); no roles/grants are needed.
 4. **Make a key.** Open the new service account → *Keys* → *Add key* → *Create new key* →
    **JSON** → *Create*. A `.json` file downloads.
 5. **Save the key** to `secrets/service-account.json` in this repo (the `secrets/` folder is
    gitignored — the key never gets committed). Create the folder if it doesn't exist.
 6. **Copy the robot's email.** Open the JSON and copy the `"client_email"` value — it looks
-   like `pta-finance-bot@your-project.iam.gserviceaccount.com`.
+   like `np-finance-bot@your-project.iam.gserviceaccount.com`.
 7. **Share your Sheet with that email.** Open your Google Spreadsheet → *Share* → paste the
    `client_email` → role **Editor** → *Send*. (Uncheck "notify" — it's a robot.)
 8. *(Optional but recommended)* Make a throwaway **test sheet**, share it with the same email
@@ -91,7 +91,7 @@ between `/d/` and `/edit` is the `spreadsheet_id`.
 
 | Field | What to put |
 |---|---|
-| `[organization] name` | your PTA / booster name |
+| `[organization] name` | your non-profit organization name |
 | `[organization] school_name` | the school name |
 | `[organization] school_email` | the school's front-office email |
 | `[contacts] president` / `treasurer` / `cfo` | the role emails (president & account_holders are lists) |
@@ -105,7 +105,7 @@ between `/d/` and `/edit` is the `spreadsheet_id`.
 | `[google] service_account_file` | leave as `secrets/service-account.json` |
 
 Every required field — and every field in an optional section you enable — must be valid and
-non-empty or `pta-finance` will fail fast naming it. The two Drive folder IDs are not used in v1
+non-empty or `np-finance` will fail fast naming it. The two Drive folder IDs are not used in v1
 (live Drive upload is Phase 2) — a placeholder string satisfies validation.
 
 `config.example.toml` also carries commented-out **`[receipt_mapping]`** and **`[gmail]`** blocks.
@@ -130,17 +130,17 @@ optional/legacy and are no longer created.
 Preview first (no writes), then apply:
 
 ```bash
-uv run pta-finance init-sheet --dry-run
+uv run np-finance init-sheet --dry-run
 ```
 
 ```bash
-uv run pta-finance init-sheet
+uv run np-finance init-sheet
 ```
 
 If you made a separate test sheet, bootstrap it too:
 
 ```bash
-uv run pta-finance init-sheet --target test
+uv run np-finance init-sheet --target test
 ```
 
 You'll see one line per tab (`created` / `headers-written` / `ok`) and a summary.
@@ -153,7 +153,7 @@ You'll see one line per tab (`created` / `headers-written` / `ok`) and a summary
 read/write round-trip:
 
 ```bash
-uv run pta-finance check
+uv run np-finance check
 ```
 
 Expected: `schema OK for 1 required tab(s) [<your org>]`, a `Budget Timeseries source OK` line,
@@ -169,7 +169,7 @@ canonical-tab data.
 **Load your ledger** (normalizes legacy rows, assigns IDs, dedups; snapshots first):
 
 ```bash
-uv run pta-finance normalize
+uv run np-finance normalize
 ```
 
 **Load your budget** with `import-budget`, pointed at the worksheet that holds it. It tolerates a
@@ -177,13 +177,13 @@ messy human layout (`Type` / `Line Item` / `Proposed` / `Actual` columns, with s
 mixed in). Preview first — this reads only and writes nothing:
 
 ```bash
-uv run pta-finance import-budget --from-tab "<your budget tab>" --fy <YYYY> --with-actuals --dry-run
+uv run np-finance import-budget --from-tab "<your budget tab>" --fy <YYYY> --with-actuals --dry-run
 ```
 
 Then the real load (snapshots every tab first, then idempotent upsert by ID):
 
 ```bash
-uv run pta-finance import-budget --from-tab "<your budget tab>" --fy <YYYY> --with-actuals
+uv run np-finance import-budget --from-tab "<your budget tab>" --fy <YYYY> --with-actuals
 ```
 
 - `--fy` is the fiscal-year **label** (e.g. `2026` = the 2025–2026 year when `start_month` is a
@@ -197,8 +197,8 @@ uv run pta-finance import-budget --from-tab "<your budget tab>" --fy <YYYY> --wi
 ## 5. Analyze / report
 
 ```bash
-uv run pta-finance analyze --fy 2026
-uv run pta-finance report --fy 2026 --variant both   # omit --fy to target the current fiscal year
+uv run np-finance analyze --fy 2026
+uv run np-finance report --fy 2026 --variant both   # omit --fy to target the current fiscal year
 ```
 
 `analyze` and `report` source from the **Budget Timeseries** tab (a tidy long dataset), not the
@@ -259,7 +259,7 @@ labels, archives, or deletes. You can revoke the grant at any time from your Goo
 5. **First run — mint the token.** Run this once; it opens a browser:
 
    ```bash
-   uv run pta-finance fetch-mail --since <date> --dry-run
+   uv run np-finance fetch-mail --since <date> --dry-run
    ```
 
    - Any recent date works — this run is only here to trigger consent.

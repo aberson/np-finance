@@ -1,4 +1,4 @@
-"""Tests for pta_finance.etl — pure-logic normalization + the production normalize path.
+"""Tests for np_finance.etl — pure-logic normalization + the production normalize path.
 
 Two tiers:
 
@@ -6,7 +6,7 @@ Two tiers:
   exact-duplicate pair, a malformed-amount row, a malformed-date row) and an idempotency check.
   No I/O at all.
 * **Integration through the production caller** :func:`etl.normalize`: a fake
-  :class:`~pta_finance.sheets.SheetsClient` seeded with a legacy grid, asserting (a) the
+  :class:`~np_finance.sheets.SheetsClient` seeded with a legacy grid, asserting (a) the
   snapshot was taken BEFORE any write, (b) ``upsert_rows`` carried the assigned ids, and (c)
   existing ids were not changed. This exercises the real ``normalize`` path end-to-end, not a
   reimplementation.
@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pta_finance import etl, ids, schema
-from pta_finance.config import Config
+from np_finance import etl, ids, schema
+from np_finance.config import Config
 from tests.conftest import tagged_user_entered_grid
 
 _COLS = schema.TRANSACTIONS_COLUMNS

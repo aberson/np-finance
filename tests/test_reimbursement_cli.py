@@ -19,8 +19,8 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from pta_finance import cli, receipt_assets, reimbursement_pipeline, reimbursement_report
-from pta_finance.config import Config, ReceiptRefresh
+from np_finance import cli, receipt_assets, reimbursement_pipeline, reimbursement_report
+from np_finance.config import Config, ReceiptRefresh
 from tests.conftest import _FULL_CONFIG
 
 

@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import budget_sync, cli, ids, report_source
-from pta_finance.config import Config
+from np_finance import budget_sync, cli, ids, report_source
+from np_finance.config import Config
 from tests.conftest import tagged_user_entered_grid
 
 # --- a 14-column live "Budget Timeseries" grid (the real shape: 9 required + 5 enrichment) ---
@@ -113,7 +113,7 @@ _TS_GRID: list[list[str]] = [
 #   - a NEW expense line "Art Club Expenses" 500 under "Enrichment & Student Programs"
 _BUDGET_TAB_GRID: list[list[str]] = [
     ["FY2027 Budget (editable)", "", ""],
-    ["Edit amounts/notes; add lines under a section; then run pta-finance sync-budget", "", ""],
+    ["Edit amounts/notes; add lines under a section; then run np-finance sync-budget", "", ""],
     ["Item", "Proposed $", "Notes"],
     ["INCOME", "", ""],
     ["Fundraising Events", "", ""],
@@ -401,7 +401,7 @@ def test_appended_row_round_trips_through_report_source() -> None:
 
 _CONFIG_TEXT = """\
 [organization]
-name = "Example PTA"
+name = "Example Non-profit"
 school_name = "Example Elementary"
 school_email = "office@example.org"
 

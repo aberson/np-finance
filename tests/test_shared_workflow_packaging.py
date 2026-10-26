@@ -65,8 +65,8 @@ def test_staging_excludes_untracked_canaries_and_refuses_reuse_or_drift(tmp_path
     [
         "../outside.py outside.py",
         "config.toml config.toml",
-        "pta_finance/__init__.py ../outside.py",
-        "pta_finance/__init__.py secrets/file.py",
+        "np_finance/__init__.py ../outside.py",
+        "np_finance/__init__.py secrets/file.py",
     ],
 )
 def test_manifest_rejects_traversal_and_private_paths(tmp_path: Path, line: str) -> None:
@@ -142,13 +142,13 @@ def test_staged_wheel_loads_resources_outside_checkout_and_rejects_production_te
             "static/queue.js",
             "static/queue.css",
         ):
-            assert "pta_finance/shared_workflow/" + resource in names
+            assert "np_finance/shared_workflow/" + resource in names
         assert all(
             "secrets/" not in name and "scripts/" not in name and "tests/" not in name
             for name in names
         )
         assert all(b"PTA_PRIVATE_CANARY" not in archive.read(name) for name in names)
-        assert "pta_finance/cli.py" not in names and "pta_finance/gmail_source.py" not in names
+        assert "np_finance/cli.py" not in names and "np_finance/gmail_source.py" not in names
     installed = tmp_path / "installed"
     subprocess.run(
         ["uv", "pip", "install", "--target", str(installed), "--no-deps", str(wheel)],
@@ -158,9 +158,9 @@ def test_staged_wheel_loads_resources_outside_checkout_and_rejects_production_te
     code = """import sys; sys.path.insert(0,sys.argv[1])
 import os, runpy
 from pathlib import Path
-from pta_finance.shared_workflow.models import load_source
-from pta_finance.shared_workflow.catalog import load_catalog
-from pta_finance.shared_workflow import __file__
+from np_finance.shared_workflow.models import load_source
+from np_finance.shared_workflow.catalog import load_catalog
+from np_finance.shared_workflow import __file__
 assert __file__.startswith(sys.argv[1])
 assert load_source()['display']['total']=='184.50'
 catalog = load_catalog()
@@ -173,7 +173,7 @@ elif os.getuid() == 0:
     os.getuid = lambda: 10001
 inspector = runpy.run_path(str(Path(sys.argv[2]) / 'inspect_image.py'))['inspect']
 inspector(Path(sys.argv[2]))
-import pta_finance.shared_workflow.catalog as inventory
+import np_finance.shared_workflow.catalog as inventory
 inventory.ADDITIONAL_SOURCES = inventory.ADDITIONAL_SOURCES[:-1]
 try:
     inspector(Path(sys.argv[2]))
@@ -203,7 +203,7 @@ print('WHEEL PASS')
     env["FIRESTORE_EMULATOR_HOST"] = "127.0.0.1:8787"
     code = (
         "import sys,runpy; sys.path.insert(0,sys.argv.pop(1)); "
-        "runpy.run_module('pta_finance.shared_workflow',run_name='__main__')"
+        "runpy.run_module('np_finance.shared_workflow',run_name='__main__')"
     )
     result = subprocess.run(
         [sys.executable, "-I", "-c", code, str(installed)],
@@ -217,7 +217,7 @@ print('WHEEL PASS')
 
 def test_source_distribution_excludes_local_developer_and_review_receipts(tmp_path: Path) -> None:
     root = tmp_path / "checkout"
-    for name in ("pyproject.toml", "README.md", "pta_finance/__init__.py"):
+    for name in ("pyproject.toml", "README.md", "np_finance/__init__.py"):
         destination = root / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / name, destination)
@@ -233,7 +233,7 @@ def test_source_distribution_excludes_local_developer_and_review_receipts(tmp_pa
     )
     with tarfile.open(next((tmp_path / "dist").glob("*.tar.gz"))) as archive:
         names = archive.getnames()
-    assert any(name.endswith("/pta_finance/__init__.py") for name in names)
+    assert any(name.endswith("/np_finance/__init__.py") for name in names)
     assert all("/.build-step/" not in name and "/.review-deep/" not in name for name in names)
 
 

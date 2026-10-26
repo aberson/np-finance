@@ -28,7 +28,7 @@ from typing import Any
 
 import pytest
 
-from pta_finance import receipt_assets, receipt_decode, receipt_geometry, receipt_pages
+from np_finance import receipt_assets, receipt_decode, receipt_geometry, receipt_pages
 
 _EXACT = "cdn.example-forms.invalid"
 _SUFFIX = ".uploads.example-forms.invalid"

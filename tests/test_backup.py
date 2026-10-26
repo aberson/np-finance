@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from gspread.exceptions import WorksheetNotFound
 
-from pta_finance import backup, report_source, schema
+from np_finance import backup, report_source, schema
 
 
 def _entered(kind: str, value: object) -> dict[str, object]:

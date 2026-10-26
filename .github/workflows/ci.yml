@@ -196,7 +196,7 @@ jobs:
           assert all(case.find('skipped') is None for case in cases), 'Main Report Set runner browser coverage was omitted'
           PY
       - name: Full-package strict mypy
-        run: uv run mypy --strict pta_finance
+        run: uv run mypy --strict np_finance
       - name: Web verification and distribution tests
         run: |
           uv run pytest -q tests/test_shared_workflow_*.py --junitxml=web-results.xml

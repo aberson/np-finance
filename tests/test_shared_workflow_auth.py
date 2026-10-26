@@ -16,8 +16,8 @@ pytest.importorskip("cryptography")
 from google.auth.transport import Response as TransportResponse  # noqa: E402
 from test_shared_workflow_helpers import setup  # noqa: E402
 
-from pta_finance.shared_workflow.auth import IAPVerifier, KeyCache  # noqa: E402
-from pta_finance.shared_workflow.models import Deadline, WorkflowError  # noqa: E402
+from np_finance.shared_workflow.auth import IAPVerifier, KeyCache  # noqa: E402
+from np_finance.shared_workflow.models import Deadline, WorkflowError  # noqa: E402
 from scripts.shared_workflow_smoke import CertificateTransport, Signer  # noqa: E402
 
 
@@ -164,7 +164,7 @@ def test_unknown_key_refresh_and_expiry_never_use_stale_keys(
 def test_slow_key_fetch_has_one_worker_and_late_results_are_not_cached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import pta_finance.shared_workflow.auth as auth
+    import np_finance.shared_workflow.auth as auth
 
     monkeypatch.setattr(auth, "KEY_SECONDS", 0.08)
     release = threading.Event()

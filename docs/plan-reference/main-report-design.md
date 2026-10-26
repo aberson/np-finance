@@ -9,7 +9,7 @@ changes a fact, a total or a reconciliation rule, only how they are shown.
 
 `end-to-end-run` renders four summaries (`reimbursement-summary`, `budget-snapshot`,
 `fundraising-summary`, `cfo-pnl-summary`) and the index `main-report-set.html` from
-`pta_finance/main_reports/render.py` and `pta_finance/reports/templates/main_reports/*.j2`.
+`np_finance/main_reports/render.py` and `np_finance/reports/templates/main_reports/*.j2`.
 Before Step 64 each summary was a fluid audit dump that printed to 42–95 pages. Most of the
 height comes from inline lists of discrepancy IDs, per-row bridge evidence, findings tables
 and per-cell "Not covered" markers.
@@ -31,7 +31,7 @@ Target per page:
 
 Identity rule: the templates use only `page.organization` / `page.logo` (already read from
 the bundle's private settings) for identity. No organization, person, sponsor or logo is
-committed. Examples below use **Example PTA** and fictional amounts.
+committed. Examples below use **Example Non-profit** and fictional amounts.
 
 ---
 
@@ -778,7 +778,7 @@ Rules:
     exports, the shared totals table, the inputs table and the run-record links.
 13. `export.VIEWPORT_WIDTH` remains 1100; each PNG is a full-page capture of that width.
 14. Full suite gate per the workspace rule (all test roots, emulator modules included), ruff,
-    ruff format and `mypy --strict pta_finance` pass.
+    ruff format and `mypy --strict np_finance` pass.
 
 ## 6. Tests (as built)
 

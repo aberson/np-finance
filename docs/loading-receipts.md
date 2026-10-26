@@ -79,13 +79,13 @@ label, and no export to wait for.
 
 ```powershell
 $receivedSince = "YYYY-MM-DD" # replace with the private acquisition-window start
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance fetch-mail --since $receivedSince --dry-run
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance fetch-mail --since $receivedSince --dry-run
 ```
 
 Then fetch for real:
 
 ```powershell
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance fetch-mail --since $receivedSince
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance fetch-mail --since $receivedSince
 ```
 
 You get the search query, the destination directory, and a count summary — `N message(s) matched
@@ -133,7 +133,7 @@ command per line — `&&` is a parser error in PowerShell 5.1.
 **Preview + data-spread profile.** Writes the seed CSV named below; makes no Sheet write:
 
 ```powershell
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance ingest-receipts --source "mail_samples" --profile --originals-only --csv reports\output\category_seed.csv
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance ingest-receipts --source "mail_samples" --profile --originals-only --csv reports\output\category_seed.csv
 ```
 
 Read the output: form types, the full category list, reconcile pass/fail, and — key for
@@ -214,7 +214,7 @@ else — it carries `requestor_name`, `requestor_email` and `receipt_url` for ev
 ignored, and one `git add -A` would put those names in the public history:
 
 ```powershell
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance map-receipts --source "mail_samples" --category-map reports\output\category_map.csv --csv reports\output\ledger.csv
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance map-receipts --source "mail_samples" --category-map reports\output\category_map.csv --csv reports\output\ledger.csv
 ```
 
 **Check the summary's `category map : N mapping(s), M form default(s)` line before you trust the
@@ -251,7 +251,7 @@ earlier backup.
 already exists):
 
 ```powershell
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance map-receipts --source "mail_samples" --category-map reports\output\category_map.csv --write-tab "Reimbursements"
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance map-receipts --source "mail_samples" --category-map reports\output\category_map.csv --write-tab "Reimbursements"
 ```
 
 Note that `--source` is the **directory**, not a single file. That is what makes this one run
@@ -355,21 +355,21 @@ sidecar; see [Inspecting a source receipt](receipt-viewer.md) for setup and miss
 **Rebuild the report without checking Gmail:**
 
 ```powershell
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance report-reimbursements
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance report-reimbursements
 ```
 
 **Preview a combined local refresh** (Gmail is counted, but no `.eml`, bundle, or HTML is written):
 
 ```powershell
 $receivedSince = "YYYY-MM-DD"
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance update-reimbursements --fetch-since $receivedSince --dry-run
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance update-reimbursements --fetch-since $receivedSince --dry-run
 ```
 
 **Run the combined local refresh:**
 
 ```powershell
 $receivedSince = "YYYY-MM-DD"
-$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run pta-finance update-reimbursements --fetch-since $receivedSince
+$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"; uv run np-finance update-reimbursements --fetch-since $receivedSince
 ```
 
 The combined command performs these stages in order:

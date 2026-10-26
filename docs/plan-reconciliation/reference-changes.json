@@ -15,6 +15,6 @@
   "docs/shared-workflow-proof-sync.md",
   "docs/shared-workflow-proof-wrap.md",
   "docs/shared-workflow-proof.md",
-  "pta_finance/receipt_decode.py",
-  "pta_finance/receipt_geometry.py"
+  "np_finance/receipt_decode.py",
+  "np_finance/receipt_geometry.py"
 ]

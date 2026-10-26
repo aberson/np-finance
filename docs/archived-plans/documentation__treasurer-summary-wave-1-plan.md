@@ -30,24 +30,24 @@ Drive permissions, publishes, or sends anything.
 
 ## 2. Existing Context
 
-- The installed command is `pta-finance = pta_finance.cli:main` in `pyproject.toml`; the single
-  argparse registry is `build_parser()` in `pta_finance/cli.py:1320`, and `main()` dispatches at
-  `pta_finance/cli.py:1734`.
-- `pta_finance/report_source.py:62,101` defines and reads the operator-maintained
+- The installed command is `np-finance = np_finance.cli:main` in `pyproject.toml`; the single
+  argparse registry is `build_parser()` in `np_finance/cli.py:1320`, and `main()` dispatches at
+  `np_finance/cli.py:1734`.
+- `np_finance/report_source.py:62,101` defines and reads the operator-maintained
   `Budget Timeseries` worksheet. Proposed income and proposed expense rows can supply the two
   annual goals. Current live FY data has no actual rows, so bank-derived actuals cannot come from
   this worksheet.
 - `report_source.read_timeseries()` currently has exactly five call sites:
-  `pta_finance/cli.py:165,313,396` and `tests/test_report_source.py:229,243`. Its dictionary
+  `np_finance/cli.py:165,313,396` and `tests/test_report_source.py:229,243`. Its dictionary
   projection cannot detect duplicate raw headers, so Wave 1 leaves it and all five callers
   unchanged and adds a narrow raw-grid budget-goal reader instead.
 - The current report path already demonstrates exact amount parsing, immutable report models,
   build/render separation, deterministic output, and a runtime public-data guard in
-  `pta_finance/models.py`, `pta_finance/analytics/aggregate.py`, and
-  `pta_finance/reports/{builder,charts,render}.py`.
-- `pta_finance/reimbursement_report.py:1385,1474,1506` is the closest precedent for strict private
+  `np_finance/models.py`, `np_finance/analytics/aggregate.py`, and
+  `np_finance/reports/{builder,charts,render}.py`.
+- `np_finance/reimbursement_report.py:1385,1474,1506` is the closest precedent for strict private
   input validation, deterministic rendering, hashes, and atomic output replacement.
-- `pta_finance/gmail_source.py:118,402,586,621,661` is the precedent for an exact-scope,
+- `np_finance/gmail_source.py:118,402,586,621,661` is the precedent for an exact-scope,
   separately stored desktop OAuth token. Slides must use a distinct token and must not import or
   widen Gmail authorization.
 - Read-only inspection found four statement PDFs with embedded text and two image-only PDFs that
@@ -115,16 +115,16 @@ Drive permissions, publishes, or sends anything.
 
 | File | Change Type | Reason | Verified |
 |---|---|---|---|
-| `pta_finance/treasurer_slides/{__init__,models}.py` | extend | Keep Step 14's package boundary and strict private models compatible with the parser contracts | Step 14 added both tracked files; their public types are the Wave 1 producer/consumer boundary |
-| `pta_finance/treasurer_slides/{bank_statements,native_sandbox,native_worker}.py` | add | Strict positioned token/page, statement, account, balance, transaction, OCR, and Windows-native-parser sandbox contracts | Step 15 added the fictional-native-text parser and pre-read LPAC boundary; image-only OCR remains Step 16 |
-| `pta_finance/treasurer_slides/{rules,reconciliation,facts,budget_goals}.py` | add | Source authority, dated intervals, classification, exact adjustments, transfer/reversal handling, strict raw-grid budget-goal read, signed reconciliation, pace, and narrative | Current approved prototype hardcodes these results; `report_source.py:62,88-119` identifies the live tab and proves dictionary projection loses duplicate-header evidence |
-| `pta_finance/treasurer_slides/{summary,template}.py` | add | Approved layout roles, text formatting, category folding, bar geometry, template inspection, and pure Slides request plan | The target render modules are absent; the existing package currently contains only contracts and must remain compatible |
-| `pta_finance/treasurer_slides/google_client.py` | add | Dedicated exact-scope OAuth, template import/copy, Slides merge, app-owned candidate lookup, and redacted API boundary | `gmail_source.py:118,402,586,621,661` confirms the separate OAuth precedent; no Slides/Drive presentation client exists |
-| `pta_finance/treasurer_slides/pipeline.py` | add | Atomic private run creation, fact review, digest approval, CLI orchestration, and minimal duplicate-safe resume | `reimbursement_report.py:1385,1474,1506` confirms strict-load/render/atomic-write precedent; no Treasurer run pipeline exists |
-| `pta_finance/treasurer_slides/templates/fact_review.html.j2` | add | Autoescaped private financial review before Google creation | Existing Jinja templates are under `pta_finance/reports/templates/`; no Treasurer template exists |
-| `pta_finance/config.py` | extend | Add optional `TreasurerSlides` paths/settings with `None` preserving existing configs | `rg '\bConfig\('` finds the sole constructor at `config.py:242`; no caller directly constructs `Config` elsewhere |
+| `np_finance/treasurer_slides/{__init__,models}.py` | extend | Keep Step 14's package boundary and strict private models compatible with the parser contracts | Step 14 added both tracked files; their public types are the Wave 1 producer/consumer boundary |
+| `np_finance/treasurer_slides/{bank_statements,native_sandbox,native_worker}.py` | add | Strict positioned token/page, statement, account, balance, transaction, OCR, and Windows-native-parser sandbox contracts | Step 15 added the fictional-native-text parser and pre-read LPAC boundary; image-only OCR remains Step 16 |
+| `np_finance/treasurer_slides/{rules,reconciliation,facts,budget_goals}.py` | add | Source authority, dated intervals, classification, exact adjustments, transfer/reversal handling, strict raw-grid budget-goal read, signed reconciliation, pace, and narrative | Current approved prototype hardcodes these results; `report_source.py:62,88-119` identifies the live tab and proves dictionary projection loses duplicate-header evidence |
+| `np_finance/treasurer_slides/{summary,template}.py` | add | Approved layout roles, text formatting, category folding, bar geometry, template inspection, and pure Slides request plan | The target render modules are absent; the existing package currently contains only contracts and must remain compatible |
+| `np_finance/treasurer_slides/google_client.py` | add | Dedicated exact-scope OAuth, template import/copy, Slides merge, app-owned candidate lookup, and redacted API boundary | `gmail_source.py:118,402,586,621,661` confirms the separate OAuth precedent; no Slides/Drive presentation client exists |
+| `np_finance/treasurer_slides/pipeline.py` | add | Atomic private run creation, fact review, digest approval, CLI orchestration, and minimal duplicate-safe resume | `reimbursement_report.py:1385,1474,1506` confirms strict-load/render/atomic-write precedent; no Treasurer run pipeline exists |
+| `np_finance/treasurer_slides/templates/fact_review.html.j2` | add | Autoescaped private financial review before Google creation | Existing Jinja templates are under `np_finance/reports/templates/`; no Treasurer template exists |
+| `np_finance/config.py` | extend | Add optional `TreasurerSlides` paths/settings with `None` preserving existing configs | `rg '\bConfig\('` finds the sole constructor at `config.py:242`; no caller directly constructs `Config` elsewhere |
 | `config.example.toml` | extend | Add fictional optional Treasurer Slides/OCR path examples | File read in full; optional `[gmail]` and `[receipt_mapping]` blocks are the existing compatibility pattern |
-| `pta_finance/cli.py` | extend | Register init, prepare, and create commands without changing existing flags | `build_parser` is at `cli.py:1320`; all 13 current `set_defaults(func=...)` registrations are local to that function and remain intact |
+| `np_finance/cli.py` | extend | Register init, prepare, and create commands without changing existing flags | `build_parser` is at `cli.py:1320`; all 13 current `set_defaults(func=...)` registrations are local to that function and remain intact |
 | `pyproject.toml`, `uv.lock` | extend | Add a `slides` extra with permissively licensed `pypdfium2`; document Tesseract 5 as a system dependency | Step 15 added the `slides` extra and locked `pypdfium2`; Tesseract 5 remains a Step 16 system dependency; Google API/auth clients already exist; PyMuPDF was rejected because its official distribution is AGPL/commercial |
 | `.github/workflows/ci.yml` | extend | Keep portable/static and fail-closed coverage on Linux; on Windows, install the Slides extra and Tesseract, then exercise the Low Privilege AppContainer (LPAC) native-parser/OCR boundaries and real-component smoke | Step 15 added the Slides extra plus Linux fail-closed and Windows native-parser jobs; Tesseract setup and the real-component smoke remain Steps 16 and 24 |
 | `scripts/check_no_identity.py` | extend | Reject tracked Treasurer statements, templates, run artifacts, tokens, and real-resource manifests while preserving fictional tests | Script currently checks service-account markers plus the optional identity denylist only; its sole CI invocation is `.github/workflows/ci.yml` |
@@ -686,13 +686,13 @@ or touches the source spreadsheet.
 The new argparse commands are:
 
 ```text
-uv run pta-finance init-treasurer-summary-template \
+uv run np-finance init-treasurer-summary-template \
   --pptx <private-tokenized-template> [--config config.toml]
 
-uv run pta-finance prepare-treasurer-summary \
+uv run np-finance prepare-treasurer-summary \
   --inputs <private-input-manifest> [--config config.toml]
 
-uv run pta-finance create-treasurer-summary \
+uv run np-finance create-treasurer-summary \
   --run <run-id> --approval-sha256 <approval-digest> [--config config.toml]
 ```
 
@@ -785,10 +785,10 @@ exception body.
 - **Type:** code
 - **Issue:** #41
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/__init__.py`,
-  `pta_finance/treasurer_slides/models.py`, `tests/test_treasurer_slides_models.py`, and fictional
+- **Files:** `np_finance/treasurer_slides/__init__.py`,
+  `np_finance/treasurer_slides/models.py`, `tests/test_treasurer_slides_models.py`, and fictional
   model/manifest/rule fixtures
-- **Produces:** `pta_finance/treasurer_slides/{__init__,models}.py`, fictional manifest/rule
+- **Produces:** `np_finance/treasurer_slides/{__init__,models}.py`, fictional manifest/rule
   fixtures, and `tests/test_treasurer_slides_models.py`
 - **Done when:** unknown/missing fields, unsafe paths, symlinks/reparse points, invalid role/kind/date,
   binary float, signed magnitude, malformed selector, duplicate rule ID, invalid cash role, and
@@ -809,12 +809,12 @@ exception body.
 - **Type:** code
 - **Issue:** #42
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/bank_statements.py`,
-  `pta_finance/treasurer_slides/native_sandbox.py`,
-  `pta_finance/treasurer_slides/native_worker.py`, `pyproject.toml`, `uv.lock`,
+- **Files:** `np_finance/treasurer_slides/bank_statements.py`,
+  `np_finance/treasurer_slides/native_sandbox.py`,
+  `np_finance/treasurer_slides/native_worker.py`, `pyproject.toml`, `uv.lock`,
   `.github/workflows/ci.yml`, `tests/test_treasurer_slides_bank_statements_native.py`,
   `tests/test_treasurer_slides_native_sandbox.py`, and fictional native PDF fixtures
-- **Produces:** `pta_finance/treasurer_slides/bank_statements.py`, a narrow Windows LPAC/AppContainer
+- **Produces:** `np_finance/treasurer_slides/bank_statements.py`, a narrow Windows LPAC/AppContainer
   launcher and one-shot PDF-worker entry point, public-only staged runtime/profile lifecycle,
   public control-object attestation plus directly broker-duplicated request/response pipes with a
   `READY` frame, the `pypdfium2` Slides extra in `pyproject.toml`/`uv.lock`, Windows CI coverage, and
@@ -868,8 +868,8 @@ step.
 - **Type:** code
 - **Issue:** #43
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/bank_statements.py`,
-  `pta_finance/treasurer_slides/{native_sandbox,native_worker}.py`, `.github/workflows/ci.yml`,
+- **Files:** `np_finance/treasurer_slides/bank_statements.py`,
+  `np_finance/treasurer_slides/{native_sandbox,native_worker}.py`, `.github/workflows/ci.yml`,
   `tests/test_treasurer_slides_bank_statements_ocr.py`,
   `tests/test_treasurer_slides_native_sandbox.py`, and fictional raster PDF fixtures
 - **Produces:** the OCR adapter plus a separately broker-launched `tesseract.exe` one-process LPAC
@@ -888,7 +888,7 @@ step.
   never writes private raster/OCR data to ambient disk. Windows CI installs Tesseract and executes the
   real OCR fixture; Linux runs only portable OCR-contract and fail-closed coverage.
 - **Coordination (2026-10-09):** receipt-autofill Phase 9 Step 39 (issue #73) moves the Job Object
-  primitive from `native_sandbox._make_job_object` into the shared leaf `pta_finance/process_limits.py`,
+  primitive from `native_sandbox._make_job_object` into the shared leaf `np_finance/process_limits.py`,
   keeping `_make_job_object` as a thin wrapper (`documentation/receipt-autofill-plan.md` § 4, § 5A).
   Create the Tesseract Job through that wrapper, never by restating the primitive. Whichever step
   lands second rebases and runs both native suites; if Phase 9 lands first, it comments on #43.
@@ -903,9 +903,9 @@ step.
 - **Type:** code
 - **Issue:** #44
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/reconciliation.py`,
+- **Files:** `np_finance/treasurer_slides/reconciliation.py`,
   `tests/test_treasurer_slides_source_authority.py`, and fictional overlap/balance fixtures
-- **Produces:** `pta_finance/treasurer_slides/reconciliation.py`, overlap/balance fixtures, and
+- **Produces:** `np_finance/treasurer_slides/reconciliation.py`, overlap/balance fixtures, and
   `tests/test_treasurer_slides_source_authority.py`
 - **Done when:** closed-monthly precedence, current post-cutoff/pending/latest supplementation,
   semantic overlap equality, exact disagreement resolution, legitimate duplicate occurrences,
@@ -923,11 +923,11 @@ step.
 - **Type:** code
 - **Issue:** #45
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/rules.py`,
-  `pta_finance/treasurer_slides/reconciliation.py`,
+- **Files:** `np_finance/treasurer_slides/rules.py`,
+  `np_finance/treasurer_slides/reconciliation.py`,
   `tests/test_treasurer_slides_rules.py`, `tests/test_treasurer_slides_reconciliation.py`, and
   fictional rule/cash-bridge fixtures
-- **Produces:** `pta_finance/treasurer_slides/{rules,reconciliation}.py`, fictional rule/cash-bridge
+- **Produces:** `np_finance/treasurer_slides/{rules,reconciliation}.py`, fictional rule/cash-bridge
   fixtures, and `tests/test_treasurer_slides_{rules,reconciliation}.py`
 - **Done when:** zero/multiple classification matches block; automatic pairs require matching
   pair-key/amount/direction/account/window and uniqueness; ambiguous pairs require exact two-row
@@ -947,10 +947,10 @@ step.
 - **Type:** code
 - **Issue:** #46
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/budget_goals.py`,
-  `pta_finance/treasurer_slides/facts.py`, `tests/test_treasurer_slides_budget_goals.py`,
+- **Files:** `np_finance/treasurer_slides/budget_goals.py`,
+  `np_finance/treasurer_slides/facts.py`, `tests/test_treasurer_slides_budget_goals.py`,
   `tests/test_treasurer_slides_facts.py`, and fictional grid/fact fixtures
-- **Produces:** `pta_finance/treasurer_slides/{budget_goals,facts}.py`, fictional raw-grid/fact
+- **Produces:** `np_finance/treasurer_slides/{budget_goals,facts}.py`, fictional raw-grid/fact
   fixtures, and `tests/test_treasurer_slides_{budget_goals,facts}.py`
 - **Done when:** duplicate/blank/missing headers, malformed relevant rows, duplicate logical rows,
   including whitespace/case variants, invalid/non-positive goals, or attempted source writes block;
@@ -969,10 +969,10 @@ step.
 - **Type:** code
 - **Issue:** #47
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/summary.py`,
-  `pta_finance/treasurer_slides/template.py`, `tests/test_treasurer_slides_summary.py`, and
+- **Files:** `np_finance/treasurer_slides/summary.py`,
+  `np_finance/treasurer_slides/template.py`, `tests/test_treasurer_slides_summary.py`, and
   `tests/test_treasurer_slides_template.py`
-- **Produces:** `pta_finance/treasurer_slides/{summary,template}.py`, fictional presentation
+- **Produces:** `np_finance/treasurer_slides/{summary,template}.py`, fictional presentation
   structures, and `tests/test_treasurer_slides_{summary,template}.py`
 - **Done when:** every approved fact maps to one declared variable role; static identity is not a
   role or request; money/percent/date/story text is deterministic; four spending and five fundraising
@@ -991,11 +991,11 @@ step.
 - **Type:** code
 - **Issue:** #48
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/pipeline.py`,
-  `pta_finance/treasurer_slides/templates/fact_review.html.j2`, and
+- **Files:** `np_finance/treasurer_slides/pipeline.py`,
+  `np_finance/treasurer_slides/templates/fact_review.html.j2`, and
   `tests/test_treasurer_slides_pipeline.py`
-- **Produces:** `pta_finance/treasurer_slides/pipeline.py`,
-  `pta_finance/treasurer_slides/templates/fact_review.html.j2`, and
+- **Produces:** `np_finance/treasurer_slides/pipeline.py`,
+  `np_finance/treasurer_slides/templates/fact_review.html.j2`, and
   `tests/test_treasurer_slides_pipeline.py`
 - **Done when:** a valid prepare uses Step 20's canonical `SummarySlidePlan`, writes facts and plan
   snapshots atomically with manifest last, and produces stable facts/plan/approval hashes; every
@@ -1016,11 +1016,11 @@ step.
 - **Type:** code
 - **Issue:** #49
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/google_client.py`, `pta_finance/config.py`,
+- **Files:** `np_finance/treasurer_slides/google_client.py`, `np_finance/config.py`,
   `config.example.toml`, `tests/test_config.py`, `tests/test_treasurer_slides_auth.py`, and
   `tests/test_treasurer_slides_workspace.py`
-- **Produces:** the auth/workspace portion of `pta_finance/treasurer_slides/google_client.py`,
-  optional config in `pta_finance/config.py`/`config.example.toml`, fake Google services,
+- **Produces:** the auth/workspace portion of `np_finance/treasurer_slides/google_client.py`,
+  optional config in `np_finance/config.py`/`config.example.toml`, fake Google services,
   `tests/test_config.py`, and `tests/test_treasurer_slides_{auth,workspace}.py`
 - **Done when:** the granted set must equal `drive.file`; Gmail/missing/extra scopes fail; dedicated
   token load/mint/refresh/atomic persistence and `invalid_grant` guidance are safe; import support,
@@ -1042,8 +1042,8 @@ step.
 - **Type:** code
 - **Issue:** #50
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/google_client.py`,
-  `pta_finance/treasurer_slides/pipeline.py`, and
+- **Files:** `np_finance/treasurer_slides/google_client.py`,
+  `np_finance/treasurer_slides/pipeline.py`, and
   `tests/test_treasurer_slides_google_candidate.py`
 - **Produces:** candidate/render support in `google_client.py` and `pipeline.py`, fake Drive/Slides
   cases, and `tests/test_treasurer_slides_google_candidate.py`
@@ -1069,10 +1069,10 @@ step.
 - **Type:** code
 - **Issue:** #51
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/cli.py`, `scripts/check_no_identity.py`,
+- **Files:** `np_finance/cli.py`, `scripts/check_no_identity.py`,
   `tests/test_treasurer_slides_cli.py`, `tests/test_treasurer_slides_smoke.py`, packaging/privacy
   tests, `docs/generating-treasurer-summary.md`, `README.md`, `SETUP.md`, `CLAUDE.md`, and `plan.md`
-- **Produces:** three commands in `pta_finance/cli.py`; extended `scripts/check_no_identity.py`;
+- **Produces:** three commands in `np_finance/cli.py`; extended `scripts/check_no_identity.py`;
   CLI/privacy/packaging/smoke tests; `docs/generating-treasurer-summary.md`; and status/setup updates
   in `README.md`, `SETUP.md`, `CLAUDE.md`, and `plan.md`
 - **Done when:** dispatch resolves all three commands and old commands are unchanged; missing
@@ -1096,12 +1096,12 @@ step.
   executable, template, OAuth account, and Google rendering:
 
   ```powershell
-  uv run pta-finance init-treasurer-summary-template --pptx "<private-tokenized-template>" --config config.toml
-  uv run pta-finance prepare-treasurer-summary --inputs "<private-input-manifest>" --config config.toml
+  uv run np-finance init-treasurer-summary-template --pptx "<private-tokenized-template>" --config config.toml
+  uv run np-finance prepare-treasurer-summary --inputs "<private-input-manifest>" --config config.toml
   Invoke-Item "<private-run-directory>\review.html"
-  uv run pta-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
+  uv run np-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
   Invoke-Item "<private-run-directory>\candidate.receipt.json"
-  uv run pta-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
+  uv run np-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
   git status --short
   uv run python scripts/check_no_identity.py
   ```
@@ -1237,12 +1237,12 @@ before a statement read.
 ### Regression, packaging, and privacy gates
 
 - `uv run pytest -q`
-- `uv run mypy --strict pta_finance`
+- `uv run mypy --strict np_finance`
 - `uv run ruff check .`
 - `uv run ruff format --check .`
 - `uv run python scripts/check_no_identity.py`
 - `uv build`, install the wheel in an isolated environment, load the fact-review template, and run
-  `pta-finance --help` both with and without the optional Slides extra.
+  `np-finance --help` both with and without the optional Slides extra.
 - Explicit regression selection for config, Sheets, report source, reports, reimbursement, Gmail,
   CLI, workflows, and the existing smoke suite.
 

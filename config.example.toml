@@ -1,10 +1,10 @@
-# pta_finance — example config (committed template; FAKE placeholders only).
+# np-finance — example config (committed template; FAKE placeholders only).
 #
 # Copy this file to `config.toml` (gitignored) and fill in your real values.
 # The repo is PUBLIC; your real identity and IDs live ONLY in config.toml, never here.
 
 [organization]
-name        = "Example PTA"            # PTA / booster name
+name        = "Example Non-profit"            # non-profit organization name
 school_name = "Example Elementary"
 school_email = "office@example.org"
 
@@ -40,7 +40,7 @@ service_account_file = "secrets/service-account.json"
 # tesseract_path = "C:/Program Files/Tesseract-OCR/tesseract.exe" # optional OCR suggestions
 # chromium_path = "C:/Program Files/Chromium/Application/chrome.exe" # optional PDF renderer
 # Supplemental reimbursement anchors/actors live in a separate gitignored JSON file, not TOML:
-# uv run pta-finance update-reimbursements --anchors reports/output/reimbursement-anchors.json
+# uv run np-finance update-reimbursements --anchors reports/output/reimbursement-anchors.json
 
 # [gmail]                                    # optional - omit entirely if unused
 # client_secrets_file = "secrets/gmail-client-secret.json"   # OAuth Desktop-app client

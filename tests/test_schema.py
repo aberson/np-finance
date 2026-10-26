@@ -1,4 +1,4 @@
-"""Tests for pta_finance.schema — exact column lists + `is`-identity registry guard.
+"""Tests for np_finance.schema — exact column lists + `is`-identity registry guard.
 
 The identity assertions (``is``, not ``==``) are load-bearing: they ensure the
 :data:`schema.TABS` registry references the SAME tuple objects as the named column
@@ -10,7 +10,7 @@ constants; assert ``is`` not ``==``") encoded as CI.
 
 from __future__ import annotations
 
-from pta_finance import schema
+from np_finance import schema
 
 # Expected column lists, copied verbatim from plan.md §12 Appendix.
 _EXPECTED_TRANSACTIONS = (

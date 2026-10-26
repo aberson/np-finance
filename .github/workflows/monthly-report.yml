@@ -52,12 +52,12 @@ jobs:
       - name: Generate report
         # The report targets the CURRENT fiscal year by default (no --fy needed); the CLI
         # derives it from today's UTC date + the configured fiscal_year.start_month.
-        run: uv run pta-finance report --variant both
+        run: uv run np-finance report --variant both
 
       - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pta-report-${{ github.run_id }}
+          name: np-report-${{ github.run_id }}
           path: reports/output/
           if-no-files-found: warn
 

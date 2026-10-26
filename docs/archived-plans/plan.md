@@ -1,11 +1,11 @@
-# pta_finance — Plan (v1)
+# np_finance — Plan (v1)
 
 > **Identity rule (load-bearing).** This is a **generic, reusable finance toolkit** for a
-> PTA / booster club / small nonprofit. **No organization, school, person, or email may be
+> non-profit organization. **No organization, school, person, or email may be
 > hard-coded anywhere in this repository** — code, docs, tests, fixtures, or examples. All
 > identity (org name, school name, school email, board emails, spreadsheet/Drive IDs,
 > fiscal-year setting, grade labels, category lists) lives **only** in a private, gitignored
-> config file. Tests and examples use obviously-fake placeholders (`Example PTA`,
+> config file. Tests and examples use obviously-fake placeholders (`Example Non-profit`,
 > `treasurer@example.org`). A CI guard fails the build if a service-account key or an
 > identity string is staged. The repo is public; the data is private.
 
@@ -37,7 +37,7 @@ See **§ Roadmap** for Phases 2–4 (Apps Script automation, admin web UI, wiki/
 | Language / runtime | Python `>=3.12` | Maintained runtime baseline; `tomllib` in stdlib (no TOML dep) |
 | Dependency / build | `uv` + `hatchling` | Reproducible dependency resolution and a small standards-based build backend |
 | Sheets/Drive access | `gspread` 6.x + `google-auth` | Clean service-account API (`service_account()`, `batch_update()`, `get_all_records()`); atomic batch writes. Low-level `google-api-python-client` deferred to Phase 2 (formatting/web) |
-| Data / analytics | `pandas` | C-optimized `groupby` + `pd.Grouper(freq="MS")` for by-category/grade/month aggregation; fine for PTA volumes |
+| Data / analytics | `pandas` | C-optimized `groupby` + `pd.Grouper(freq="MS")` for by-category/grade/month aggregation; fine for non-profit volumes |
 | Charts | `matplotlib` (Agg backend) | Deterministic, headless, zero-browser rendering in CI. **Not** Plotly/Kaleido (needs Chrome) |
 | Templating | `Jinja2` | Two report variants from two templates; HTML autoescape for payee/memo fields |
 | PDF (optional extra `[pdf]`) | `WeasyPrint` | HTML→PDF. **Optional** because Pango/Cairo native deps are heavy on Windows; the primary output is HTML |
@@ -65,7 +65,7 @@ directly (it's a spreadsheet), so the toolkit is **idempotent** and **never reas
 | `events` | Calendar events (fundraisers/meetings) — **defined now, used in Phase 2** | `id` = `EVT-FY{yy}-{slug}` |
 | `report_log` | One row per generated report run (timestamp, variant, output links) | append-only |
 
-Column definitions are the **single source of truth** in `pta_finance/schema.py` (see § Modules
+Column definitions are the **single source of truth** in `np_finance/schema.py` (see § Modules
 and § Appendix). Both the writer (ETL) and readers (analytics, reports) import the same column
 lists; regression tests assert column-list identity with `is`, not `==`, so future re-duplication
 fails CI (workspace `code-quality` rule: one source of truth for data-shape constants).
@@ -80,7 +80,7 @@ projection), but the `transactions` / `receipts` / `budget` / `events` tabs — 
 
 ### Identifiers
 
-IDs are human-readable, fiscal-year-scoped, and **stable**. Defined once in `pta_finance/ids.py`:
+IDs are human-readable, fiscal-year-scoped, and **stable**. Defined once in `np_finance/ids.py`:
 
 - `TXN-FY{yy}-{seq:04d}` — e.g. `TXN-FY26-0001`. `yy` = last two digits of the transaction's
   fiscal-year label; `seq` is a zero-padded per-fiscal-year sequence.
@@ -122,7 +122,7 @@ blast radius of a write and reduces the chance of clobbering a concurrent human 
 
 ## 4. Domain Model
 
-### Entities (dataclasses in `pta_finance/models.py`)
+### Entities (dataclasses in `np_finance/models.py`)
 
 - **Transaction** — `id`, `date`, `fiscal_year`, `type` (`income`|`expense`), `amount`,
   `category`, `grade` (optional), `payee`, `memo`, `budget_id?`, `receipt_id?`,
@@ -136,7 +136,7 @@ blast radius of a write and reduces the chance of clobbering a concurrent human 
 `grade` is an **optional** dimension (some spend is school-wide). Grade labels come from config —
 the toolkit never hard-codes a grade range.
 
-### Analytics (`pta_finance/analytics/`)
+### Analytics (`np_finance/analytics/`)
 
 - **Aggregations** (`aggregate.py`): totals; income vs expense; by category; by grade; by month
   (`pd.Grouper(freq="MS")`); budget-vs-actual variance per category/grade.
@@ -144,7 +144,7 @@ the toolkit never hard-codes a grade range.
   comparison. (Forecasting — one year ahead — is **Phase 4**; the trend series is the input it
   will consume.)
 
-### Reports (`pta_finance/reports/`)
+### Reports (`np_finance/reports/`)
 
 Pure-template (no LLM). The **report data model** is computed once by `builder.py` from the
 analytics layer, then rendered by `render.py` into two variants from two Jinja2 templates:
@@ -175,7 +175,7 @@ path.
 
 ## 5. Modules
 
-`pta_finance/` (flat package, mirroring `switchboard/`):
+`np_finance/` (flat package, mirroring `switchboard/`):
 
 - **`config.py`** — load + validate the private `config.toml` (stdlib `tomllib`); resolve the
   service-account key path; expose typed config objects. Fails fast with a clear error if a
@@ -208,25 +208,25 @@ path.
 - **`reports/`** — `builder.py` (compute report data model), `render.py` (Jinja2 → HTML, optional
   WeasyPrint PDF), `charts.py` (matplotlib Agg), `templates/` (`internal.html.j2`, `external.html.j2`).
 - **`cli.py`** — `argparse` entry point (`main`) exposing the subcommands below; wired as the
-  `pta-finance` console script.
+  `np-finance` console script.
 
 ### CLI subcommands
 
 | Command | Action |
 |---|---|
-| `pta-finance check` | Validate `report_log` schema + Budget Timeseries source readability; real round-trip read/write/delete of a test row in `report_log` (smoke) |
-| `pta-finance init-sheet [--target production\|test]` | Create the live-required tab and headers in the selected spreadsheet |
-| `pta-finance snapshot` | Export safe CSV + exact tagged entered-value JSON backups of the live tab set (`report_log` + Budget Timeseries; skips absent tabs) |
-| `pta-finance normalize` | (legacy) Normalize legacy/raw ledger → canonical schema, assign IDs, dedup (snapshot first) |
-| `pta-finance analyze [--fy YYYY]` | Run analytics over the Budget Timeseries tab; print summary |
-| `pta-finance report [--fy YYYY] [--variant internal\|external\|both]` | Generate fiscal-year report(s) from the Budget Timeseries tab (default: current FY) |
-| `pta-finance import-budget` | (legacy) Load a budget worksheet into the canonical budget tab |
-| `pta-finance sync-budget --fy YYYY [--apply]` | Preview or apply editable-budget changes to Budget Timeseries; snapshots before writes |
-| `pta-finance ingest-receipts --source <path> [--profile]` | Parse or profile reimbursement-form `.eml`/`.mbox` exports |
-| `pta-finance map-receipts --source <path> [--write-tab Reimbursements]` | Map submissions to the flat ledger and optionally replace its machine-owned Sheet tab |
-| `pta-finance fetch-mail --since YYYY-MM-DD` | Acquire a bounded Gmail window into the local `.eml` archive; no Sheet write |
-| `pta-finance report-reimbursements` | Validate the private structured review bundle and atomically render its HTML offline |
-| `pta-finance update-reimbursements [--fetch-since YYYY-MM-DD]` | Optionally acquire mail, refresh stable-keyed local evidence, then render; never sends mail or writes Sheets |
+| `np-finance check` | Validate `report_log` schema + Budget Timeseries source readability; real round-trip read/write/delete of a test row in `report_log` (smoke) |
+| `np-finance init-sheet [--target production\|test]` | Create the live-required tab and headers in the selected spreadsheet |
+| `np-finance snapshot` | Export safe CSV + exact tagged entered-value JSON backups of the live tab set (`report_log` + Budget Timeseries; skips absent tabs) |
+| `np-finance normalize` | (legacy) Normalize legacy/raw ledger → canonical schema, assign IDs, dedup (snapshot first) |
+| `np-finance analyze [--fy YYYY]` | Run analytics over the Budget Timeseries tab; print summary |
+| `np-finance report [--fy YYYY] [--variant internal\|external\|both]` | Generate fiscal-year report(s) from the Budget Timeseries tab (default: current FY) |
+| `np-finance import-budget` | (legacy) Load a budget worksheet into the canonical budget tab |
+| `np-finance sync-budget --fy YYYY [--apply]` | Preview or apply editable-budget changes to Budget Timeseries; snapshots before writes |
+| `np-finance ingest-receipts --source <path> [--profile]` | Parse or profile reimbursement-form `.eml`/`.mbox` exports |
+| `np-finance map-receipts --source <path> [--write-tab Reimbursements]` | Map submissions to the flat ledger and optionally replace its machine-owned Sheet tab |
+| `np-finance fetch-mail --since YYYY-MM-DD` | Acquire a bounded Gmail window into the local `.eml` archive; no Sheet write |
+| `np-finance report-reimbursements` | Validate the private structured review bundle and atomically render its HTML offline |
+| `np-finance update-reimbursements [--fetch-since YYYY-MM-DD]` | Optionally acquire mail, refresh stable-keyed local evidence, then render; never sends mail or writes Sheets |
 
 ## 6. API Route Contract
 
@@ -235,7 +235,7 @@ path.
 ## 7. Project Structure
 
 ```
-pta_finance/                      # repo root (standalone public repo)
+np_finance/                      # repo root (standalone public repo)
 ├── plan.md                       # this document
 ├── CLAUDE.md                     # project context for future sessions (generic)
 ├── README.md                     # generic toolkit readme
@@ -250,7 +250,7 @@ pta_finance/                      # repo root (standalone public repo)
 │   └── workflows/
 │       ├── ci.yml                # lint + type + test on PR
 │       └── monthly-report.yml    # cron 0 9 1 * * + workflow_dispatch
-├── pta_finance/                  # the package (flat layout)
+├── np_finance/                  # the package (flat layout)
 │   ├── __init__.py
 │   ├── config.py
 │   ├── ids.py
@@ -348,7 +348,7 @@ pta_finance/                      # repo root (standalone public repo)
 | Scheduled workflow auto-disables after 60 days of no **repo activity** (public repo) | Monthly report silently stops — the cron firing does **not** count as activity | The workflow pushes a `.github/last-run.txt` timestamp each run (a liveness marker, not a report) so repo activity resets the 60-day timer; CLAUDE.md documents the one-click re-enable in the Actions tab |
 | Concurrent human edit during a tool read→modify→write | Lost update — the tool overwrites a row a human just changed | Writes target specific rows/ranges by ID (not full-tab overwrite); snapshot-before-write preserves prior state; v1 contention is low (single treasurer, monthly cadence). A concurrent-modification check is a Phase-2 add |
 | `gspread` v6 reordered `update()` args | Silent wrong-cell writes | Always call with named args (`range_name=`, `values=`) |
-| Nested git repo (project lives inside the `dev` workspace tree) | Confusion publishing the standalone public repo | Resolved at `/repo-init`: pta_finance is its own repo; keep the dev workspace's tracking out of it |
+| Nested git repo (project lives inside the `dev` workspace tree) | Confusion publishing the standalone public repo | Resolved at `/repo-init`: np_finance is its own repo; keep the dev workspace's tracking out of it |
 | Forecasting deferred | Stakeholders expect it in v1 | Explicitly Phase 4; v1 ships the trend series it will consume |
 
 ## 10. How to Run
@@ -367,11 +367,11 @@ cp config.example.toml config.toml
 #    share the spreadsheet + Drive folder with the service-account email (Editor)
 
 # 4. Smoke-check the wiring
-uv run pta-finance check
+uv run np-finance check
 
 # 5. Analyze + report from the operator-maintained Budget Timeseries tab
-uv run pta-finance analyze
-uv run pta-finance report --fy 2027 --variant both
+uv run np-finance analyze
+uv run np-finance report --fy 2027 --variant both
 # normalize is a legacy write command; it is not part of the current reporting setup.
 ```
 
@@ -406,12 +406,12 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 *(These run unattended via `/build-phase`.)*
 
 ### Step 1: Scaffold + tooling + config + IDs
-- **Problem:** Create the `uv`/hatchling project (pyproject with ruff, mypy-strict, pytest mirroring `switchboard`), flat `pta_finance/` package skeleton, `.gitignore` (config.toml, secrets/, *.json, .env, caches), `config.example.toml` with FAKE placeholders, generic `README.md`, `config.py` (load+validate TOML, resolve SA key path), and `ids.py` (ID grammar + `fiscal_year_label`) with tests. Add a CI guard script that fails if a `*.json` credential or an identity pattern is staged.
+- **Problem:** Create the `uv`/hatchling project (pyproject with ruff, mypy-strict, pytest mirroring `switchboard`), flat `np_finance/` package skeleton, `.gitignore` (config.toml, secrets/, *.json, .env, caches), `config.example.toml` with FAKE placeholders, generic `README.md`, `config.py` (load+validate TOML, resolve SA key path), and `ids.py` (ID grammar + `fiscal_year_label`) with tests. Add a CI guard script that fails if a `*.json` credential or an identity pattern is staged.
 - **Type:** code
 - **Issue:** #1
 - **Flags:** --reviewers code --isolation worktree
-- **Produces:** project skeleton, `pta_finance/config.py`, `pta_finance/ids.py`, `tests/test_ids.py`, `tests/test_config.py`, `config.example.toml`, `.gitignore`, `.github/workflows/ci.yml`
-- **Done when:** `uv run pytest -q`, `uv run ruff check .`, `uv run mypy --strict pta_finance` all pass; ID tests assert exact formats; `config.py` fails fast on a missing required field (tested)
+- **Produces:** project skeleton, `np_finance/config.py`, `np_finance/ids.py`, `tests/test_ids.py`, `tests/test_config.py`, `config.example.toml`, `.gitignore`, `.github/workflows/ci.yml`
+- **Done when:** `uv run pytest -q`, `uv run ruff check .`, `uv run mypy --strict np_finance` all pass; ID tests assert exact formats; `config.py` fails fast on a missing required field (tested)
 - **Depends on:** none
 - **Status:** DONE (2026-06-23)
 
@@ -420,7 +420,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Type:** code
 - **Issue:** #2
 - **Flags:** --reviewers code --isolation worktree
-- **Produces:** `pta_finance/schema.py`, `pta_finance/models.py`, `tests/test_schema.py`
+- **Produces:** `np_finance/schema.py`, `np_finance/models.py`, `tests/test_schema.py`
 - **Done when:** tests pass incl. an `is`-identity assertion on a shared column list; mypy strict clean
 - **Depends on:** 1
 - **Status:** DONE (2026-06-23)
@@ -430,7 +430,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Type:** code
 - **Issue:** #3
 - **Flags:** --reviewers code --isolation worktree
-- **Produces:** `pta_finance/sheets.py`, `pta_finance/backup.py`, `tests/` additions
+- **Produces:** `np_finance/sheets.py`, `np_finance/backup.py`, `tests/` additions
 - **Done when:** unit + integration tests pass against a mocked client; mypy strict clean (add `[[tool.mypy.overrides]]` for `gspread`/`google.*` if untyped)
 - **Depends on:** 2
 - **Status:** DONE (2026-06-23)
@@ -440,7 +440,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Type:** code
 - **Issue:** #4
 - **Flags:** --reviewers code --isolation worktree
-- **Produces:** `pta_finance/etl.py`, `normalize` in `cli.py`, `tests/test_etl.py`
+- **Produces:** `np_finance/etl.py`, `normalize` in `cli.py`, `tests/test_etl.py`
 - **Done when:** round-trip test passes; re-running normalize is idempotent (no dup IDs, no reassigned IDs); a malformed-legacy-row fixture is flagged `needs_review`, not fatal
 - **Depends on:** 3
 - **Status:** DONE (2026-06-23)
@@ -450,7 +450,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Type:** code
 - **Issue:** #5
 - **Flags:** --reviewers code --isolation worktree
-- **Produces:** `pta_finance/analytics/`, `analyze` in `cli.py`, `tests/test_analytics.py`
+- **Produces:** `np_finance/analytics/`, `analyze` in `cli.py`, `tests/test_analytics.py`
 - **Done when:** known-fixture → expected-number assertions pass; mypy strict clean
 - **Depends on:** 4
 - **Status:** DONE (2026-06-23)
@@ -460,7 +460,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Type:** code
 - **Issue:** #6
 - **Flags:** --reviewers code --isolation worktree
-- **Produces:** `pta_finance/reports/`, `report` in `cli.py`, `tests/test_reports.py`
+- **Produces:** `np_finance/reports/`, `report` in `cli.py`, `tests/test_reports.py`
 - **Done when:** both variants render from a fixture without error; a unit test AND the runtime `ExternalReportPIIError` guard both reject an external data model containing payee/receipt/PII fields; mypy strict clean
 - **Depends on:** 5
 - **Status:** DONE (2026-06-23) — Drive upload deferred to Phase 2 (needs google-api-python-client per §8); v1 = local output + CI artifact
@@ -476,12 +476,12 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Status:** DONE (2026-06-23)
 
 ### Step 8: GitHub Actions monthly report workflow
-- **Problem:** Add `.github/workflows/monthly-report.yml` — `schedule: cron "0 9 1 * *"` + `workflow_dispatch`; `actions/checkout@v4`; `astral-sh/setup-uv` (cache on); restore `GOOGLE_SA_KEY_B64` + `PTA_CONFIG_B64` secrets by base64-decoding to files **without echoing**; `uv run pta-finance report --variant both` writes local reports and appends `report_log` rows; the workflow uploads `reports/output/` as an ephemeral artifact accessible to signed-in readers of this public repo; **never commit real reports to the repo**. Private Drive upload remains deferred. Also append a UTC timestamp to a tracked `.github/last-run.txt` and push it (keepalive so the public-repo scheduler isn't auto-disabled after 60 days; this liveness marker is not a report). Confirm `ci.yml` (lint/type/test on PR) from Step 1 is green.
+- **Problem:** Add `.github/workflows/monthly-report.yml` — `schedule: cron "0 9 1 * *"` + `workflow_dispatch`; `actions/checkout@v4`; `astral-sh/setup-uv` (cache on); restore `GOOGLE_SA_KEY_B64` + `PTA_CONFIG_B64` secrets by base64-decoding to files **without echoing**; `uv run np-finance report --variant both` writes local reports and appends `report_log` rows; the workflow uploads `reports/output/` as an ephemeral artifact accessible to signed-in readers of this public repo; **never commit real reports to the repo**. Private Drive upload remains deferred. Also append a UTC timestamp to a tracked `.github/last-run.txt` and push it (keepalive so the public-repo scheduler isn't auto-disabled after 60 days; this liveness marker is not a report). Confirm `ci.yml` (lint/type/test on PR) from Step 1 is green.
 - **Type:** code
 - **Issue:** #8
 - **Flags:** --reviewers code --isolation worktree
 - **Produces:** `.github/workflows/monthly-report.yml`, `.github/last-run.txt`
-- **Done when:** `actionlint` (or a YAML lint) passes; a test asserts the workflow restores secrets via file redirect with no `run: echo`/`cat` of a secret variable and that it invokes `pta-finance report`; the real credentialed end-to-end run is deferred to M3
+- **Done when:** `actionlint` (or a YAML lint) passes; a test asserts the workflow restores secrets via file redirect with no `run: echo`/`cat` of a secret variable and that it invokes `np-finance report`; the real credentialed end-to-end run is deferred to M3
 - **Depends on:** 7
 - **Status:** DONE (2026-06-23)
 
@@ -518,7 +518,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Issue:** N/A (operator step)
 - **Commands:**
   ```powershell
-  uv run pta-finance check
+  uv run np-finance check
   ```
 - **What to look for:**
   | Check | Expected outcome |
@@ -538,7 +538,7 @@ quality bar for producer→consumer pipelines and scheduled jobs.
 - **Commands:**
   ```powershell
   # Local end-to-end (use the current fiscal year — FY2027 as of 2026-09):
-  uv run pta-finance report --fy 2027 --variant both
+  uv run np-finance report --fy 2027 --variant both
   # CI end-to-end (after adding GOOGLE_SA_KEY_B64 + PTA_CONFIG_B64 secrets):
   gh workflow run monthly-report.yml
   ```
@@ -584,7 +584,7 @@ key = sha1(f"{iso_date}|{amount_cents}|{normalized_payee}").hexdigest()
 
 ```toml
 [organization]
-name        = "Example PTA"            # PTA / booster name
+name        = "Example Non-profit"            # non-profit organization name
 school_name = "Example Elementary"
 school_email = "office@example.org"
 
@@ -646,7 +646,7 @@ worktrees); pushed `cbeeecc..193bed2`.**
 
 | Area | Files |
 |---|---|
-| Package | `pta_finance/{config,ids,schema,models,sheets,backup,etl,cli}.py`, `analytics/{aggregate,trends}.py`, `reports/{builder,charts,render}.py` + `templates/{internal,external}.html.j2` |
+| Package | `np_finance/{config,ids,schema,models,sheets,backup,etl,cli}.py`, `analytics/{aggregate,trends}.py`, `reports/{builder,charts,render}.py` + `templates/{internal,external}.html.j2` |
 | Config / CI | `pyproject.toml`, `config.example.toml`, `scripts/check_no_identity.py`, `.github/workflows/{ci,monthly-report}.yml`, `.github/last-run.txt` |
 | Tests | `tests/conftest.py` + 12 `test_*.py` (full suite passing) |
 
@@ -746,13 +746,13 @@ Receipts land in a **flat, denormalized "Reimbursements" tab** (Explorer-ready),
 
 | File | Change |
 |---|---|
-| `pta_finance/receipt_ingest.py` | `.eml`/`.mbox` parser + PII-free `Profile` + shared RFC-822 received-date parser + `is_reply_or_forward` (structural recognition, no identity hard-coded) |
-| `pta_finance/receipt_map.py` | New — pure `Submission` → flat Reimbursements ledger rows (dedup, carry-forward, per-form default, `needs_review`) |
-| `pta_finance/reimbursement_events.py` | Strict private anchor, actor, proposal, payment, and item-complete operator-review parsing |
-| `pta_finance/reimbursement_pipeline.py` | Stable-keyed full-archive snapshot, exact supplemental linkage, lifecycle reduction, item recommendations, fail-closed merge, and atomic private-bundle refresh |
-| `pta_finance/reimbursement_report.py`, `pta_finance/reports/templates/reimbursement_queue.html.j2` | Strict schema-v2 loader with explicit v1 migration, supplemental history/unmatched evidence, deterministic email composition, summary model, and offline atomic HTML renderer |
-| `pta_finance/sheets.py` | New `replace_tab_grid` — schema-independent create/replace of a machine-owned tab (RAW grid + USER_ENTERED numeric column) |
-| `pta_finance/cli.py` | Receipt ingestion/mapping plus separate `report-reimbursements` and `update-reimbursements` entry points |
+| `np_finance/receipt_ingest.py` | `.eml`/`.mbox` parser + PII-free `Profile` + shared RFC-822 received-date parser + `is_reply_or_forward` (structural recognition, no identity hard-coded) |
+| `np_finance/receipt_map.py` | New — pure `Submission` → flat Reimbursements ledger rows (dedup, carry-forward, per-form default, `needs_review`) |
+| `np_finance/reimbursement_events.py` | Strict private anchor, actor, proposal, payment, and item-complete operator-review parsing |
+| `np_finance/reimbursement_pipeline.py` | Stable-keyed full-archive snapshot, exact supplemental linkage, lifecycle reduction, item recommendations, fail-closed merge, and atomic private-bundle refresh |
+| `np_finance/reimbursement_report.py`, `np_finance/reports/templates/reimbursement_queue.html.j2` | Strict schema-v2 loader with explicit v1 migration, supplemental history/unmatched evidence, deterministic email composition, summary model, and offline atomic HTML renderer |
+| `np_finance/sheets.py` | New `replace_tab_grid` — schema-independent create/replace of a machine-owned tab (RAW grid + USER_ENTERED numeric column) |
+| `np_finance/cli.py` | Receipt ingestion/mapping plus separate `report-reimbursements` and `update-reimbursements` entry points |
 | `tests/test_receipt_ingest.py`, `test_receipt_map.py`, `test_sheets.py` | Parser / profiler / mapper / writer coverage over synthetic fixtures |
 | `tests/test_reimbursement_events.py`, `test_reimbursement_pipeline.py`, `test_reimbursement_report.py`, `test_reimbursement_cli.py` | Synthetic anchor/proposal/payment parsing, stable-key, fail-closed, strict-schema, renderer, email, and CLI-boundary coverage |
 | `docs/loading-receipts.md`, `SETUP.md` | Operator load how-to + completeness check; acquisition half since replaced by `fetch-mail` (Gmail → `fetch-mail` → `map-receipts`), and SETUP.md §6 adds the OAuth stage |
@@ -813,7 +813,7 @@ Production implementation is governed by
 Reserve Steps 26–31 for this workflow. It is independent of the bank-statement/Google Slides
 work in Steps 14–25 and adds no scheduled mail fetching, Sheet writes, or message sending.
 
-Plan preparation completed 2026-09-10: [umbrella #55](https://github.com/aberson/pta_finance/issues/55),
+Plan preparation completed 2026-09-10: [umbrella #55](https://github.com/aberson/np-finance/issues/55),
 automated Steps 26–30 in #56–60, and attended Step 31 in #61. Implementation remains pending.
 
 ---
@@ -918,7 +918,7 @@ Phase 10 (action queue) shares `cli.py`, its CLI tests, `README.md` and `CLAUDE.
 lock file. Whichever phase lands second rebases (feature plan § 8). No decision is
 required before dispatch.
 
-Plan sync completed 2026-09-16: umbrella [#71](https://github.com/aberson/pta_finance/issues/71),
+Plan sync completed 2026-09-16: umbrella [#71](https://github.com/aberson/np-finance/issues/71),
 automated Steps 38–48 in #72–#82, attended Step 49 (M9) in #83. Step 38 is complete; receipt autofill implementation begins at Step 39.
 The 2026-10-09 amendment changes the briefs behind #73 and #75–#83. The next `/repo-sync` re-syncs
 those issues, and it also syncs the Wave 1 plan's Step 16 note to #43.
@@ -933,7 +933,7 @@ offline evidence layer to the reimbursement queue; it changes no amounts, decisi
 
 ### What was built
 
-- `pta_finance/receipt_viewer.py`: strict loader for an optional private sidecar
+- `np_finance/receipt_viewer.py`: strict loader for an optional private sidecar
   (`<bundle>.receipts.json`) of PNG/JPEG receipt pages plus per-item locations, validated on exact
   keys, image digests, item fingerprints (`item_fingerprint` ties a location to the ticket's
   source evidence and displayed claim), in-bounds boxes, sidecar-relative path containment, and
@@ -956,10 +956,10 @@ offline evidence layer to the reimbursement queue; it changes no amounts, decisi
 
 | File | Change |
 |---|---|
-| `pta_finance/receipt_viewer.py` | New sidecar loader and item fingerprint |
-| `pta_finance/reimbursement_report.py` | `render_html(receipts=...)`, `build_report` sidecar detection |
-| `pta_finance/reports/templates/reimbursement_queue.html.j2` | Item buttons with receipt hints; viewer include |
-| `pta_finance/reports/templates/receipt_viewer.{html,css,js}.j2` | Dialog markup, styles, and inline viewer script |
+| `np_finance/receipt_viewer.py` | New sidecar loader and item fingerprint |
+| `np_finance/reimbursement_report.py` | `render_html(receipts=...)`, `build_report` sidecar detection |
+| `np_finance/reports/templates/reimbursement_queue.html.j2` | Item buttons with receipt hints; viewer include |
+| `np_finance/reports/templates/receipt_viewer.{html,css,js}.j2` | Dialog markup, styles, and inline viewer script |
 | `tests/test_receipt_viewer.py` | Loader, determinism, invalid-evidence, and browser navigation tests |
 | `docs/receipt-viewer.md`, `docs/loading-receipts.md` | Operator guide and cross-link |
 | `README.md`, `CLAUDE.md` | Feature mention, guide link, current state |
@@ -998,9 +998,9 @@ automatic receipt producer remains planned.
 
 | File | Change |
 |---|---|
-| `pta_finance/reimbursement_report.py` | Validate settled mixed outcomes; return receipt-link count |
-| `pta_finance/cli.py` | Print linked and unlinked item counts |
-| `pta_finance/reports/templates/reimbursement_queue.html.j2` | Show mixed closure and resolution |
+| `np_finance/reimbursement_report.py` | Validate settled mixed outcomes; return receipt-link count |
+| `np_finance/cli.py` | Print linked and unlinked item counts |
+| `np_finance/reports/templates/reimbursement_queue.html.j2` | Show mixed closure and resolution |
 | `tests/test_reimbursement_report.py`, `tests/test_reimbursement_cli.py`, `tests/test_receipt_viewer.py` | Cover mixed closure and count output |
 | `README.md`, `docs/receipt-viewer.md`, `CLAUDE.md` | Refresh operator and current-state guidance |
 

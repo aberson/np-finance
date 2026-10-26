@@ -31,9 +31,9 @@ None. No additional platform, accounting service, scheduler, or test campaign is
 
 | Check | Result / primary evidence |
 |---|---|
-| 1 Persistence | Versioned private JSON captures/manifests; live append-only Assumptions journal; §10 defines corruption/conflict behavior. Existing typed backup producer: `pta_finance/backup.py:266`, `:372`. |
-| 2 Integrations | Google Sheets, existing optional Gmail, Chromium; scopes, failure/retry and capture stability specified. `pta_finance/sheets.py:179`, `:224`; CLI fetch flags at `pta_finance/cli.py:1719`, `:1726`. |
-| 3 Secrets/auth | Existing config paths and separate readonly CFO client; `pta_finance/config.py:84`, `:195`; default `SheetsClient.connect` calls service_account without readonly scope, so reuse requires an explicitly scoped injected client. |
+| 1 Persistence | Versioned private JSON captures/manifests; live append-only Assumptions journal; §10 defines corruption/conflict behavior. Existing typed backup producer: `np_finance/backup.py:266`, `:372`. |
+| 2 Integrations | Google Sheets, existing optional Gmail, Chromium; scopes, failure/retry and capture stability specified. `np_finance/sheets.py:179`, `:224`; CLI fetch flags at `np_finance/cli.py:1719`, `:1726`. |
+| 3 Secrets/auth | Existing config paths and separate readonly CFO client; `np_finance/config.py:84`, `:195`; default `SheetsClient.connect` calls service_account without readonly scope, so reuse requires an explicitly scoped injected client. |
 | 4 Concurrency | Finite synchronous CLI; local lock and Sheets race limitations explicit. No background job status service needed. |
 | 5 Failure feedback | §10 defines exit codes, private error evidence, stale/partial coverage and alias-copy status. |
 | 6 Toolchain | All six command classes documented in §10; `pyproject.toml` declares Python >=3.12, hatchling, uv-compatible dependencies and CLI entry. |

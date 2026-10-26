@@ -20,7 +20,7 @@ from test_shared_workflow_queue import HEADERS, Queue, by_ref, endpoint  # noqa:
 from test_shared_workflow_queue import queue as queue  # noqa: E402
 from test_shared_workflow_store import body  # noqa: E402
 
-from pta_finance.shared_workflow import models  # noqa: E402
+from np_finance.shared_workflow import models  # noqa: E402
 from scripts.shared_workflow_smoke import ORIGIN, Server  # noqa: E402
 
 require_emulator()

@@ -21,10 +21,10 @@ from fastapi.testclient import TestClient  # noqa: E402
 from httpx import Response  # noqa: E402
 from test_shared_workflow_helpers import new_store, require_emulator, setup  # noqa: E402
 
-from pta_finance.shared_workflow.app import create_app  # noqa: E402
-from pta_finance.shared_workflow.auth import IAPVerifier  # noqa: E402
-from pta_finance.shared_workflow.config import Config  # noqa: E402
-from pta_finance.shared_workflow.store import Store  # noqa: E402
+from np_finance.shared_workflow.app import create_app  # noqa: E402
+from np_finance.shared_workflow.auth import IAPVerifier  # noqa: E402
+from np_finance.shared_workflow.config import Config  # noqa: E402
+from np_finance.shared_workflow.store import Store  # noqa: E402
 from scripts.shared_workflow_smoke import ORIGIN, Signer, assert_shapes  # noqa: E402
 
 require_emulator()
@@ -68,7 +68,7 @@ def assert_error(response: Response, status: int, code: str) -> None:
 def test_exact_http_wire_attribution_and_no_phase_b(
     http: tuple[TestClient, Config, Signer, Store], caplog: pytest.LogCaptureFixture
 ) -> None:
-    caplog.set_level(logging.INFO, logger="pta_finance.shared_workflow")
+    caplog.set_level(logging.INFO, logger="np_finance.shared_workflow")
     client, config, signer, store = http
     endpoint = f"/api/requests/{store.source['request_id']}"
     assert_shapes(client.get(endpoint).json())
@@ -82,7 +82,7 @@ def test_exact_http_wire_attribution_and_no_phase_b(
     assert current.json()["events"] == [receipt]
     for suffix in ("decision", "complete"):
         assert_error(client.post(endpoint + "/" + suffix), 404, "NOT_FOUND")
-    records = [record for record in caplog.records if record.name == "pta_finance.shared_workflow"]
+    records = [record for record in caplog.records if record.name == "np_finance.shared_workflow"]
     assert len(records) == 5
     messages = [record.getMessage() for record in records]
     assert all(
@@ -136,10 +136,10 @@ def test_production_startup_logging_boundary_in_fresh_process(
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from google.cloud.firestore_v1.services.firestore import FirestoreClient
-from pta_finance.shared_workflow import __main__ as launcher
-from pta_finance.shared_workflow.auth import IAPVerifier, KeyCache
-from pta_finance.shared_workflow.config import Config, load_config
-from pta_finance.shared_workflow.models import load_source
+from np_finance.shared_workflow import __main__ as launcher
+from np_finance.shared_workflow.auth import IAPVerifier, KeyCache
+from np_finance.shared_workflow.config import Config, load_config
+from np_finance.shared_workflow.models import load_source
 from scripts.shared_workflow_smoke import CertificateTransport, Signer, emulator_client
 from uuid import uuid4
 

@@ -45,7 +45,7 @@ def test_schedule_and_dispatch_triggers() -> None:
 
 def test_runs_report_with_both_variants() -> None:
     text = _workflow_text()
-    assert "pta-finance report" in text, "workflow must invoke the report CLI"
+    assert "np-finance report" in text, "workflow must invoke the report CLI"
     assert "--variant both" in text, "report must be generated with --variant both"
     # `report` now defaults to the current fiscal year; the removed `--month` flag would make
     # the unattended argparse call fail, so the workflow must NOT pass it.

@@ -1412,7 +1412,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pta-finance"
+name = "np-finance"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

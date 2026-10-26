@@ -1,4 +1,4 @@
-"""Unit tests for the reimbursement-email parser (:mod:`pta_finance.receipt_ingest`).
+"""Unit tests for the reimbursement-email parser (:mod:`np_finance.receipt_ingest`).
 
 Fixtures are synthetic and use OBVIOUSLY-FAKE identity only (``Jane Doe``,
 ``jane.doe@example.org``, ``Example Garden``) per the repo identity rule. They reproduce the
@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import receipt_ingest
+from np_finance import receipt_ingest
 
 # --- Fixtures --------------------------------------------------------------
 

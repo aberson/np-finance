@@ -4,12 +4,12 @@
 > person, or email address appears here. The target mailbox, OAuth client, and token paths are
 > all values in the private, gitignored `config.toml`.
 
-**Umbrella issue:** [#22](https://github.com/aberson/pta_finance/issues/22) · step issues #15–#21
+**Umbrella issue:** [#22](https://github.com/aberson/np-finance/issues/22) · step issues #15–#21
 
 ## 1. What This Feature Does
 
 Replaces the manual *Gmail search → Google Takeout → `.mbox`* export with a
-`pta-finance fetch-mail --since YYYY-MM-DD` command that pulls messages straight from the
+`np-finance fetch-mail --since YYYY-MM-DD` command that pulls messages straight from the
 treasurer mailbox over the Gmail API and writes them as `.eml` files into a gitignored inbox
 directory. The existing `ingest-receipts` / `map-receipts` pipeline then runs over that directory
 unchanged.
@@ -33,10 +33,10 @@ labels, or deletes mail; correspondence stays a human action.
 
 | Thing | Where | Why it matters here |
 |---|---|---|
-| Email parser | `pta_finance/receipt_ingest.py` | `iter_source()` (~L436) already dispatches: a `.mbox` file → `iter_mbox`; a **directory** → every `*.eml` then every `*.mbox` inside it; anything else → a single `.eml`. A fetcher that drops `.eml` files into a directory needs **zero** downstream change. |
-| Ledger mapper | `pta_finance/receipt_map.py` | Dedups on `Message-ID` + content hash (L187-199), so re-fetching an overlapping window cannot double-count — **but the `seen_ids`/`seen_hashes` sets live inside a single `map_submissions()` call**, so this only holds when every source is mapped in one run. See Design Decision 10. |
-| Config loader | `pta_finance/config.py` | Frozen dataclasses. `Config` and `Google` are constructed in exactly **one** place (L190/L195); every other reference is a `load_config()` call. `_section()` (L95) **raises** on a missing section. |
-| CLI | `pta_finance/cli.py` | `argparse` subparsers; each command is `sub.add_parser(...)` + `set_defaults(func=_cmd_x)`. `ingest-receipts` (L1047) is the closest sibling and the shape to match. |
+| Email parser | `np_finance/receipt_ingest.py` | `iter_source()` (~L436) already dispatches: a `.mbox` file → `iter_mbox`; a **directory** → every `*.eml` then every `*.mbox` inside it; anything else → a single `.eml`. A fetcher that drops `.eml` files into a directory needs **zero** downstream change. |
+| Ledger mapper | `np_finance/receipt_map.py` | Dedups on `Message-ID` + content hash (L187-199), so re-fetching an overlapping window cannot double-count — **but the `seen_ids`/`seen_hashes` sets live inside a single `map_submissions()` call**, so this only holds when every source is mapped in one run. See Design Decision 10. |
+| Config loader | `np_finance/config.py` | Frozen dataclasses. `Config` and `Google` are constructed in exactly **one** place (L190/L195); every other reference is a `load_config()` call. `_section()` (L95) **raises** on a missing section. |
+| CLI | `np_finance/cli.py` | `argparse` subparsers; each command is `sub.add_parser(...)` + `set_defaults(func=_cmd_x)`. `ingest-receipts` (L1047) is the closest sibling and the shape to match. |
 | Secret posture | `.gitignore`, `.github/workflows/monthly-report.yml` | `secrets/` and `mail_samples/` are gitignored, and `*.eml` / `*.mbox` are gitignored globally — two independent rules cover both new paths. CI decodes base64 secrets to a file without echoing (L49). |
 | Auth today | `secrets/service-account.json` | A **service account**, used for Sheets/Drive. It cannot read the mailbox (see Design Decision 1). |
 | Existing archives | `mail_samples/*.mbox` (gitignored) | One archive covers submissions from early in the prior fiscal year; the other was exported with an `after:` search covering **2026-04-30 onward**. A backfill from 2026-06-01 therefore **overlaps the existing archives by roughly eleven weeks** — dedup is mandatory, not optional. |
@@ -72,9 +72,9 @@ labels, or deletes mail; correspondence stays a human action.
 
 | File | Change Type | Reason | Verified |
 |---|---|---|---|
-| `pta_finance/gmail_source.py` | create | New OAuth client + fetch logic | glob confirmed absent; `grep -rniE "gmail\|oauth\|imap\|refresh_token" --include=*.py pta_finance tests` → 0 hits outside `.venv` |
-| `pta_finance/config.py` | modify | Add optional `Gmail` dataclass + wire into `Config` | grep'd all `Config(`/`Google(`/`load_config(` sites: **10 total** — 2 constructions, both in `config.py` (L190, L195); 8 are `load_config()` calls (`cli.py:50`, `tests/conftest.py:56`, `tests/test_config.py:49,82,91,98,108`, `tests/test_reports.py:66`). Optional section ⇒ **no caller or fixture changes** |
-| `pta_finance/cli.py` | extend | New `fetch-mail` subparser + `_cmd_fetch_mail` | grep'd `add_parser` → 10 existing commands; additive, no existing parser touched |
+| `np_finance/gmail_source.py` | create | New OAuth client + fetch logic | glob confirmed absent; `grep -rniE "gmail\|oauth\|imap\|refresh_token" --include=*.py np_finance tests` → 0 hits outside `.venv` |
+| `np_finance/config.py` | modify | Add optional `Gmail` dataclass + wire into `Config` | grep'd all `Config(`/`Google(`/`load_config(` sites: **10 total** — 2 constructions, both in `config.py` (L190, L195); 8 are `load_config()` calls (`cli.py:50`, `tests/conftest.py:56`, `tests/test_config.py:49,82,91,98,108`, `tests/test_reports.py:66`). Optional section ⇒ **no caller or fixture changes** |
+| `np_finance/cli.py` | extend | New `fetch-mail` subparser + `_cmd_fetch_mail` | grep'd `add_parser` → 10 existing commands; additive, no existing parser touched |
 | `pyproject.toml` | modify | Add `google-api-python-client`, `google-auth-oauthlib` | read deps (L8-14); `[[tool.mypy.overrides]]` already lists `google.*` under `ignore_missing_imports`, so **no new mypy override needed** |
 | `config.example.toml` | modify | Document the `[gmail]` block with fake placeholders | read in full; commented-out `[llm]` block is the precedent for an optional section |
 | `tests/test_gmail_source.py` | create | Scope guard, query building, idempotent write, dead-token error | glob confirmed absent; suite is 18 files / 218 test functions |
@@ -88,7 +88,7 @@ optional keeps every existing construction and fixture valid.
 
 ## 5. New Components
 
-- **`pta_finance/gmail_source.py`** — the whole Gmail surface, isolated so nothing else imports
+- **`np_finance/gmail_source.py`** — the whole Gmail surface, isolated so nothing else imports
   `googleapiclient`:
   - `SCOPES: Final[tuple[str, ...]]` — the single source of truth for OAuth scope.
   - `GmailAuthError(Exception)` — actionable failures (missing client secrets, dead refresh token,
@@ -247,12 +247,12 @@ explicitly so reviewers can confirm the classification rather than infer it.)*
 
 <!-- autofix-applied: 2026-08-25 -->
 ### Step 9: Gmail OAuth client + pinned read-only scope
-- **Problem:** Create `pta_finance/gmail_source.py` with a `Final` `SCOPES` tuple containing exactly `gmail.readonly`, a `GmailAuthError` with actionable messages, and `load_credentials()` that loads/refreshes the token, re-checks granted scopes at runtime, and raises a remediation-bearing error when the refresh token is dead. Add an **optional** `Gmail` dataclass to `config.py` via `data.get("gmail")` so `Config.gmail` is `None` when the section is absent, plus a `[gmail]` block in `config.example.toml` using fake placeholders only. Add `google-api-python-client` and `google-auth-oauthlib` to `pyproject.toml`.
+- **Problem:** Create `np_finance/gmail_source.py` with a `Final` `SCOPES` tuple containing exactly `gmail.readonly`, a `GmailAuthError` with actionable messages, and `load_credentials()` that loads/refreshes the token, re-checks granted scopes at runtime, and raises a remediation-bearing error when the refresh token is dead. Add an **optional** `Gmail` dataclass to `config.py` via `data.get("gmail")` so `Config.gmail` is `None` when the section is absent, plus a `[gmail]` block in `config.example.toml` using fake placeholders only. Add `google-api-python-client` and `google-auth-oauthlib` to `pyproject.toml`.
 - **Type:** code
 - **Issue:** #15
 - **Flags:** --reviewers deep
-- **Produces:** `pta_finance/gmail_source.py`, modified `config.py` / `config.example.toml` / `pyproject.toml`, `tests/test_gmail_source.py`
-- **Done when:** `uv sync --extra dev` is run first (this step adds two dependencies and a fresh worktree does not inherit `.venv` — per the workspace `worktree-hygiene.md` rule: fresh worktrees do not inherit `.venv`); then `uv run pytest -q` passes with the full suite at ≥218 tests plus new ones; a test asserts `gmail_source.SCOPES == ("https://www.googleapis.com/auth/gmail.readonly",)` by **exact equality**; a test asserts a token carrying an extra scope is rejected; a test asserts `load_config()` on a config with **no** `[gmail]` section yields `cfg.gmail is None` and does not raise; `mypy --strict pta_finance` and `ruff check .` clean.
+- **Produces:** `np_finance/gmail_source.py`, modified `config.py` / `config.example.toml` / `pyproject.toml`, `tests/test_gmail_source.py`
+- **Done when:** `uv sync --extra dev` is run first (this step adds two dependencies and a fresh worktree does not inherit `.venv` — per the workspace `worktree-hygiene.md` rule: fresh worktrees do not inherit `.venv`); then `uv run pytest -q` passes with the full suite at ≥218 tests plus new ones; a test asserts `gmail_source.SCOPES == ("https://www.googleapis.com/auth/gmail.readonly",)` by **exact equality**; a test asserts a token carrying an extra scope is rejected; a test asserts `load_config()` on a config with **no** `[gmail]` section yields `cfg.gmail is None` and does not raise; `mypy --strict np_finance` and `ruff check .` clean.
 - **Depends on:** none
 - **Status:** DONE (2026-08-25)
 
@@ -269,11 +269,11 @@ explicitly so reviewers can confirm the classification rather than infer it.)*
 
 <!-- autofix-applied: 2026-08-25 -->
 ### Step M4: Google Cloud OAuth client + one-time consent (operator)
-- **Problem:** In the existing Cloud project, enable the Gmail API and create an OAuth **Desktop app** client. Download the client-secrets JSON to the gitignored `secrets/` directory and add the `[gmail]` block to the private `config.toml`. Run `pta-finance fetch-mail --since <recent-date> --dry-run` once to trigger the browser consent flow and mint the token. **Then add the consenting account as a test user and leave the publishing status at *Testing*.** *(Amended 2026-08-26, replacing "set the OAuth consent screen to Production": Production is unreachable for this project — Google requires a public homepage URL and a hosted privacy-policy URL, pages this project has no reason to host.)* The consequence is accepted rather than avoided: in *Testing*, refresh tokens expire 7 days after consent, so a hands-on run will re-open the browser for approval roughly weekly. That is expected behaviour, not a fault, and it is tolerable precisely because this phase is local-only by design (Design Decision 7 keeps the token out of CI).
+- **Problem:** In the existing Cloud project, enable the Gmail API and create an OAuth **Desktop app** client. Download the client-secrets JSON to the gitignored `secrets/` directory and add the `[gmail]` block to the private `config.toml`. Run `np-finance fetch-mail --since <recent-date> --dry-run` once to trigger the browser consent flow and mint the token. **Then add the consenting account as a test user and leave the publishing status at *Testing*.** *(Amended 2026-08-26, replacing "set the OAuth consent screen to Production": Production is unreachable for this project — Google requires a public homepage URL and a hosted privacy-policy URL, pages this project has no reason to host.)* The consequence is accepted rather than avoided: in *Testing*, refresh tokens expire 7 days after consent, so a hands-on run will re-open the browser for approval roughly weekly. That is expected behaviour, not a fault, and it is tolerable precisely because this phase is local-only by design (Design Decision 7 keeps the token out of CI).
 - **Type:** operator
 - **Issue:** #17
 - **Produces:** nothing in the repo — a gitignored client-secrets file, a gitignored token file, and a `config.toml` edit
-- **Done when:** `pta-finance fetch-mail --since <recent-date> --dry-run` exits 0 and reports a message count. Verified by exit code and count only — no token or secret file contents are ever printed (per the workspace `security.md` rule, "Never dump secret file contents" -- metadata and exit codes only, never file contents). The consenting account is listed as a **test user** and the publishing status is *Testing* (amended 2026-08-26 — Production is not reachable here; see Problem).
+- **Done when:** `np-finance fetch-mail --since <recent-date> --dry-run` exits 0 and reports a message count. Verified by exit code and count only — no token or secret file contents are ever printed (per the workspace `security.md` rule, "Never dump secret file contents" -- metadata and exit codes only, never file contents). The consenting account is listed as a **test user** and the publishing status is *Testing* (amended 2026-08-26 — Production is not reachable here; see Problem).
 - **Depends on:** 10 — the `Done when:` invokes `fetch-mail`, which Step 10 creates; depending on Step 9 alone would dispatch this step before the command exists.
 
 <!-- autofix-applied: 2026-08-25 -->
@@ -282,7 +282,7 @@ explicitly so reviewers can confirm the classification rather than infer it.)*
 - **Type:** wait
 - **Issue:** #18
 - **Produces:** nothing — an observation only
-- **Done when:** `pta-finance fetch-mail --since <recent-date> --dry-run` is run in a **fresh shell ≥8 days after consent** and the outcome is recorded. In *Testing* mode a re-consent prompt at that point is the **expected** result (amended 2026-08-26), and re-approving then exiting 0 satisfies this step — it confirms the ~weekly cadence the operator should plan around. A run that exits 0 with no prompt is also fine; neither outcome is a failure.
+- **Done when:** `np-finance fetch-mail --since <recent-date> --dry-run` is run in a **fresh shell ≥8 days after consent** and the outcome is recorded. In *Testing* mode a re-consent prompt at that point is the **expected** result (amended 2026-08-26), and re-approving then exiting 0 satisfies this step — it confirms the ~weekly cadence the operator should plan around. A run that exits 0 with no prompt is also fine; neither outcome is a failure.
 - **Depends on:** M4
 - **Blocks:** nothing — this is a background confirmation, deliberately OFF the critical path so the backfill is not stalled for over a week.
 

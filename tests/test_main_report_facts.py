@@ -1,4 +1,4 @@
-"""Tests for pta_finance.main_reports.facts — school-year and calendar-year projections.
+"""Tests for np_finance.main_reports.facts — school-year and calendar-year projections.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). Scenarios run through the
 production path: private config loaded by the real loader -> read-only capture over fake
@@ -21,14 +21,14 @@ from typing import Any
 
 import pytest
 
-from pta_finance import ids, reimbursement_report
-from pta_finance.config import CrosswalkTarget
-from pta_finance.main_reports import facts, reconcile
-from pta_finance.main_reports.adjustments import (
+from np_finance import ids, reimbursement_report
+from np_finance.config import CrosswalkTarget
+from np_finance.main_reports import facts, reconcile
+from np_finance.main_reports.adjustments import (
     AdjustmentConflictError,
 )
-from pta_finance.main_reports.facts import FactsError, build_from, reporting_periods
-from pta_finance.main_reports.models import (
+from np_finance.main_reports.facts import FactsError, build_from, reporting_periods
+from np_finance.main_reports.models import (
     EXPENSE_BUCKETS,
     AdjustedLedger,
     AdjustmentIssue,

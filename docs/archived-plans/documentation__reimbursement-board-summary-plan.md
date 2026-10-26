@@ -15,7 +15,7 @@ The selected defaults below stand for implementation; their D labels retain thei
 as agent recommendations. GitHub uses Phase 6 with global Steps 26–31, following the
 separate Phase 5 slide track without depending on its unfinished work.
 
-**Issue tracking:** [Phase 6 umbrella #55](https://github.com/aberson/pta_finance/issues/55).
+**Issue tracking:** [Phase 6 umbrella #55](https://github.com/aberson/np-finance/issues/55).
 Steps 26–30 map to #56–60; attended Step 31 maps to #61. Plan-expedite completed the
 review, readiness, and issue-synchronization gates on 2026-09-10.
 
@@ -43,18 +43,18 @@ dataclasses, `Decimal` money, and Jinja2 HTML templates with automatic text esca
 
 | Producer | Relevant behavior verified in source |
 |---|---|
-| `pta_finance/reimbursement_report.py:1437` | `load_bundle(Path) -> ReimbursementReport` validates the private schema-v2 bundle and accepts v1 through its existing migration. |
-| `pta_finance/reimbursement_report.py:220` | A ticket has a stable `review_key`, a display reference, live decision/payment state, reviewed line items, and source context. Display references alone are not unique across legacy forms. |
-| `pta_finance/reimbursement_report.py:340` | `active_tickets`, `closed_tickets`, and `summary` describe the current bundle. Closed means workflow state `SETTLED`; it is not merely a recommendation to approve. |
-| `pta_finance/reimbursement_report.py:1526` | `render_html(report)` produces the full offline queue. `build_report(data_path, output_path)` validates and atomically writes it. |
-| `pta_finance/reimbursement_pipeline.py:1947` | `plan_bundle_refresh(...)` validates a full local archive refresh. `refresh_bundle(...)` calls it and atomically replaces the bundle. Both preserve reviewed identities and account for exact evidence. |
-| `pta_finance/cli.py:1075` | `update-reimbursements` optionally fetches Gmail, refreshes evidence, then renders the queue. Acquisition failure stops the run; HTML failure can occur after the bundle has refreshed. |
-| `pta_finance/cli.py:1629` | The existing command distinguishes inclusive `--fetch-since`, exclusive `--fetch-until`, intake cutoff `--received-since`, and report `--as-of`. Fetch dates do not define report membership. |
+| `np_finance/reimbursement_report.py:1437` | `load_bundle(Path) -> ReimbursementReport` validates the private schema-v2 bundle and accepts v1 through its existing migration. |
+| `np_finance/reimbursement_report.py:220` | A ticket has a stable `review_key`, a display reference, live decision/payment state, reviewed line items, and source context. Display references alone are not unique across legacy forms. |
+| `np_finance/reimbursement_report.py:340` | `active_tickets`, `closed_tickets`, and `summary` describe the current bundle. Closed means workflow state `SETTLED`; it is not merely a recommendation to approve. |
+| `np_finance/reimbursement_report.py:1526` | `render_html(report)` produces the full offline queue. `build_report(data_path, output_path)` validates and atomically writes it. |
+| `np_finance/reimbursement_pipeline.py:1947` | `plan_bundle_refresh(...)` validates a full local archive refresh. `refresh_bundle(...)` calls it and atomically replaces the bundle. Both preserve reviewed identities and account for exact evidence. |
+| `np_finance/cli.py:1075` | `update-reimbursements` optionally fetches Gmail, refreshes evidence, then renders the queue. Acquisition failure stops the run; HTML failure can occur after the bundle has refreshed. |
+| `np_finance/cli.py:1629` | The existing command distinguishes inclusive `--fetch-since`, exclusive `--fetch-until`, intake cutoff `--received-since`, and report `--as-of`. Fetch dates do not define report membership. |
 | `scripts/capture_readme.py:1` | A local Playwright/Chromium helper already captures fictional reimbursement HTML. Playwright 1.58.0 is currently a documentation-only dependency. |
 | `pyproject.toml` | Jinja2 is installed; optional PDF support uses WeasyPrint. Optional statement parsing uses `pypdfium2`. Neither currently supplies this summary workflow. |
 
 The workspace launcher named `end-to-end-run` currently invokes
-`uv run pta-finance update-reimbursements --fetch-since` with an operator-entered date.
+`uv run np-finance update-reimbursements --fetch-since` with an operator-entered date.
 Its registry lives outside this repository at `../.claude/observatory/registry.toml`.
 The new helper must work from the repository without that control plane.
 
@@ -99,16 +99,16 @@ the place to fix approvals, amounts, missing payments, and clarifications.
 
 No existing public function signature, bundle field, or shared constant is changed by this
 plan. New commands consume existing interfaces. The scan was
-`rg -n '\b(load_bundle|render_html|build_report|plan_bundle_refresh|refresh_bundle|_cmd_update_reimbursements)\(' pta_finance tests scripts`.
+`rg -n '\b(load_bundle|render_html|build_report|plan_bundle_refresh|refresh_bundle|_cmd_update_reimbursements)\(' np_finance tests scripts`.
 The existing consumers are listed below to make the compatibility boundary explicit.
 
 | File | Change Type | Reason | Verified |
 |---|---|---|---|
-| `pta_finance/cli.py` | extend | Register prepare, render, and finalize commands with aggregate-only receipts. | Existing handlers at 1059/1075; parser entries at 1613/1629; `main(argv)` at 1734. Existing handlers, arguments, and return codes retain their contracts. |
-| `pta_finance/reimbursement_report.py` | reuse unchanged | Strict source loader and full-queue renderer. | `load_bundle` callers: this module's `build_report`, pipeline `_write_bundle_atomic` and `plan_bundle_refresh`, tests `test_reimbursement_report.py` and `test_reimbursement_pipeline.py`. `render_html` callers: this module's `build_report` and those same two test modules. `build_report` callers: CLI report/update handlers, `scripts/capture_readme.py`, and report tests. No caller edits required. |
-| `pta_finance/reimbursement_pipeline.py` | reuse unchanged | Convenience runner uses the established refresh command. | `plan_bundle_refresh` callers: `refresh_bundle`, CLI update handler, pipeline tests. `refresh_bundle` callers: CLI update handler and pipeline tests. No signature or reducer changes. |
-| `pta_finance/reports/templates/reimbursement_queue.html.j2` | reuse unchanged | Generate the adjacent detailed source report from the same snapshot. | Line 61 uses lowercased `ref` plus optional `form_label`, spaces replaced by hyphens. Summary links must include the form label and resolve to exactly one generated anchor. |
-| `pyproject.toml`, `uv.lock` | extend | Add a dedicated optional summary-export extra and required test tooling. | Existing extras `pdf`, `slides`, `dev`; entry point `pta-finance = pta_finance.cli:main`. Preserve the existing extras and Python floor. |
+| `np_finance/cli.py` | extend | Register prepare, render, and finalize commands with aggregate-only receipts. | Existing handlers at 1059/1075; parser entries at 1613/1629; `main(argv)` at 1734. Existing handlers, arguments, and return codes retain their contracts. |
+| `np_finance/reimbursement_report.py` | reuse unchanged | Strict source loader and full-queue renderer. | `load_bundle` callers: this module's `build_report`, pipeline `_write_bundle_atomic` and `plan_bundle_refresh`, tests `test_reimbursement_report.py` and `test_reimbursement_pipeline.py`. `render_html` callers: this module's `build_report` and those same two test modules. `build_report` callers: CLI report/update handlers, `scripts/capture_readme.py`, and report tests. No caller edits required. |
+| `np_finance/reimbursement_pipeline.py` | reuse unchanged | Convenience runner uses the established refresh command. | `plan_bundle_refresh` callers: `refresh_bundle`, CLI update handler, pipeline tests. `refresh_bundle` callers: CLI update handler and pipeline tests. No signature or reducer changes. |
+| `np_finance/reports/templates/reimbursement_queue.html.j2` | reuse unchanged | Generate the adjacent detailed source report from the same snapshot. | Line 61 uses lowercased `ref` plus optional `form_label`, spaces replaced by hyphens. Summary links must include the form label and resolve to exactly one generated anchor. |
+| `pyproject.toml`, `uv.lock` | extend | Add a dedicated optional summary-export extra and required test tooling. | Existing extras `pdf`, `slides`, `dev`; entry point `np-finance = np_finance.cli:main`. Preserve the existing extras and Python floor. |
 | `.github/workflows/ci.yml` | extend | Exercise the new browser export on Windows and Linux using fictional input. | Existing Linux lint/type/test job and Windows native-sandbox job inspected; preserve their tests and add a separate summary-export job. No mailbox credentials. |
 | `tests/test_reimbursement_cli.py` | extend | Verify new registrations without weakening existing offline/refresh contracts. | Existing tests cover forbidden Google access, dry-run preservation, update sequencing, invalid fetch options, and failed rendering. |
 | `README.md`, `CLAUDE.md`, `SETUP.md`, `docs/loading-receipts.md` | extend | Link the new monthly guide and distinguish summary preparation from evidence review. | All exist; README's reimbursement flow and CLAUDE's command table describe the current three-stage refresh. |
@@ -122,10 +122,10 @@ or an automatic write target of this plan.
 
 | New component | Responsibility |
 |---|---|
-| `pta_finance/reimbursement_summary.py` | Summary-only input validation, normalized payment facts, queue figures, stable suggestions, and editable notes. Owns the new schemas and calculation rules. |
-| `pta_finance/reimbursement_summary_render.py` | Render the summary with Jinja2; validate content/links; produce Chromium PDF/PNG; publish final archives. Imports summary models, not the CLI. |
-| `pta_finance/reports/templates/reimbursement_board_summary.html.j2` | Generic, self-contained version of the approved design; every count, label, date, and chart description comes from the model. |
-| `scripts/run_reimbursement_summary.py` | One-shot convenience caller of `pta_finance.cli.main(argv)`: existing refresh, then prepare and render the summary. Uses argument lists, never a shell-built command. |
+| `np_finance/reimbursement_summary.py` | Summary-only input validation, normalized payment facts, queue figures, stable suggestions, and editable notes. Owns the new schemas and calculation rules. |
+| `np_finance/reimbursement_summary_render.py` | Render the summary with Jinja2; validate content/links; produce Chromium PDF/PNG; publish final archives. Imports summary models, not the CLI. |
+| `np_finance/reports/templates/reimbursement_board_summary.html.j2` | Generic, self-contained version of the approved design; every count, label, date, and chart description comes from the model. |
+| `scripts/run_reimbursement_summary.py` | One-shot convenience caller of `np_finance.cli.main(argv)`: existing refresh, then prepare and render the summary. Uses argument lists, never a shell-built command. |
 | `tests/test_reimbursement_summary.py`, `tests/test_reimbursement_summary_render.py`, `tests/test_reimbursement_summary_pipeline.py` | Arithmetic/state boundaries, document/export/finalization behavior, and a real-component CLI smoke. Synthetic inputs only. |
 | `tests/fixtures/reimbursement_summary/` | Small fictional examples covering the accepted layout and edge cases; no copy of private source data. |
 | `docs/reimbursement-board-summary.md` | Install, monthly run, editorial review, dates, recovery, finalization, and attended acceptance instructions. |
@@ -402,7 +402,7 @@ so no server URL or runtime reviewer is required.
 - **Status:** PENDING
 - **Issue:** #56
 - **Flags:** --reviewers deep --isolation worktree
-- **Files:** `pta_finance/reimbursement_summary.py`, `pta_finance/cli.py`, `tests/test_reimbursement_summary.py`, `tests/test_reimbursement_cli.py`, `tests/fixtures/reimbursement_summary/`.
+- **Files:** `np_finance/reimbursement_summary.py`, `np_finance/cli.py`, `tests/test_reimbursement_summary.py`, `tests/test_reimbursement_cli.py`, `tests/fixtures/reimbursement_summary/`.
 - **Produces:** `prepare-reimbursement-summary`, strict new private schemas, deterministic facts/suggestions, input snapshots, and synthetic examples.
 - **Done when:** The actual CLI prepares a packet with correct date windows, cumulative counts, exact active-C totals, payment deduplication and unknown-check-date handling; conflicting/malformed inputs fail before publication. Suggestions cannot turn unreviewed advice into approval. Repeated preparation preserves earlier edited notes. Existing reimbursement CLI tests pass.
 - **Depends on:** none.
@@ -415,7 +415,7 @@ so no server URL or runtime reviewer is required.
 - **Status:** PENDING
 - **Issue:** #57
 - **Flags:** --reviewers deep --isolation worktree
-- **Files:** `pta_finance/reimbursement_summary_render.py`, `pta_finance/reports/templates/reimbursement_board_summary.html.j2`, `pta_finance/cli.py`, `tests/test_reimbursement_summary_render.py`, `tests/fixtures/reimbursement_summary/`.
+- **Files:** `np_finance/reimbursement_summary_render.py`, `np_finance/reports/templates/reimbursement_board_summary.html.j2`, `np_finance/cli.py`, `tests/test_reimbursement_summary_render.py`, `tests/fixtures/reimbursement_summary/`.
 - **Produces:** `report-reimbursement-summary --html-only`, the generic template, adjacent detailed report, and a receipt with export checks pending.
 - **Done when:** The real command reproduces all approved sections with fictional data; every displayed count/date/chart description is derived, text is escaped, case/form links resolve, empty/all-open/all-closed examples render correctly, and stale notes or invalid selections fail without replacing the previous complete HTML. Markup and source-link checks pass.
 - **Depends on:** Step 26.
@@ -427,7 +427,7 @@ so no server URL or runtime reviewer is required.
 - **Status:** PENDING
 - **Issue:** #58
 - **Flags:** --reviewers deep --isolation worktree
-- **Files:** `pta_finance/reimbursement_summary_render.py`, `pta_finance/cli.py`, `pyproject.toml`, `uv.lock`, `tests/test_reimbursement_summary_render.py`, `.github/workflows/ci.yml`.
+- **Files:** `np_finance/reimbursement_summary_render.py`, `np_finance/cli.py`, `pyproject.toml`, `uv.lock`, `tests/test_reimbursement_summary_render.py`, `.github/workflows/ci.yml`.
 - **Produces:** Default render with PDF/PNG, summary export extra, `finalize-reimbursement-summary`, hash manifests, read-only editions, concurrency/error handling, and browser-export CI coverage.
 - **Done when:** Chromium produces one Letter page offline on Windows and Linux; the final command copies precisely the reviewed content, rejects edited/stale inputs and missing/failed export checks, returns an unchanged valid existing edition on retry, preserves old finals on all failures, and creates a separate edition after a legitimate wording change. Overflow and concurrent-write probes fail visibly without corrupting a prior output set. The built wheel contains the template.
 - **Depends on:** Step 27.
@@ -517,11 +517,11 @@ After Step 28 supplies the new extra, from the repository root:
 ```powershell
 uv sync --locked --extra dev --extra slides --extra summary
 uv run python -m playwright install chromium
-uv run pta-finance --help
+uv run np-finance --help
 uv run pytest -q tests/test_reimbursement_summary.py tests/test_reimbursement_summary_render.py tests/test_reimbursement_summary_pipeline.py
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy --strict pta_finance
+uv run mypy --strict np_finance
 uv build
 uv run python scripts/check_no_identity.py
 ```

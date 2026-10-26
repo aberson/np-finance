@@ -31,8 +31,8 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from pta_finance import process_limits, receipt_decode
-from pta_finance.receipt_geometry import NORMALIZATION
+from np_finance import process_limits, receipt_decode
+from np_finance.receipt_geometry import NORMALIZATION
 
 MiB = 1024 * 1024
 LIFTED = 2**31 - 1
@@ -91,7 +91,7 @@ def proc_status(field):
                 return int(line.split()[1]) * 1024
     raise RuntimeError(field)
 
-from pta_finance import receipt_geometry
+from np_finance import receipt_geometry
 norm = dataclasses.replace(receipt_geometry.NORMALIZATION, **overrides)
 if sys.platform == "linux":
     import resource
@@ -103,7 +103,7 @@ if sys.platform == "linux":
 from dataclasses import dataclass
 from pathlib import Path
 import PIL.Image
-from pta_finance import receipt_pages
+from np_finance import receipt_pages
 
 receipt_pages.NORMALIZATION = norm
 seen = {}
@@ -715,7 +715,7 @@ def test_production_fast_paths_refuse_the_strip_from_its_header(tmp_path: Path) 
 def test_decoding_pid_is_the_limited_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from pta_finance import receipt_pages
+    from np_finance import receipt_pages
 
     observed: dict[str, Any] = {}
     jobs: list[int] = []

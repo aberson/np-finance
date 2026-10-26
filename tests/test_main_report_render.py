@@ -1,4 +1,4 @@
-"""Tests for pta_finance.main_reports.render and export — the five-report Main Report Set.
+"""Tests for np_finance.main_reports.render and export — the five-report Main Report Set.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). Content cases run the
 production path without a browser: fake gspread workbooks -> read-only capture ->
@@ -38,16 +38,16 @@ from typing import Any
 import pytest
 from markupsafe import escape
 
-from pta_finance import receipt_viewer, reimbursement_report
-from pta_finance.main_reports import export, facts, render, runner
-from pta_finance.main_reports.export import (
+from np_finance import receipt_viewer, reimbursement_report
+from np_finance.main_reports import export, facts, render, runner
+from np_finance.main_reports.export import (
     ExportError,
     ExportJob,
     UnsandboxedExportWarning,
     export_documents,
 )
-from pta_finance.main_reports.facts import build_from
-from pta_finance.main_reports.models import (
+from np_finance.main_reports.facts import build_from
+from np_finance.main_reports.models import (
     ARTIFACT_MEDIA_TYPES,
     EXPENSE_BUCKETS,
     TRANSACTION_KINDS,
@@ -59,7 +59,7 @@ from pta_finance.main_reports.models import (
     is_valid_run_id,
     make_run_id,
 )
-from pta_finance.main_reports.render import (
+from np_finance.main_reports.render import (
     INDEX_HTML,
     OUTPUT_NAMES,
     QUEUE_HTML,
@@ -72,7 +72,7 @@ from pta_finance.main_reports.render import (
     format_whole,
     write,
 )
-from pta_finance.reimbursement_report import STATUS_META
+from np_finance.reimbursement_report import STATUS_META
 from tests.conftest import (
     BANK_ROWS,
     BUDGET_ROWS,
@@ -292,7 +292,7 @@ def _long_name(prefix: str, length: int = 120) -> str:
     return (prefix + " " + "Wide example words " * 10)[:length]
 
 
-# A 180-character organization name (a real PTA name easily passes 60 characters).
+# A 180-character organization name (a real non-profit name easily passes 60 characters).
 LONG_ORGANIZATION = _long_name(
     "Example Parent Teacher Association of the Fictional Elementary School", 180
 )
@@ -2348,7 +2348,7 @@ def test_largest_remainder_sums_exactly() -> None:
 
 
 def test_year_elapsed_plural_truncation_and_capture_label() -> None:
-    from pta_finance.main_reports.models import Period
+    from np_finance.main_reports.models import Period
 
     period = Period("school", date(2030, 7, 1), date(2031, 7, 1), date(2030, 8, 15))
     exact, whole = render.year_elapsed(period)
@@ -2379,7 +2379,7 @@ def test_pie_and_meter_geometry_follow_the_spec() -> None:
     assert pie["wedge"].startswith("M 80 80 L 80 12 A 68 68 0 1 1 ")
     assert pie["wedge"].endswith(" Z")
     assert render._pie(3, 0)["wedge"] == "" and render._pie(0, 3)["base"] == "#edb528"
-    from pta_finance.main_reports.models import Period
+    from np_finance.main_reports.models import Period
 
     period = Period("school", date(2030, 7, 1), date(2031, 7, 1), date(2030, 8, 15))
     meter = render._meter(Decimal(50), Decimal(100), period, "received", "#236c48", "m")
@@ -2444,7 +2444,7 @@ def test_chromium_export_never_runs_page_scripts(tmp_path: Path) -> None:
     require_chromium()
     html = tmp_path / "page.html"
     html.write_text(
-        "<!doctype html><p>Example PTA</p><script>"
+        "<!doctype html><p>Example Non-profit</p><script>"
         "document.body.insertAdjacentHTML('beforeend','<div style=\"height:6000px\"></div>')"
         "</script>",
         encoding="utf-8",
@@ -2496,7 +2496,7 @@ def test_chromium_export_aborts_every_request_but_the_document(
         "<!doctype html><style>@page{size:letter portrait}body{margin:0}</style>"
         f'<link rel="stylesheet" href="{origin}/style.css">'
         f'<img src="{origin}/remote.png" alt="">'
-        '<img src="tall.png" alt=""><p>Example PTA</p>',
+        '<img src="tall.png" alt=""><p>Example Non-profit</p>',
         encoding="utf-8",
     )
     pdf, png = tmp_path / "page.pdf", tmp_path / "page.png"
@@ -2511,7 +2511,7 @@ def test_chromium_unreadable_export_output_is_refused_and_earlier_files_kept(
 ) -> None:
     require_chromium()
     html = tmp_path / "page.html"
-    html.write_text("<!doctype html><p>Example PTA</p>", encoding="utf-8")
+    html.write_text("<!doctype html><p>Example Non-profit</p>", encoding="utf-8")
     pdf, png = tmp_path / "page.pdf", tmp_path / "page.png"
     pdf.write_bytes(b"%PDF-old")
     png.write_bytes(b"old png")

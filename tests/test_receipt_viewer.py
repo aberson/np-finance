@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from test_reimbursement_report import _bundle, _write_bundle
 
-from pta_finance import receipt_viewer, reimbursement_report
+from np_finance import receipt_viewer, reimbursement_report
 
 
 def _page_png() -> bytes:

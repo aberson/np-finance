@@ -1,4 +1,4 @@
-"""Tests for pta_finance.budget_import — pure parsing of a messy budget worksheet.
+"""Tests for np_finance.budget_import — pure parsing of a messy budget worksheet.
 
 The fixture grid mirrors the SHAPE of a real treasurer's budget tab (header not in row 1,
 section dividers, subtotals, totals, carry-over / CD-account rollups, currency formatting,
@@ -11,8 +11,8 @@ from datetime import date
 
 import pytest
 
-from pta_finance import ids, schema
-from pta_finance.budget_import import BudgetImportPlan, plan_budget_import
+from np_finance import ids, schema
+from np_finance.budget_import import BudgetImportPlan, plan_budget_import
 
 _FY = 2026
 _ACTUAL_DATE = date(2026, 12, 31)
@@ -22,7 +22,7 @@ def _grid() -> list[list[str]]:
     """A raw budget grid: leading junk rows, a header below row 1, then messy data."""
     return [
         # Two rows above the header (a title + a blank spacer) — must be skipped.
-        ["Example PTA Budget FY2026", "", "", "", "", ""],
+        ["Example Non-profit Budget FY2026", "", "", "", "", ""],
         ["", "", "", "", "", ""],
         # Header row — note the TRAILING SPACE on "Actual " (must be stripped).
         ["Type", "Line Item", "Proposed", "Actual ", "Adjustment", "Difference"],

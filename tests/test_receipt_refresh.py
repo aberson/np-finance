@@ -11,9 +11,9 @@ from typing import Any
 
 import pytest
 
-from pta_finance import receipt_assets, receipt_refresh
-from pta_finance.config import ReceiptRefresh
-from pta_finance.receipt_pages import PageImage
+from np_finance import receipt_assets, receipt_refresh
+from np_finance.config import ReceiptRefresh
+from np_finance.receipt_pages import PageImage
 
 
 def _message(message_id: str) -> EmailMessage:

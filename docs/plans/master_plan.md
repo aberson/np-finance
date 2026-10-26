@@ -1,4 +1,4 @@
-# pta_finance master plan
+# np_finance master plan
 
 ## 1. What This Is
 
@@ -81,7 +81,7 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Commands:**
   ```powershell
   # Local end-to-end (use the current fiscal year — FY2027 as of 2026-09):
-  uv run pta-finance report --fy 2027 --variant both
+  uv run np-finance report --fy 2027 --variant both
   # CI end-to-end (after adding GOOGLE_SA_KEY_B64 + PTA_CONFIG_B64 secrets):
   gh workflow run monthly-report.yml
   ```
@@ -135,7 +135,7 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** wait
 - **Issue:** #18
 - **Produces:** nothing — an observation only
-- **Done when:** `pta-finance fetch-mail --since <recent-date> --dry-run` is run in a **fresh shell ≥8 days after consent** and the outcome is recorded. In *Testing* mode a re-consent prompt at that point is the **expected** result (amended 2026-08-26), and re-approving then exiting 0 satisfies this step — it confirms the ~weekly cadence the operator should plan around. A run that exits 0 with no prompt is also fine; neither outcome is a failure.
+- **Done when:** `np-finance fetch-mail --since <recent-date> --dry-run` is run in a **fresh shell ≥8 days after consent** and the outcome is recorded. In *Testing* mode a re-consent prompt at that point is the **expected** result (amended 2026-08-26), and re-approving then exiting 0 satisfies this step — it confirms the ~weekly cadence the operator should plan around. A run that exits 0 with no prompt is also fine; neither outcome is a failure.
 - **Depends on:** M4
 - **Blocks:** nothing — this is a background confirmation, deliberately OFF the critical path so the backfill is not stalled for over a week.
 
@@ -150,8 +150,8 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #43
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/bank_statements.py`,
-  `pta_finance/treasurer_slides/{native_sandbox,native_worker}.py`, `.github/workflows/ci.yml`,
+- **Files:** `np_finance/treasurer_slides/bank_statements.py`,
+  `np_finance/treasurer_slides/{native_sandbox,native_worker}.py`, `.github/workflows/ci.yml`,
   `tests/test_treasurer_slides_bank_statements_ocr.py`,
   `tests/test_treasurer_slides_native_sandbox.py`, and fictional raster PDF fixtures
 - **Produces:** the OCR adapter plus a separately broker-launched `tesseract.exe` one-process LPAC
@@ -170,7 +170,7 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
   never writes private raster/OCR data to ambient disk. Windows CI installs Tesseract and executes the
   real OCR fixture; Linux runs only portable OCR-contract and fail-closed coverage.
 - **Coordination (2026-10-09):** receipt-autofill Phase 9 Step 39 (issue #73) moves the Job Object
-  primitive from `native_sandbox._make_job_object` into the shared leaf `pta_finance/process_limits.py`,
+  primitive from `native_sandbox._make_job_object` into the shared leaf `np_finance/process_limits.py`,
   keeping `_make_job_object` as a thin wrapper (`docs/plans/master_plan.md` § 4, § 5A).
   Create the Tesseract Job through that wrapper, never by restating the primitive. Whichever step
   lands second rebases and runs both native suites; if Phase 9 lands first, it comments on #43.
@@ -189,9 +189,9 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #44
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/reconciliation.py`,
+- **Files:** `np_finance/treasurer_slides/reconciliation.py`,
   `tests/test_treasurer_slides_source_authority.py`, and fictional overlap/balance fixtures
-- **Produces:** `pta_finance/treasurer_slides/reconciliation.py`, overlap/balance fixtures, and
+- **Produces:** `np_finance/treasurer_slides/reconciliation.py`, overlap/balance fixtures, and
   `tests/test_treasurer_slides_source_authority.py`
 - **Done when:** closed-monthly precedence, current post-cutoff/pending/latest supplementation,
   semantic overlap equality, exact disagreement resolution, legitimate duplicate occurrences,
@@ -213,11 +213,11 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #45
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/rules.py`,
-  `pta_finance/treasurer_slides/reconciliation.py`,
+- **Files:** `np_finance/treasurer_slides/rules.py`,
+  `np_finance/treasurer_slides/reconciliation.py`,
   `tests/test_treasurer_slides_rules.py`, `tests/test_treasurer_slides_reconciliation.py`, and
   fictional rule/cash-bridge fixtures
-- **Produces:** `pta_finance/treasurer_slides/{rules,reconciliation}.py`, fictional rule/cash-bridge
+- **Produces:** `np_finance/treasurer_slides/{rules,reconciliation}.py`, fictional rule/cash-bridge
   fixtures, and `tests/test_treasurer_slides_{rules,reconciliation}.py`
 - **Done when:** zero/multiple classification matches block; automatic pairs require matching
   pair-key/amount/direction/account/window and uniqueness; ambiguous pairs require exact two-row
@@ -241,10 +241,10 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #46
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/budget_goals.py`,
-  `pta_finance/treasurer_slides/facts.py`, `tests/test_treasurer_slides_budget_goals.py`,
+- **Files:** `np_finance/treasurer_slides/budget_goals.py`,
+  `np_finance/treasurer_slides/facts.py`, `tests/test_treasurer_slides_budget_goals.py`,
   `tests/test_treasurer_slides_facts.py`, and fictional grid/fact fixtures
-- **Produces:** `pta_finance/treasurer_slides/{budget_goals,facts}.py`, fictional raw-grid/fact
+- **Produces:** `np_finance/treasurer_slides/{budget_goals,facts}.py`, fictional raw-grid/fact
   fixtures, and `tests/test_treasurer_slides_{budget_goals,facts}.py`
 - **Done when:** duplicate/blank/missing headers, malformed relevant rows, duplicate logical rows,
   including whitespace/case variants, invalid/non-positive goals, or attempted source writes block;
@@ -267,10 +267,10 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #47
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/summary.py`,
-  `pta_finance/treasurer_slides/template.py`, `tests/test_treasurer_slides_summary.py`, and
+- **Files:** `np_finance/treasurer_slides/summary.py`,
+  `np_finance/treasurer_slides/template.py`, `tests/test_treasurer_slides_summary.py`, and
   `tests/test_treasurer_slides_template.py`
-- **Produces:** `pta_finance/treasurer_slides/{summary,template}.py`, fictional presentation
+- **Produces:** `np_finance/treasurer_slides/{summary,template}.py`, fictional presentation
   structures, and `tests/test_treasurer_slides_{summary,template}.py`
 - **Done when:** every approved fact maps to one declared variable role; static identity is not a
   role or request; money/percent/date/story text is deterministic; four spending and five fundraising
@@ -293,11 +293,11 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #48
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/pipeline.py`,
-  `pta_finance/treasurer_slides/templates/fact_review.html.j2`, and
+- **Files:** `np_finance/treasurer_slides/pipeline.py`,
+  `np_finance/treasurer_slides/templates/fact_review.html.j2`, and
   `tests/test_treasurer_slides_pipeline.py`
-- **Produces:** `pta_finance/treasurer_slides/pipeline.py`,
-  `pta_finance/treasurer_slides/templates/fact_review.html.j2`, and
+- **Produces:** `np_finance/treasurer_slides/pipeline.py`,
+  `np_finance/treasurer_slides/templates/fact_review.html.j2`, and
   `tests/test_treasurer_slides_pipeline.py`
 - **Done when:** a valid prepare uses Step 20's canonical `SummarySlidePlan`, writes facts and plan
   snapshots atomically with manifest last, and produces stable facts/plan/approval hashes; every
@@ -322,11 +322,11 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #49
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/google_client.py`, `pta_finance/config.py`,
+- **Files:** `np_finance/treasurer_slides/google_client.py`, `np_finance/config.py`,
   `config.example.toml`, `tests/test_config.py`, `tests/test_treasurer_slides_auth.py`, and
   `tests/test_treasurer_slides_workspace.py`
-- **Produces:** the auth/workspace portion of `pta_finance/treasurer_slides/google_client.py`,
-  optional config in `pta_finance/config.py`/`config.example.toml`, fake Google services,
+- **Produces:** the auth/workspace portion of `np_finance/treasurer_slides/google_client.py`,
+  optional config in `np_finance/config.py`/`config.example.toml`, fake Google services,
   `tests/test_config.py`, and `tests/test_treasurer_slides_{auth,workspace}.py`
 - **Done when:** the granted set must equal `drive.file`; Gmail/missing/extra scopes fail; dedicated
   token load/mint/refresh/atomic persistence and `invalid_grant` guidance are safe; import support,
@@ -352,8 +352,8 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #50
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/treasurer_slides/google_client.py`,
-  `pta_finance/treasurer_slides/pipeline.py`, and
+- **Files:** `np_finance/treasurer_slides/google_client.py`,
+  `np_finance/treasurer_slides/pipeline.py`, and
   `tests/test_treasurer_slides_google_candidate.py`
 - **Produces:** candidate/render support in `google_client.py` and `pipeline.py`, fake Drive/Slides
   cases, and `tests/test_treasurer_slides_google_candidate.py`
@@ -383,10 +383,10 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** code
 - **Issue:** #51
 - **Flags:** `--reviewers deep --isolation worktree`
-- **Files:** `pta_finance/cli.py`, `scripts/check_no_identity.py`,
+- **Files:** `np_finance/cli.py`, `scripts/check_no_identity.py`,
   `tests/test_treasurer_slides_cli.py`, `tests/test_treasurer_slides_smoke.py`, packaging/privacy
   tests, `docs/generating-treasurer-summary.md`, `README.md`, `SETUP.md`, `CLAUDE.md`, and `plan.md`
-- **Produces:** three commands in `pta_finance/cli.py`; extended `scripts/check_no_identity.py`;
+- **Produces:** three commands in `np_finance/cli.py`; extended `scripts/check_no_identity.py`;
   CLI/privacy/packaging/smoke tests; `docs/generating-treasurer-summary.md`; and status/setup updates
   in `README.md`, `SETUP.md`, `CLAUDE.md`, and `plan.md`
 - **Done when:** dispatch resolves all three commands and old commands are unchanged; missing
@@ -413,12 +413,12 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
   executable, template, OAuth account, and Google rendering:
 
   ```powershell
-  uv run pta-finance init-treasurer-summary-template --pptx "<private-tokenized-template>" --config config.toml
-  uv run pta-finance prepare-treasurer-summary --inputs "<private-input-manifest>" --config config.toml
+  uv run np-finance init-treasurer-summary-template --pptx "<private-tokenized-template>" --config config.toml
+  uv run np-finance prepare-treasurer-summary --inputs "<private-input-manifest>" --config config.toml
   Invoke-Item "<private-run-directory>\review.html"
-  uv run pta-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
+  uv run np-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
   Invoke-Item "<private-run-directory>\candidate.receipt.json"
-  uv run pta-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
+  uv run np-finance create-treasurer-summary --run "<run-id>" --approval-sha256 "<approval-digest>" --config config.toml
   git status --short
   uv run python scripts/check_no_identity.py
   ```
@@ -469,7 +469,7 @@ the only real-service visual acceptance.
 - **Status:** PENDING
 - **Issue:** #56
 - **Flags:** --reviewers deep --isolation worktree
-- **Files:** `pta_finance/reimbursement_summary.py`, `pta_finance/cli.py`, `tests/test_reimbursement_summary.py`, `tests/test_reimbursement_cli.py`, `tests/fixtures/reimbursement_summary/`.
+- **Files:** `np_finance/reimbursement_summary.py`, `np_finance/cli.py`, `tests/test_reimbursement_summary.py`, `tests/test_reimbursement_cli.py`, `tests/fixtures/reimbursement_summary/`.
 - **Produces:** `prepare-reimbursement-summary`, strict new private schemas, deterministic facts/suggestions, input snapshots, and synthetic examples.
 - **Done when:** The actual CLI prepares a packet with correct date windows, cumulative counts, exact active-C totals, payment deduplication and unknown-check-date handling; conflicting/malformed inputs fail before publication. Suggestions cannot turn unreviewed advice into approval. Repeated preparation preserves earlier edited notes. Existing reimbursement CLI tests pass.
 - **Depends on:** none.
@@ -486,7 +486,7 @@ the only real-service visual acceptance.
 - **Status:** PENDING
 - **Issue:** #57
 - **Flags:** --reviewers deep --isolation worktree
-- **Files:** `pta_finance/reimbursement_summary_render.py`, `pta_finance/reports/templates/reimbursement_board_summary.html.j2`, `pta_finance/cli.py`, `tests/test_reimbursement_summary_render.py`, `tests/fixtures/reimbursement_summary/`.
+- **Files:** `np_finance/reimbursement_summary_render.py`, `np_finance/reports/templates/reimbursement_board_summary.html.j2`, `np_finance/cli.py`, `tests/test_reimbursement_summary_render.py`, `tests/fixtures/reimbursement_summary/`.
 - **Produces:** `report-reimbursement-summary --html-only`, the generic template, adjacent detailed report, and a receipt with export checks pending.
 - **Done when:** The real command reproduces all approved sections with fictional data; every displayed count/date/chart description is derived, text is escaped, case/form links resolve, empty/all-open/all-closed examples render correctly, and stale notes or invalid selections fail without replacing the previous complete HTML. Markup and source-link checks pass.
 - **Depends on:** Step 26.
@@ -501,7 +501,7 @@ the only real-service visual acceptance.
 - **Status:** PENDING
 - **Issue:** #58
 - **Flags:** --reviewers deep --isolation worktree
-- **Files:** `pta_finance/reimbursement_summary_render.py`, `pta_finance/cli.py`, `pyproject.toml`, `uv.lock`, `tests/test_reimbursement_summary_render.py`, `.github/workflows/ci.yml`.
+- **Files:** `np_finance/reimbursement_summary_render.py`, `np_finance/cli.py`, `pyproject.toml`, `uv.lock`, `tests/test_reimbursement_summary_render.py`, `.github/workflows/ci.yml`.
 - **Produces:** Default render with PDF/PNG, summary export extra, `finalize-reimbursement-summary`, hash manifests, read-only editions, concurrency/error handling, and browser-export CI coverage.
 - **Done when:** Chromium produces one Letter page offline on Windows and Linux; the final command copies precisely the reviewed content, rejects edited/stale inputs and missing/failed export checks, returns an unchanged valid existing edition on retry, preserves old finals on all failures, and creates a separate edition after a legitimate wording change. Overflow and concurrent-write probes fail visibly without corrupting a prior output set. The built wheel contains the template.
 - **Depends on:** Step 27.
@@ -579,7 +579,7 @@ M8 execution is delegated to the agent wherever mechanical checks and available 
 - **Type:** code
 - **Issue:** #75
 - **Flags:** `--reviewers deep`
-- **Produces:** the minimal render request branch in `pta_finance/treasurer_slides/bank_statements.py` (Problem above; Step 43 extends it). With it, so that the spike never scores unvalidated worker output, comes the broker-side reader for the `rendered` frame, together with its tampered-frame tests in `tests/test_treasurer_slides_lpac_render_spike.py`. The reader enforces exact key sets, bounded decompression with an empty-leftover assertion, `len(decompressed) == raw_length == width × height`, the digest check, and `page_number`/`page_count` agreement with the launch. The same step adds `RenderedPage`, the `ReceiptRenderError` base class only (no subclasses), and a single-page broker launch helper. Step 43 extends these and does not rebuild them (operator decision 2026-10-10). The step also produces a committed generator for two fictional fixture PDFs — the non-embedded-font subject and its embedded-font twin (§ 9: no committed binary). The subject is hand-written PDF syntax using the non-embedded standard Type1 `/Helvetica`, following the `_fictional_pdf_bytes` precedent in `tests/test_treasurer_slides_bank_statements_native.py`. The twin carries the same text and is built at test time with `pypdfium2` (`PdfDocument.new()`, the raw `FPDFText_LoadFont` / `FPDFPageObj_CreateTextObj` / `FPDFText_SetText` / `FPDFPage_InsertObject` / `FPDFPage_GenerateContent` calls, then `PdfDocument.save`). It embeds a TrueType face read at test time from the Windows font directory, `%WINDIR%\Fonts\arial.ttf`, which is the usual Windows substitute for Helvetica, so the glyph shapes match. No font byte is committed; `tests/test_treasurer_slides_lpac_render_spike.py` added to the `windows-native-sandbox` job's pytest file list in `.github/workflows/ci.yml` (that job runs a hardcoded file list, so a new test file it does not name never executes); and `docs/findings/step-41-lpac-render.md` recording the measured verdict, every anchor score and the pinned thresholds in every case — plus `docs/findings/step-41-lpac-render-blocked.md` on the failure verdict only
+- **Produces:** the minimal render request branch in `np_finance/treasurer_slides/bank_statements.py` (Problem above; Step 43 extends it). With it, so that the spike never scores unvalidated worker output, comes the broker-side reader for the `rendered` frame, together with its tampered-frame tests in `tests/test_treasurer_slides_lpac_render_spike.py`. The reader enforces exact key sets, bounded decompression with an empty-leftover assertion, `len(decompressed) == raw_length == width × height`, the digest check, and `page_number`/`page_count` agreement with the launch. The same step adds `RenderedPage`, the `ReceiptRenderError` base class only (no subclasses), and a single-page broker launch helper. Step 43 extends these and does not rebuild them (operator decision 2026-10-10). The step also produces a committed generator for two fictional fixture PDFs — the non-embedded-font subject and its embedded-font twin (§ 9: no committed binary). The subject is hand-written PDF syntax using the non-embedded standard Type1 `/Helvetica`, following the `_fictional_pdf_bytes` precedent in `tests/test_treasurer_slides_bank_statements_native.py`. The twin carries the same text and is built at test time with `pypdfium2` (`PdfDocument.new()`, the raw `FPDFText_LoadFont` / `FPDFPageObj_CreateTextObj` / `FPDFText_SetText` / `FPDFPage_InsertObject` / `FPDFPage_GenerateContent` calls, then `PdfDocument.save`). It embeds a TrueType face read at test time from the Windows font directory, `%WINDIR%\Fonts\arial.ttf`, which is the usual Windows substitute for Helvetica, so the glyph shapes match. No font byte is committed; `tests/test_treasurer_slides_lpac_render_spike.py` added to the `windows-native-sandbox` job's pytest file list in `.github/workflows/ci.yml` (that job runs a hardcoded file list, so a new test file it does not name never executes); and `docs/findings/step-41-lpac-render.md` recording the measured verdict, every anchor score and the pinned thresholds in every case — plus `docs/findings/step-41-lpac-render-blocked.md` on the failure verdict only
 - **Done when:** the `windows-native-sandbox` CI job renders the subject fixture inside the **real** LPAC — never a mocked call — and scores it on two metrics against a **reference**, the embedded-font twin rendered outside the LPAC: *ink coverage* (a pixel is dark when its gray value is below 128; with r = the subject's dark-pixel fraction ÷ the reference's, the score is min(r, 1/r), and 0 when r = 0, so 1.0 means the reference's ink and a blank page and over-inked box glyphs both score low) and *glyph-shape similarity* (normalized cross-correlation with the reference). Each metric's pass threshold *T* is a constant pinned in the test module, and it is trusted only after calibration in the same test, per the workspace measurement-validity rule: the **known-good anchor** (the subject rendered outside the LPAC, where the font mapper works normally) must score above *T*, and both **known-garbage anchors** — an all-white page and a box-glyph page synthesized in code from the reference's glyph bounding boxes — must score below it, i.e. `score(good) > T > max(score(garbage))` on each metric before the LPAC render is judged. A metric that fails its calibration yields no verdict, which is a failure. **The step is DONE on either verdict with the full suite green:** with the LPAC render above *T* on both metrics, the test asserts the pass; below *T* on either (blank or box glyphs), the same measurement is asserted as the blocked verdict rather than left as a red test, and the step also writes the blocked findings file on the branch that merges, so Step 42's predicate can observe it. A spike that cannot produce a measurement at all is still a failure.
 - **Depends on:** 38
 - **Status:** BLOCKED (2026-10-10, second run). The resume run also ended BLOCKED at its 3/3 iteration cap. review-deep returned NEEDS-WORK with no Block and one bugs Nit: the gating Windows test can time out against the 15 s `wall_seconds` deadline. That deadline covers launch, staging and the response wait, and windows-2022 runner spans were 8.02, 8.95, 15.92, 8.98 and 7.31 s. The scope dispute was resolved by the plan amendment `01d20b5`, after which plan-conformance passed. The spike verdict itself is pass on the dev box and in every CI run (the latest, 38116138438, is green on all three jobs). The DONE-gate full suite on `2bfae6e` is void: it failed only from host resource exhaustion (MemoryError, WinError 1450, and the sandbox worker unable to start) while another session's suite was running, and it must be re-run on a quiet host. The worktree is preserved on branch `build-step-1791658930` at `2bfae6e`, and the operator decides the timing risk.
@@ -611,7 +611,7 @@ M8 execution is delegated to the agent wherever mechanical checks and available 
 - **Type:** code
 - **Issue:** #77
 - **Flags:** `--reviewers deep`
-- **Produces:** render limits, request/response, and validation in `pta_finance/treasurer_slides/bank_statements.py`; tests in `tests/test_treasurer_slides_bank_statements_native.py` — or, when `docs/findings/step-42-pdf-boundary.md` exists, the files and tests that findings file names for the recorded boundary
+- **Produces:** render limits, request/response, and validation in `np_finance/treasurer_slides/bank_statements.py`; tests in `tests/test_treasurer_slides_bank_statements_native.py` — or, when `docs/findings/step-42-pdf-boundary.md` exists, the files and tests that findings file names for the recorded boundary
 - **Done when:** a multi-page fictional fixture renders end-to-end through the boundary recorded in `docs/findings/step-42-pdf-boundary.md` when that file exists (in the CI job or jobs it names), otherwise through the real LPAC in the Windows CI job, and the broker returns raw gray8 pixels with their dimensions (no PNG is produced); a malformed, bomb-shaped, wrong-length (decompressed length ≠ `raw_length` or ≠ `width × height`, even with a matching digest), or digest-mismatched response is refused with `ReceiptRenderInvalidError`, a page outside the dimension gate with `ReceiptRenderPageTooLargeError`, and each other § 5A response row with its own named error; an extraction request (`operation` = 1) carrying the new fields still extracts exactly as before; a request with `operation` outside {1, 2} is refused by the envelope check; a worker start failure on the render path propagates as `NativeSandboxUnavailable`, never as a page error; the existing statement-extraction tests are unchanged and green; the row-stride copy is covered by a test using a width that forces padding
 - **Depends on:** 41, 42
 
@@ -626,7 +626,7 @@ M8 execution is delegated to the agent wherever mechanical checks and available 
 - **Type:** code
 - **Issue:** #78
 - **Flags:** `--reviewers deep`
-- **Produces:** PDF path in `pta_finance/receipt_pages.py`; tests covering multi-page output, the page ceiling, the fail-closed path on hosts the recorded boundary does not support, the PDF outcome classes and start-failure abort below, and the cap pin below
+- **Produces:** PDF path in `np_finance/receipt_pages.py`; tests covering multi-page output, the page ceiling, the fail-closed path on hosts the recorded boundary does not support, the PDF outcome classes and start-failure abort below, and the cap pin below
 - **Done when:** a fictional 3-page PDF fixture produces 3 normalized pages on a host the recorded boundary supports (Windows for the LPAC) and a clean, counted `pdf-not-rendered` refusal on every host it does not support; a PDF one page over the ceiling is refused whole as `pdf-too-many-pages` with zero pages written; each Step 43 refusal reaches `ReceiptPageError.reason` as its § 5A value (`pdf-page-too-large`, `pdf-render-failed`, `pdf-render-invalid`); a boundary start failure (the launcher substituted to raise `NativeSandboxUnavailable`, or the recorded Step 42 boundary's equivalent) raises `ReceiptRenderUnavailableError` — never a `ReceiptPageError` — before any page outcome is recorded; a page rendered with a long edge above `NORMALIZATION.max_long_edge` comes out with its long edge exactly at the limit; output is byte-identical across two runs; a test asserts a PDF page never spawns the decode child while an uploaded PNG/JPEG always does, and that both reach `pixels_to_page`; a refusal on page 2 of a 3-page PDF leaves zero pages written for that asset; a test asserts `bank_statements.RENDER_MAX_EDGE == receipt_geometry.NORMALIZATION.max_source_edge`; a test asserts `receipt_geometry.NORMALIZATION.max_source_bytes <= bank_statements.MAX_PDF_BYTES`, so the fetch and read cap can never exceed what the renderer accepts (`is` is impossible: `bank_statements` is staged into the LPAC and cannot import `receipt_geometry`, § 5A config note)
 - **Depends on:** 39, 43
 
@@ -641,7 +641,7 @@ M8 execution is delegated to the agent wherever mechanical checks and available 
 - **Type:** code
 - **Issue:** #79
 - **Flags:** `--reviewers deep`
-- **Produces:** `pta_finance/receipt_link.py`, `tests/test_receipt_link.py`, a committed fictional proposals example, and the additive accessor in `pta_finance/receipt_ingest.py` that exposes an already-parsed `Submission` by its archived message without widening the frozen `source_receipt_urls_v1` digest surface
+- **Produces:** `np_finance/receipt_link.py`, `tests/test_receipt_link.py`, a committed fictional proposals example, and the additive accessor in `np_finance/receipt_ingest.py` that exposes an already-parsed `Submission` by its archived message without widening the frozen `source_receipt_urls_v1` digest surface
 - **Done when:** § 5A's three auto-commit conditions each have a test — a one-asset ticket auto-links, a two-asset ticket does not, a one-asset ticket whose asset produced zero pages does not, and a ticket with any already-linked item does not; a ticket whose `review_key` resolves to no archived message is reported unjoinable rather than skipped silently; a page outcome is written to `page_outcomes[]` under the exact ledger key set, a re-run updates that row in place, and a ledger created by either writer carries the other writers' lists as empty lists; every value of § 5A's closed `page_outcomes[]` vocabulary, all five `pdf-*` classes included, round-trips through `record_fill_ledger`, and a value outside it is refused; regenerating proposals over a hand-edited file preserves every operator edit, and each of § 5's four irreconcilable edits refuses with the file byte-unchanged instead of overwriting; a fully linked ticket appears in neither `fill_working_set` nor the proposals document, and a ticket's later size-variant URL under one `canonical_key` is not in the working set; a ticket whose assets all yielded zero pages is not in the document; an auto-eligible ticket appears pre-filled with `auto_eligible: true` and, once merged, is absent from the file `write_proposals` writes; `confirm`'s merge path refuses a changed `bundle_sha256` with `ReceiptProposalsStaleError` before any write; `apply` returns a `MergeResult` whose `items_linked`, `pages_added`, `linked_total`, `unlinked_total` and `headroom_bytes` equal independently computed values (`headroom_bytes` = `receipt_viewer.headroom_bytes` on the written sidecar), and an empty merge writes nothing and returns `items_linked` and `pages_added` of 0 with the totals and headroom still computed; each refusal class has a test asserting the sidecar is byte-unchanged afterward; the fictional proposals example fed to `load_receipts` raises; the budget refusal names the crossing page and the remaining bytes; the `receipt_ingest.py` accessor imports nothing outside the hosted-image `source-manifest.txt` files (§ 4) and `tests/test_shared_workflow_packaging.py` passes
 - **Depends on:** 40, 44
 
@@ -656,7 +656,7 @@ M8 execution is delegated to the agent wherever mechanical checks and available 
 - **Type:** code
 - **Issue:** #80
 - **Flags:** `--reviewers deep`
-- **Produces:** `pta_finance/cli.py` stage and subparsers, `pta_finance/config.py` block, `config.example.toml` with fake hosts, updated `tests/test_reimbursement_cli.py`
+- **Produces:** `np_finance/cli.py` stage and subparsers, `np_finance/config.py` block, `config.example.toml` with fake hosts, updated `tests/test_reimbursement_cli.py`
 - **Done when:** Every criterion in the complete Acceptance detail below passes; preserve all required real-boundary evidence, negative cases and full-suite gates.
 
 **Acceptance detail:** absent config is a no-op with byte-identical output to today; a malformed block raises `ConfigError` rather than skipping; `max_asset_mib` = 26 is refused and the bound comes from `receipt_geometry`, asserted with `is` on the object config holds — `config`'s `NORMALIZATION` (or its byte constant, 26,214,400, which CPython does not cache) `is receipt_geometry.NORMALIZATION` — never on the derived MiB value 25, which a restated copy would also pass; `--dry-run` writes nothing and opens no socket; stage ordering and `refresh_kwargs` equality tests pass in their updated form; no URL, filename, vendor or requestor appears in any printed line; a partial fetch (some assets fail) prints an aggregate failure count **and names the private ledger path as the triage surface**, so aggregate-only output never leaves the operator with no way to diagnose which asset failed and why; `link-receipts audit` reports per-asset outcomes from that ledger, and a test shows a decode-budget refusal and a decode child error on fictional assets each appearing in the audit output as its own `page_outcomes[]` row (`budget`, `child-error`) with its ticket ref and asset ordinal — that test may seed those rows directly in a fictional ledger, because `audit` only reads the ledger and no crafted input can make the real child exit 4 (§ 9 tests that mapping directly); `audit` lists a page file referenced by neither the sidecar nor the current proposals file, and never lists a candidate page that only the proposals file references; `audit --since` lists fictional tickets in the right asset-count classes, with rule-2 and rule-3 exclusions marked, without opening a socket; a test parses Step 49's exact command lines with `build_parser` (`update-reimbursements --fetch-since 2026-10-02 --no-fill-receipts`, `update-reimbursements --fill-receipts`, `link-receipts audit --since 2026-10-09`, `link-receipts audit`, `link-receipts propose`, `link-receipts confirm --proposals reports/output/reimbursement-report.receipt-proposals.json`, `link-receipts probe --ticket REF`, `link-receipts hosts --mail-root mail_samples`) and asserts `--sidecar` defaults to exactly `reports/output/reimbursement-report.receipts.json` — equal to `Path(--data).with_suffix(".receipts.json")`, never `reimbursement-report.json.receipts.json` — and a round trip shows a default-path `confirm` writes the file `report-reimbursements` then embeds; with `max_parallel` > 1, a test shows at most one decode child alive at any time (peak concurrent spawn count is 1); a decode child that cannot start aborts the stage with exit 1 and the prior HTML untouched, and so does a PDF boundary that cannot start (the host treated as supported and the boundary start substituted to raise `NativeSandboxUnavailable`); a stage abort after the first asset leaves `pages_dir` as it was before the run, with no proposals file or sidecar written; an offline-cache asset is decoded by the real child; the fill stage prints exactly § 5A's three summary lines and `confirm` its two, and a test asserts their values against the `MergeResult`, the fetch outcomes and the `receipt links` line that follows (linked/unlinked equal), including a zero-merge run that prints `0 newly linked` with the headroom in bytes and MiB; the fill stage never fetches for a fully linked ticket or a later size-variant URL; `link-receipts propose` renders a missing candidate page from the cache and opens no socket; `audit --since` lists a ticket whose `Ticket.submitted` equals the date and omits one submitted the day before; `link-receipts probe` calls the opener seam even for an already-cached asset, reaches the real decode child, prints no URL, and leaves the live cache, ledger, `pages_dir`, proposals file and sidecar byte-unchanged with its temporary directories gone; `link-receipts hosts` over fictional `.eml` files prints exactly their distinct `.invalid` hostnames with counts, and no scheme, path, query or ref
@@ -688,7 +688,7 @@ M8 execution is delegated to the agent wherever mechanical checks and available 
 - **Type:** code
 - **Issue:** #82
 - **Flags:** `--reviewers code`
-- **Produces:** updates to `CLAUDE.md` (§§ 2, 3, 4, 7 and the "prepared offline" sentence), `docs/receipt-viewer.md`, `docs/loading-receipts.md`, `README.md`, and `uv.lock` re-locked with `uv lock` (no upgrade); no edit to `pta_finance/receipt_geometry.py`, to this plan or to any other plan's file
+- **Produces:** updates to `CLAUDE.md` (§§ 2, 3, 4, 7 and the "prepared offline" sentence), `docs/receipt-viewer.md`, `docs/loading-receipts.md`, `README.md`, and `uv.lock` re-locked with `uv lock` (no upgrade); no edit to `np_finance/receipt_geometry.py`, to this plan or to any other plan's file
 - **Done when:** the **full** suite runs — every declared test root with dev, slides, web and the new imaging extra installed and the Firestore emulator running, not a subset — with collected count at or above **the `Baseline tests:` count recorded in Step 39's checkpoint** — the full-suite collected count on `main` at the commit the resumed Step 39 was dispatched from, before any Phase 9 code merged (Step 39 Done-when) — not a number copied from an older phase (CLAUDE.md's 1,231 is stale: the non-web suites alone collect 1,018 as of 2026-09-16, so a hard-coded 1,231 would let a change that deletes tests pass); strict mypy, Ruff lint and format, the identity guard, and all three CI jobs pass; no committed file contains a real host, organization, person or email; the checkpoint states the locked Pillow version after `uv lock` — if it equals the version recorded in § 6.3 it says "Pillow unchanged"; if it moved, the gate fails, the checkpoint records both versions, and recalibration is routed back through `/plan-review` as a deep-reviewed code step (Problem above), never done here; `CLAUDE.md` § 2 lists the `receipts` extra, § 3 lists `link-receipts audit`/`propose`/`confirm`/`probe`/`hosts` and `update-reimbursements`' new write set with exactly what each writes, § 4 lists the new modules, and § 7 and `docs/receipt-viewer.md` state the supported hosts; the checkpoint names M9 (Step 49, #83) as the next, attended action, because `/build-phase`'s own handoff omits it (Manual UAT, M9)
 - **Depends on:** 47
 
@@ -723,7 +723,7 @@ The command reads only the archive, opens no socket, and prints each distinct ho
 count, and nothing else (§ 6.8). § 2 expects exactly two, both on the intake form vendor's CDN.
 
 ```powershell
-uv run pta-finance link-receipts hosts --mail-root mail_samples
+uv run np-finance link-receipts hosts --mail-root mail_samples
 ```
 
 Copy each printed hostname into `allowed_hosts` in `config.toml` as an exact host. Never put a
@@ -744,21 +744,21 @@ roughly 100 messages has tripped Gmail's per-minute quota before. The fetch wind
 acquisition only, never report membership. To skip mail acquisition, drop `--fetch-since`.
 
 ```powershell
-uv run pta-finance update-reimbursements --fetch-since 2026-10-02 --no-fill-receipts
+uv run np-finance update-reimbursements --fetch-since 2026-10-02 --no-fill-receipts
 ```
 
 Then record the baseline: the linked and unlinked counts (this re-renders the HTML from the
 unchanged bundle; nothing else is written).
 
 ```powershell
-uv run pta-finance report-reimbursements
+uv run np-finance report-reimbursements
 ```
 
 Then list the tickets that arrived after the cutoff, from the refreshed bundle, grouped by distinct
 upload-asset count (offline; opens no socket).
 
 ```powershell
-uv run pta-finance link-receipts audit --since 2026-10-09
+uv run np-finance link-receipts audit --since 2026-10-09
 ```
 
 Then prove the decode child starts and attests on this machine. The summary must read exactly
@@ -771,7 +771,7 @@ uv run pytest -q -rs tests/test_receipt_decode_budget.py -k decoding_pid_is_the_
 Then run the fill stage, with no mail fetch.
 
 ```powershell
-uv run pta-finance update-reimbursements --fill-receipts
+uv run np-finance update-reimbursements --fill-receipts
 ```
 
 Then read the per-asset fetch and page outcomes, including any decode refusal or child error.
@@ -779,7 +779,7 @@ Candidate pages awaiting `confirm` are referenced by the proposals file, so they
 unreferenced; a listed page file is a leftover of an interrupted run, for the operator to delete.
 
 ```powershell
-uv run pta-finance link-receipts audit
+uv run np-finance link-receipts audit
 ```
 
 Then, only if clause (g)'s evidence is missing, probe an already-linked ticket. The evidence is
@@ -791,7 +791,7 @@ ticket if none is `pdf`. The probe writes nothing live, and the two hashes must 
 
 ```powershell
 Get-FileHash reports/output/reimbursement-report.receipts.json
-uv run pta-finance link-receipts probe --ticket REF
+uv run np-finance link-receipts probe --ticket REF
 Get-FileHash reports/output/reimbursement-report.receipts.json
 ```
 
@@ -822,20 +822,20 @@ at least one candidate page). If its `tickets` list is empty, skip to the final
 7. Note the printed `link-receipts confirm:` and `page budget` lines for clauses (c) and (d).
 
 ```powershell
-uv run pta-finance link-receipts confirm --proposals reports/output/reimbursement-report.receipt-proposals.json
+uv run np-finance link-receipts confirm --proposals reports/output/reimbursement-report.receipt-proposals.json
 ```
 
 Only if `confirm` refused with `ReceiptProposalsStaleError`, regenerate the file while keeping its
 edits (offline; opens no socket), then run `confirm` again:
 
 ```powershell
-uv run pta-finance link-receipts propose
+uv run np-finance link-receipts propose
 ```
 
 Finally, re-render and record the final linked and unlinked counts:
 
 ```powershell
-uv run pta-finance report-reimbursements
+uv run np-finance report-reimbursements
 ```
 
 **What to look for**
@@ -861,12 +861,12 @@ uv run pta-finance report-reimbursements
 
 ### Step 51: Propose actions from archived mail
 - **Status:** PAUSED — unfinished worktree; resume from [handoff](../phase10-build-handoff.md), never restart or discard it.
-- **Problem:** Make `pta-finance update-actions` scan the local archive and produce a strict private proposal/uncategorized inventory with stable source keys, narrow type reasons, attachment provenance, and exact-thread deduplication.
+- **Problem:** Make `np-finance update-actions` scan the local archive and produce a strict private proposal/uncategorized inventory with stable source keys, narrow type reasons, attachment provenance, and exact-thread deduplication.
 - **Type:** code
 - **Issue:** #87
 - **Flags:** `--reviewers deep`
-- **Files:** `pta_finance/mail_actions.py`, `pta_finance/cli.py`, `tests/test_mail_actions.py`, `tests/fixtures/mail_actions/*.txt`
-- **Produces:** `pta_finance/mail_actions.py`, the `update-actions` entry point in `pta_finance/cli.py`, `tests/test_mail_actions.py`, fictional source fixtures with `.txt` suffix
+- **Files:** `np_finance/mail_actions.py`, `np_finance/cli.py`, `tests/test_mail_actions.py`, `tests/fixtures/mail_actions/*.txt`
+- **Produces:** `np_finance/mail_actions.py`, the `update-actions` entry point in `np_finance/cli.py`, `tests/test_mail_actions.py`, fictional source fixtures with `.txt` suffix
 - **Done when:** running the CLI on a fictional mixed `.eml`/`.mbox` archive yields one proposal for each of the three scoped types, groups an exact reply without duplicating an action, and leaves unrelated/reimbursement-like mail uncategorized; a second identical run reports zero new proposals; a duplicate key with changed evidence fails before output replacement; ambiguous ancestry is quarantined without changing existing actions; stdout contains counts and paths only.
 - **Depends on:** Phase 9 Step 38 / #72
 
@@ -881,8 +881,8 @@ uv run pta-finance report-reimbursements
 - **Type:** code
 - **Issue:** #88
 - **Flags:** `--reviewers deep`
-- **Files:** `pta_finance/mail_actions.py`, `docs/mail-actions.md`, `tests/test_mail_actions.py`
-- **Produces:** strict decision loader/merge in `pta_finance/mail_actions.py`, fictional decision example in `docs/mail-actions.md`, decision-cycle tests in `tests/test_mail_actions.py`
+- **Files:** `np_finance/mail_actions.py`, `docs/mail-actions.md`, `tests/test_mail_actions.py`
+- **Produces:** strict decision loader/merge in `np_finance/mail_actions.py`, fictional decision example in `docs/mail-actions.md`, decision-cycle tests in `tests/test_mail_actions.py`
 - **Done when:** the production `update-actions` command retains an `OPEN` decision after new thread replies, retains a `DONE` decision and its evidence after a repeat refresh, refuses `DONE` until every required outcome has evidence (including both seeded budget surfaces), refuses unknown/duplicate source or action keys, and refuses changed or missing previously accounted evidence before replacing private output.
 - **Depends on:** 51
 
@@ -897,8 +897,8 @@ uv run pta-finance report-reimbursements
 - **Type:** code
 - **Issue:** #89
 - **Flags:** `--reviewers deep`
-- **Files:** `pta_finance/mail_action_report.py`, `pta_finance/reports/templates/mail_action_queue.html.j2`, `pta_finance/mail_actions.py`, `tests/test_mail_actions.py`
-- **Produces:** `pta_finance/mail_action_report.py`, `pta_finance/reports/templates/mail_action_queue.html.j2`, report tests in `tests/test_mail_actions.py`
+- **Files:** `np_finance/mail_action_report.py`, `np_finance/reports/templates/mail_action_queue.html.j2`, `np_finance/mail_actions.py`, `tests/test_mail_actions.py`
+- **Produces:** `np_finance/mail_action_report.py`, `np_finance/reports/templates/mail_action_queue.html.j2`, report tests in `tests/test_mail_actions.py`
 - **Done when:** `update-actions` writes the private report with source/thread/attachment references and the operator's next action/status; hostile subject/body text renders inert; a validation or render failure leaves the prior report intact; no private value enters public stdout or a tracked artifact.
 - **Depends on:** 52
 
@@ -913,8 +913,8 @@ uv run pta-finance report-reimbursements
 - **Type:** code
 - **Issue:** #90
 - **Flags:** `--reviewers deep`
-- **Files:** `pta_finance/cli.py`, `tests/test_reimbursement_cli.py`, `docs/mail-actions.md`, `README.md`, `CLAUDE.md`
-- **Produces:** action-stage dispatch in `pta_finance/cli.py`, regression tests in `tests/test_reimbursement_cli.py`, operator guide in `docs/mail-actions.md`, updated `README.md` and `CLAUDE.md`
+- **Files:** `np_finance/cli.py`, `tests/test_reimbursement_cli.py`, `docs/mail-actions.md`, `README.md`, `CLAUDE.md`
+- **Produces:** action-stage dispatch in `np_finance/cli.py`, regression tests in `tests/test_reimbursement_cli.py`, operator guide in `docs/mail-actions.md`, updated `README.md` and `CLAUDE.md`
 - **Done when:** the production CLI prints action counts after a successful local refresh; `--dry-run` writes neither action nor reimbursement artifacts; a failed action stage reports the already-refreshed reimbursement boundary and preserves the prior action report; the standalone command and current reimbursement output stay usable; no action stage calls a Sheets writer, payment function, or Gmail sender.
 - **Depends on:** 53
 
@@ -925,7 +925,7 @@ uv run pta-finance report-reimbursements
 
 ### Step 55: Real-component archive-to-report smoke gate
 - **Status:** PENDING
-- **Problem:** Exercise one full offline cycle through `pta-finance update-reimbursements` using fictional mail, a fictional reimbursement bundle, and the actual classifier, decision loader, renderer, and CLI to catch producer/consumer key drift.
+- **Problem:** Exercise one full offline cycle through `np-finance update-reimbursements` using fictional mail, a fictional reimbursement bundle, and the actual classifier, decision loader, renderer, and CLI to catch producer/consumer key drift.
 - **Type:** code
 - **Issue:** #91
 - **Flags:** `--reviewers deep`
@@ -1283,14 +1283,14 @@ uv run pta-finance report-reimbursements
 - **Problem:** Implement private config bindings and read-only source adapters for the inspected Wells Fargo, WIX, and PayPal tabs. Capture dated snapshots, validate schemas and source coverage, retain exact money and original values, and detect source changes. Keep adopted budget targets and source-native dates separate from annual synthetic report rows. Retire bank PDF extraction from this new reporting path, retaining historical files and receipt processing.
 - **Issue:** #96
 - **Legacy alias:** CFO-1
-- **Files:** `pta_finance/main_reports/models.py`, `sources.py`, `pta_finance/config.py`, `config.example.toml`, `tests/test_main_report_sources.py`, `tests/test_config.py` (new main_reports files; existing config extended).
+- **Files:** `np_finance/main_reports/models.py`, `sources.py`, `np_finance/config.py`, `config.example.toml`, `tests/test_main_report_sources.py`, `tests/test_config.py` (new main_reports files; existing config extended).
 - **Existing context:** SheetsClient accepts a separate spreadsheet_id and injected gspread client; default connect uses broad default scopes. Construct the CFO client with explicit spreadsheets.readonly scope. read_timeseries is the adopted budget adapter; its to_inputs annual synthetic dates are not transaction evidence.
 - **Flags:** --reviewers deep --isolation worktree
 - **Produces:** `main_reports` source/model components, optional config, fictional fixtures, and a provenance manifest.
 - **Done when:** Each observed source shape is represented by a fictional fixture, including WIX two-row headers and PayPal repeated-ID detail rows, that reaches the production reader/adapter; duplicate import is idempotent; row edits, missing fields, changed source captures, subtotal rows, and missing coverage are handled explicitly. No CFO writes or bank PDF extraction occur.
 - **Depends on:** discovery complete
 
-**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
+**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 58: Reconcile processor activity to the CFO bank basis
@@ -1299,14 +1299,14 @@ uv run pta-finance report-reimbursements
 - **Problem:** Reconcile source identities, signed category splits, processor overlap, transfers, refunds, and fees into a CFO-compatible source view with explicit unresolved discrepancies. Do not count processor sales and bank settlements as additive revenue.
 - **Issue:** #97
 - **Legacy alias:** CFO-2
-- **Files:** `pta_finance/main_reports/reconcile.py`, `models.py`, `tests/test_main_report_reconcile.py` (new).
+- **Files:** `np_finance/main_reports/reconcile.py`, `models.py`, `tests/test_main_report_reconcile.py` (new).
 - **Existing context:** Consume the captured rows from Step 57. The source P&L expands signed bank splits, excludes exact Internal Transfer, and nets by category/month before income/expense classification. WIX and PayPal overlap; PayPal detail rows repeat parent IDs.
 - **Flags:** --reviewers deep --isolation worktree
 - **Produces:** Reconciliation records, exact source P&L controls, category crosswalks, and discrepancy records.
 - **Done when:** The production reconciliation caller proves split conservation, source monthly-category-net parity, legitimate duplicate preservation, WIX/PayPal overlap handling, no processor/bank double counting, and explicit unmatched/refund/fee conflicts. No financial writes occur.
 - **Depends on:** 57
 
-**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
+**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 59: Apply recorded reporting adjustments
@@ -1315,7 +1315,7 @@ uv run pta-finance report-reimbursements
 - **Problem:** Persist evidence-backed reporting corrections in the bounded Assumptions journal and immediately project them without changing source transactions or reimbursement decisions.
 - **Issue:** #98
 - **Legacy alias:** CFO-2 adjustments (split from reconciliation)
-- **Files:** `pta_finance/main_reports/adjustments.py`, `models.py`, `tests/test_main_report_adjustments.py` (new); reuse `pta_finance/sheets.py`, `pta_finance/backup.py`.
+- **Files:** `np_finance/main_reports/adjustments.py`, `models.py`, `tests/test_main_report_adjustments.py` (new); reuse `np_finance/sheets.py`, `np_finance/backup.py`.
 - **Existing context:** Assumptions already contains formulas and prose. backup.snapshot_raw_tab preserves typed entered values. Use a new bounded append-only journal below existing cells; do not edit earlier adjustment rows to supersede them.
 - **Flags:** --reviewers deep --isolation worktree
 - **Produces:** Validated adjustment journal reader/writer and source-to-adjusted projection.
@@ -1331,14 +1331,14 @@ uv run pta-finance report-reimbursements
 - **Problem:** Build item/transaction-level projections for July–June summaries and January–December P&L. Preserve June acquisition and historical evidence. Keep all outstanding requests in the queue; separate prior-year obligations and current payments of them from current-year expense activity. Explain period, recognition, and payment differences without changing stored IDs or receipt fingerprints.
 - **Issue:** #99
 - **Legacy alias:** CFO-3
-- **Files:** `pta_finance/main_reports/facts.py`, `models.py`, `tests/test_main_report_facts.py` (new); preserve `pta_finance/report_source.py` and reimbursement schemas.
+- **Files:** `np_finance/main_reports/facts.py`, `models.py`, `tests/test_main_report_facts.py` (new); preserve `np_finance/report_source.py` and reimbursement schemas.
 - **Existing context:** plan_bundle_refresh returns a candidate without changing stable item identities. A reporting projection must not re-run payment adjudication or change receipt fingerprints. Keep annual adopted targets distinct from dated activity.
 - **Flags:** --reviewers deep --isolation worktree
 - **Produces:** Shared reporting-period and fact projections, carryover sections, and a traceable reconciliation bridge.
 - **Done when:** June/July and December/January boundaries, cross-year claims, missing dates, June expenses paid in July, and old outstanding requests behave as specified. Shared-scope totals reconcile; expense and settlement are not counted twice. Budget-year config, accepted decisions, receipt annotations, and collection cutoff remain intact.
 - **Depends on:** 59
 
-**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
+**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 61: Render the complete Main Report Set
@@ -1347,30 +1347,30 @@ uv run pta-finance report-reimbursements
 - **Problem:** Reuse the existing queue and accepted summary styling to generate Reimbursement Queue, Reimbursement Summary, Budget Snapshot, Fundraising Summary, and CFO P&L Summary. Replace private edition constants with validated facts. Preserve queue copy text and receipt images. Show period, source freshness, run identity, and differences between CFO source and adjusted totals; do not invent a calendar-year budget.
 - **Issue:** #100
 - **Legacy alias:** CFO-4
-- **Files:** `pta_finance/main_reports/render.py`, `export.py`, `pta_finance/reports/templates/main_reports/`, `tests/test_main_report_render.py`, `pyproject.toml`, `uv.lock` (new render/export files; extend extras); reuse `pta_finance/reimbursement_report.py`.
+- **Files:** `np_finance/main_reports/render.py`, `export.py`, `np_finance/reports/templates/main_reports/`, `tests/test_main_report_render.py`, `pyproject.toml`, `uv.lock` (new render/export files; extend extras); reuse `np_finance/reimbursement_report.py`.
 - **Existing context:** build_report(data_path, output_path) emits the queue, validates receipt sidecars, and writes .copy.txt. Reuse it unchanged. Existing private summary scripts are style references with dated constants. The public reports builder has an external privacy guard.
 - **Flags:** --reviewers code --isolation worktree
 - **Produces:** Four reusable summary renderers/templates, private HTML report index, summary PDF/PNG export, and existing queue/copy-text companions.
 - **Done when:** A single fixture input set generates all five readable reports with correct date labels, monthly/YTD P&L, source-to-adjusted bridge, and matching shared-scope totals. Browser/export checks prove readable layouts and retained receipt access; unchanged external/public report models retain their privacy guard.
 - **Depends on:** 60
 
-**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
+**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 62: Wire the end-to-end command and bounded smoke gate
 - **Status:** DONE (2026-10-22)
 - **Type:** code
-- **Problem:** Add `pta-finance end-to-end-run --as-of YYYY-MM-DD` with optional existing mail fetch-window flags and dry-run behavior. Reuse reimbursement refresh/receipt preparation, capture all sources, apply recorded adjustments, build every report in a versioned private run, and publish only after validation. Preserve reimbursement-only commands. Use a single current-run pointer and explicit compatibility-file refresh status; retain the previous complete set on failure.
+- **Problem:** Add `np-finance end-to-end-run --as-of YYYY-MM-DD` with optional existing mail fetch-window flags and dry-run behavior. Reuse reimbursement refresh/receipt preparation, capture all sources, apply recorded adjustments, build every report in a versioned private run, and publish only after validation. Preserve reimbursement-only commands. Use a single current-run pointer and explicit compatibility-file refresh status; retain the previous complete set on failure.
 - **Issue:** #101
 - **Legacy alias:** CFO-5
-- **Files:** `pta_finance/main_reports/runner.py`, `pta_finance/cli.py`, `tests/test_main_report_runner.py`, `tests/test_reimbursement_cli.py`, `docs/main-report-set.md`, `README.md`, `CLAUDE.md` (new runner/test/guide).
+- **Files:** `np_finance/main_reports/runner.py`, `np_finance/cli.py`, `tests/test_main_report_runner.py`, `tests/test_reimbursement_cli.py`, `docs/main-report-set.md`, `README.md`, `CLAUDE.md` (new runner/test/guide).
 - **Existing context:** _cmd_update_reimbursements already wires refresh, receipt preparation, and queue output. Reuse production components with staged paths; calling its in-place command blindly would publish the queue too early.
 - **Flags:** --reviewers deep --isolation worktree
 - **Produces:** Production runner/CLI wiring, operator docs, run manifest and index, failure recovery, and a bounded real-component smoke check.
 - **Done when:** The production CLI completes a small source-to-five-report cycle with real adapters/facts/renderers/publication, targeting 60 seconds for local fixtures. Dry-run performs no local or remote writes and rejects mail acquisition and adjustment-write options, failed fetch/render preserves prior publication, reruns do not duplicate adjustments, and every artifact identifies the same captured input set. No bank PDF extraction, scheduler, mail sending, or CFO workbook write is invoked.
 - **Depends on:** 61
 
-**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
+**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 63: Regenerate and reconcile the live Main Report Set
@@ -1391,7 +1391,7 @@ uv run pta-finance report-reimbursements
 - **Problem:** The first live run (2026-10-22) showed that Step 61 did not reuse the accepted summary styling. The accepted briefs lived only in private files that the public build could not read, so it produced fluid audit pages: the summaries printed to 42-95 pages each against 1 for each accepted reference. Rebuild the Reimbursement Summary, Fundraising Summary, Budget Snapshot and CFO P&L Summary templates and their render models to the public design contract, preserving every fact, total, reconciliation rule and the run-identity/privacy guards.
 - **Issue:** #104
 - **Flags:** `--reviewers code`
-- **Files:** `pta_finance/main_reports/render.py`, `pta_finance/reports/templates/main_reports/*.j2`, `tests/test_main_report_render.py` (plus `tests/test_main_report_runner.py` only where it asserts rendered layout), `.github/workflows/ci.yml` (browser-case allowlists).
+- **Files:** `np_finance/main_reports/render.py`, `np_finance/reports/templates/main_reports/*.j2`, `tests/test_main_report_render.py` (plus `tests/test_main_report_runner.py` only where it asserts rendered layout), `.github/workflows/ci.yml` (browser-case allowlists).
 - **Existing context:** Design contract: [main-report-design.md](../plan-reference/main-report-design.md) (operator decisions D1-D6 recorded 2026-10-23: template narratives only, bank-basis fundraising income labelled, net-flow Budget Snapshot without balances, default header wording, P&L appendix may take two landscape pages). Data contract unchanged: [cfo-main-report-set.md](../plan-reference/cfo-main-report-set.md). Audit detail moves to counts plus pointers to the run's `records/*.json`; unknown is still never shown as zero.
 - **Produces:** Four one-page portrait summaries (the P&L adds a landscape appendix), a short index, and deterministic one-page-fit tests on fictional fixtures.
 - **Done when:** With fictional fixtures, each of the three summaries prints exactly one US Letter portrait page and the P&L prints one portrait page plus its landscape appendix (Chromium export). No inline discrepancy-ID or bridge-evidence lists remain. Every spec section 5 acceptance item passes. Existing fact, privacy and run-identity tests pass. ruff, format, `mypy --strict` and the main-report test modules are green.
@@ -1414,7 +1414,7 @@ uv run pta-finance report-reimbursements
   - The new CFO tabs "Transactions" and "WIX Settlements" are not yet bound.
 
 
-**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `pta_finance/main_reports/` when only a basename is shown.
+**Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
 ## 11. Compute target
 
@@ -1460,3 +1460,8 @@ Approval: 2026-10-21. P entries preserve explicit user choices. D entries accept
 | D5 | D | Use deep review for financial identities, reconciliation, journal, facts and publication; code review plus browser evidence for rendering. | accepted by delegated approval 2026-10-21 |
 | D6 | D | Treat source coverage gaps and ambiguous matching as visible unresolved data, never invented zeroes or balancing entries. | accepted by delegated approval 2026-10-21 |
 | D7 | D | Use strict no-write dry-run, bounded capture retries and local serialization with explicit Sheets external-edit race limits. | accepted by delegated approval 2026-10-21 |
+
+## Project naming migration
+
+See [the migration guide](../project-rename.md) and [progress](../rename-progress.html).
+Existing feature acceptance boundaries remain unchanged.

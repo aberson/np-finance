@@ -14,7 +14,7 @@
 
 ## 1. What this is
 
-PTA members worked a **copy** of the sheet into an expense-only "Enrichment Emphasis Plan" — now the
+non-profit members worked a **copy** of the sheet into an expense-only "Enrichment Emphasis Plan" — now the
 `FY27 Pending Approval Expense Budget` tab — with two scenarios (*Initial Deficit* / *Zero Deficit*)
 and a written board rationale per line. The **Zero-Deficit column is the proposed budget**: it
 applies 18 expense cuts + 2 new lines and turns the projected deficit into a surplus. This plan
@@ -28,7 +28,7 @@ names) is confirmed. See the companion file.
 ## 2. Inputs and the mechanism this reuses
 
 - **The one live budget tab** is `FY2027 Budget` (editable). It syncs into the `Budget Timeseries`
-  database — the single source `report`/`analyze` read — via `uv run pta-finance sync-budget --fy 2027`
+  database — the single source `report`/`analyze` read — via `uv run np-finance sync-budget --fy 2027`
   (preview) / `--apply`. That tool already: snapshots first, writes only changed amount/notes cells,
   appends new lines, **carries notes through to the database**, never touches actuals/other-years/tags,
   and flags (never deletes) removed lines. This build **reuses that path** — no new tooling required.
@@ -85,7 +85,7 @@ These gate the build; they are enumerated with specifics in the companion file �
 ### Step 3: Preview the sync (writes nothing)
 
 - **Type:** code (CLI)
-- **Do:** `uv run pta-finance sync-budget --fy 2027`
+- **Do:** `uv run np-finance sync-budget --fy 2027`
 - **Expect:** ~18 amount changes, ~2 new lines, ~18 note changes; **zero suspected renames** and
   **zero duplicates**. Any rename/duplicate flag means a Step-2 name didn't match a canonical line —
   fix the tab and re-preview before applying.
@@ -94,8 +94,8 @@ These gate the build; they are enumerated with specifics in the companion file �
 ### Step 4: Apply the sync
 
 - **Type:** code (CLI)
-- **Do:** `uv run pta-finance sync-budget --fy 2027 --apply` (snapshots the database first).
-- **Verify:** `uv run pta-finance report --fy 2027 --variant internal` — the proposed expense total
+- **Do:** `uv run np-finance sync-budget --fy 2027 --apply` (snapshots the database first).
+- **Verify:** `uv run np-finance report --fy 2027 --variant internal` — the proposed expense total
   drops to the Zero-Deficit figure and net flips from deficit to surplus (companion §1).
 - **Status:** DONE (2026-07-20)
 

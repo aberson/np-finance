@@ -1,11 +1,11 @@
-# pta_finance — project context
+# np-finance — project context
 
 > **Identity rule (load-bearing).** This is a **generic, reusable finance toolkit** for a
-> PTA / booster club / small nonprofit. **Never hard-code any organization, school, person,
+> non-profit organization. **Never hard-code any organization, school, person,
 > or email** in committed code, docs, tests, fixtures, or examples. All real identity remains in
 > gitignored private inputs/configuration (`config.toml`, `mail_samples/`, and `reports/output/`,
 > including the optional reimbursement anchors). Tests/examples use fake placeholders
-> (`Example PTA`, `treasurer@example.org`). The repo is **public**; the data is **private**.
+> (`Example Non-profit`, `treasurer@example.org`). The repo is **public**; the data is **private**.
 
 ## 1. Overview
 
@@ -49,35 +49,35 @@ uv run pytest -q                    # test — with [web] installed this ALSO ne
                                     # fail at collection by design (see § 5)
 uv run ruff check .                 # lint
 uv run ruff format --check .        # format check
-uv run mypy --strict pta_finance    # typecheck
+uv run mypy --strict np_finance    # typecheck
 ```
 
 No live-Sheet write. Each comment names any local file the command touches:
 
 ```bash
-uv run pta-finance analyze                                # reads Budget Timeseries; no writes
-uv run pta-finance snapshot                               # safe CSV + exact tagged entered-value JSON under snapshots/<utc>/
-uv run pta-finance sync-budget --fy 2027                  # dry run: prints the diff, no writes
-uv run pta-finance fetch-mail --since <date> --dry-run    # counts; MAY mint secrets/gmail-token.json
-uv run pta-finance ingest-receipts --source mail_samples --profile --originals-only  # no writes
-uv run pta-finance map-receipts --source mail_samples                                # no writes
-uv run pta-finance update-reimbursements --dry-run       # validates local refresh; no bundle/HTML/Sheet writes
-uv run pta-finance end-to-end-run --as-of <date> --dry-run  # reads both workbooks + bundle; no writes
+uv run np-finance analyze                                # reads Budget Timeseries; no writes
+uv run np-finance snapshot                               # safe CSV + exact tagged entered-value JSON under snapshots/<utc>/
+uv run np-finance sync-budget --fy 2027                  # dry run: prints the diff, no writes
+uv run np-finance fetch-mail --since <date> --dry-run    # counts; MAY mint secrets/gmail-token.json
+uv run np-finance ingest-receipts --source mail_samples --profile --originals-only  # no writes
+uv run np-finance map-receipts --source mail_samples                                # no writes
+uv run np-finance update-reimbursements --dry-run       # validates local refresh; no bundle/HTML/Sheet writes
+uv run np-finance end-to-end-run --as-of <date> --dry-run  # reads both workbooks + bundle; no writes
 ```
 
 These write. Each comment names exactly what:
 
 ```bash
-uv run pta-finance check                                  # writes+deletes a probe row (test sheet)
-uv run pta-finance normalize                              # LEGACY: writes the live transactions tab
-uv run pta-finance report --fy YYYY --variant both        # HTML + 1 report_log row per variant
-uv run pta-finance sync-budget --fy 2027 --apply          # writes amount/notes to Budget Timeseries
-uv run pta-finance fetch-mail --since <date>              # .eml into [gmail] inbox_dir; no Sheet
-uv run pta-finance map-receipts --source mail_samples --write-tab Reimbursements  # replaces it
-uv run pta-finance report-reimbursements                  # atomically replaces private HTML (+ receipt sidecar if present); no Sheet
-uv run pta-finance update-reimbursements --fetch-since <date>  # .eml + private bundle + HTML; no Sheet
-uv run pta-finance end-to-end-run --as-of <date>          # private bundle + main-report-runs/<id>/ + pointer/copies; no Sheet
-uv run pta-finance end-to-end-run --as-of <date> --adjustments-file <json>  # same + journal rows in OUR Assumptions tab
+uv run np-finance check                                  # writes+deletes a probe row (test sheet)
+uv run np-finance normalize                              # LEGACY: writes the live transactions tab
+uv run np-finance report --fy YYYY --variant both        # HTML + 1 report_log row per variant
+uv run np-finance sync-budget --fy 2027 --apply          # writes amount/notes to Budget Timeseries
+uv run np-finance fetch-mail --since <date>              # .eml into [gmail] inbox_dir; no Sheet
+uv run np-finance map-receipts --source mail_samples --write-tab Reimbursements  # replaces it
+uv run np-finance report-reimbursements                  # atomically replaces private HTML (+ receipt sidecar if present); no Sheet
+uv run np-finance update-reimbursements --fetch-since <date>  # .eml + private bundle + HTML; no Sheet
+uv run np-finance end-to-end-run --as-of <date>          # private bundle + main-report-runs/<id>/ + pointer/copies; no Sheet
+uv run np-finance end-to-end-run --as-of <date> --adjustments-file <json>  # same + journal rows in OUR Assumptions tab
 ```
 
 Every live-Sheet writing verb above snapshots first, except `check` (it deletes its own probe row).
@@ -94,7 +94,7 @@ These rules are stated in full — and owned — by
 ## 4. Directory layout
 
 ```
-pta_finance/        package (flat layout): config, ids, schema, models, sheets,
+np_finance/        package (flat layout): config, ids, schema, models, sheets,
                     backup, etl, cli, gmail_source (the ONLY Gmail surface: pinned
                     read-only OAuth + query/list/fetch + deterministic .eml writer),
                     receipt_ingest (.eml/.mbox parser + profiler),
@@ -137,7 +137,7 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
 
 ## 5. Architecture
 
-- **Optional shared-workflow proof** (`pta_finance/shared_workflow/`, `[web]`): separate FastAPI/Uvicorn
+- **Optional shared-workflow proof** (`np_finance/shared_workflow/`, `[web]`): separate FastAPI/Uvicorn
   entry point, strict `PTA_WORKFLOW_CONFIG` JSON, verified IAP assertions, two pinned subjects,
   and bounded Firestore transactions. It loads only its packaged fictional bundles through
   the existing offline validator; it never discovers private CLI configuration or imports
@@ -350,7 +350,7 @@ A **`sync-budget` command** (`budget_sync.py`) also landed: it reconciles an edi
 maintained **"FY&lt;fy&gt; Budget"** Sheet tab back into the Budget Timeseries (dry-run diff by default;
 `--apply` snapshots first, then writes only changed amount/notes cells + appends new lines; never
 touches actuals/other-years/enrichment; removed lines flagged not deleted). **Google credentials are configured + working** — `secrets/service-account.json` (gitignored) +
-`config.toml`; `pta-finance check` round-trips read+write against the live Sheet (M1 service-account
+`config.toml`; `np-finance check` round-trips read+write against the live Sheet (M1 service-account
 setup + M2 real-sheet smoke are DONE). **Next = operator-gated observation:** M3 monthly-report run
 (plan §11 Manual Steps). Live Drive upload is deferred to Phase 2 (`google-api-python-client`).
 

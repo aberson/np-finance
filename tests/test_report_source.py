@@ -1,4 +1,4 @@
-"""Tests for pta_finance.report_source — the "Budget Timeseries" -> canonical-row adapter.
+"""Tests for np_finance.report_source — the "Budget Timeseries" -> canonical-row adapter.
 
 No live Google calls: :func:`to_inputs` and :func:`_fy_end_iso` are pure, and the
 :func:`read_timeseries` reader is exercised against a tiny fake client whose ``read_values``
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from pta_finance import ids, report_source, schema
+from np_finance import ids, report_source, schema
 
 _FY = report_source.FISCAL_YEAR
 _TYPE = report_source.TYPE

@@ -1,4 +1,4 @@
-"""Tests for pta_finance.config — typed load + fail-fast on missing required field."""
+"""Tests for np_finance.config — typed load + fail-fast on missing required field."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance.config import ConfigError, load_config
+from np_finance.config import ConfigError, load_config
 
 # A complete, fake config used as the baseline for the happy-path and the
 # field-removal tests. Identity is obviously-fake placeholders only.
 _FULL_CONFIG = """\
 [organization]
-name = "Example PTA"
+name = "Example Non-profit"
 school_name = "Example Elementary"
 school_email = "office@example.org"
 
@@ -51,7 +51,7 @@ def _write(tmp_path: Path, text: str) -> Path:
 def test_load_config_full(tmp_path: Path) -> None:
     cfg = load_config(_write(tmp_path, _FULL_CONFIG))
 
-    assert cfg.organization.name == "Example PTA"
+    assert cfg.organization.name == "Example Non-profit"
     assert cfg.organization.school_name == "Example Elementary"
     assert cfg.organization.school_email == "office@example.org"
 

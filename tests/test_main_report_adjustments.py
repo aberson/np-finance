@@ -1,4 +1,4 @@
-"""Tests for pta_finance.main_reports.adjustments — the Assumptions journal and projection.
+"""Tests for np_finance.main_reports.adjustments — the Assumptions journal and projection.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). Scenarios run through the
 production path: private config loaded by the real loader -> read-only capture over fake
@@ -27,11 +27,11 @@ from google.auth.exceptions import RefreshError, TransportError
 from gspread.exceptions import WorksheetNotFound
 from requests.models import Response
 
-from pta_finance import backup
-from pta_finance import sheets as sheets_module
-from pta_finance.config import Config, load_config
-from pta_finance.main_reports import adjustments, models, reconcile, sources
-from pta_finance.main_reports.adjustments import (
+from np_finance import backup
+from np_finance import sheets as sheets_module
+from np_finance.config import Config, load_config
+from np_finance.main_reports import adjustments, models, reconcile, sources
+from np_finance.main_reports.adjustments import (
     JOURNAL_COLUMNS,
     JOURNAL_MARKER,
     LOCK_FILENAME,
@@ -51,7 +51,7 @@ from pta_finance.main_reports.adjustments import (
     record,
     require_publishable,
 )
-from pta_finance.main_reports.models import (
+from np_finance.main_reports.models import (
     ADJUSTMENT_KINDS,
     AdjustedLedger,
     Adjustment,
@@ -66,7 +66,7 @@ from pta_finance.main_reports.models import (
     make_discrepancy_id,
     make_record_key,
 )
-from pta_finance.sheets import SheetsClient
+from np_finance.sheets import SheetsClient
 from tests.conftest import (
     _FULL_CONFIG,
     ASSUMPTIONS_GRID,

@@ -15,13 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import backup, cli, receipt_ingest, receipt_map, schema
-from pta_finance.config import Config, ConfigError
+from np_finance import backup, cli, receipt_ingest, receipt_map, schema
+from np_finance.config import Config, ConfigError
 from tests.conftest import tagged_user_entered_grid
 
 _CONFIG_TEXT = """\
 [organization]
-name = "Example PTA"
+name = "Example Non-profit"
 school_name = "Example Elementary"
 school_email = "office@example.org"
 
@@ -84,7 +84,7 @@ class FakeCheckClient:
         self.validated.append(tab)
 
     def read_values(self, tab: str) -> list[list[str]]:
-        from pta_finance import report_source
+        from np_finance import report_source
 
         self.read_values_calls.append(tab)
         if tab == report_source.BUDGET_TIMESERIES_TAB:
@@ -108,7 +108,7 @@ class FakeCheckClient:
 def test_check_validates_required_tabs_and_round_trips(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from pta_finance import report_source
+    from np_finance import report_source
 
     FakeCheckClient.instances = []
     monkeypatch.setattr(cli, "SheetsClient", FakeCheckClient)
@@ -366,7 +366,7 @@ class FakeSnapshotClient:
 def test_snapshot_writes_csvs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from pta_finance import backup, report_source
+    from np_finance import backup, report_source
 
     monkeypatch.setattr(cli, "SheetsClient", FakeSnapshotClient)
     config_path = _write_config(tmp_path)
@@ -431,7 +431,7 @@ class FakeAnalyzeClient:
 
     def read_values(self, tab: str) -> list[list[str]]:
         self.read_values_calls.append(tab)
-        from pta_finance import report_source
+        from np_finance import report_source
 
         if tab == report_source.BUDGET_TIMESERIES_TAB:
             return [list(r) for r in _TIMESERIES_GRID]
@@ -446,7 +446,7 @@ def test_analyze_prints_summary_all_years(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The analyze subcommand runs the real analytics through the production caller."""
-    from pta_finance import report_source
+    from np_finance import report_source
 
     FakeAnalyzeClient.instances = []
     monkeypatch.setattr(cli, "SheetsClient", FakeAnalyzeClient)
@@ -488,7 +488,7 @@ def test_analyze_filtered_to_fiscal_year_shows_budget(
 # A raw budget grid (header below row 1, a section, currency cells, a total rollup) with
 # obviously-fake line items — exercises import-budget through the production CLI caller.
 _BUDGET_GRID = [
-    ["Example PTA Budget", "", "", ""],
+    ["Example Non-profit Budget", "", "", ""],
     ["Type", "Line Item", "Proposed", "Actual "],
     ["Income", "Membership Dues", "1500", "1450"],
     ["Expense", "Classroom Supplies", "$2,000.00", "1200"],
@@ -534,7 +534,7 @@ def test_import_budget_upserts_budget_and_transactions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """import-budget --with-actuals upserts BOTH tabs and snapshots first, end-to-end."""
-    from pta_finance import ids
+    from np_finance import ids
 
     FakeImportBudgetClient.instances = []
     monkeypatch.setattr(cli, "SheetsClient", FakeImportBudgetClient)

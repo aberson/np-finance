@@ -22,7 +22,7 @@ Resolved during this review:
 2. **Runner argument forwarding could undermine dry-run or summarize the wrong bundle.**
    §6.6 now reserves `--data` and `--dry-run` to the runner and rejects them after the
    argument separator. Both prepare and refresh use the same selected data path. This is
-   grounded in `pta_finance/cli.py:1075` and `:1154–1178`, where the existing update handler
+   grounded in `np_finance/cli.py:1075` and `:1154–1178`, where the existing update handler
    owns its data and dry-run branches.
 3. **Steps 27 and 29 needed deeper review at producer/consumer seams.** Their original plain
    code-review flags covered the new report-model consumer and refresh-to-summary wiring.
@@ -62,7 +62,7 @@ the requested feature.
 | Control-plane hooks | Pass. Root plan links the scoped plan; objective and pending step statuses are explicit; no port is added. |
 
 Search used for caller verification:
-`rg -n '\b(load_bundle|render_html|build_report|plan_bundle_refresh|refresh_bundle|_cmd_update_reimbursements)\(' pta_finance tests scripts`.
+`rg -n '\b(load_bundle|render_html|build_report|plan_bundle_refresh|refresh_bundle|_cmd_update_reimbursements)\(' np_finance tests scripts`.
 Only “optionally” in the unresolved-choice scan describes existing Gmail behavior;
 it is not a deferred architecture decision. A structural scan found six sequential steps,
 complete required fields, and no populated Issue fields. Referenced existing producer paths

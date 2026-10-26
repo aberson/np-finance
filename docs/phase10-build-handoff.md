@@ -1,6 +1,6 @@
 # Phase 10 build handoff — paused during Step 51
 
-**Project:** C:\Users\abero\dev\pta_finance
+**Project:** C:\Users\abero\dev\np-finance
 **Plan:** docs/plans/master_plan.md
 **Pause date:** 2026-09-24 (America/Los_Angeles)
 
@@ -17,8 +17,8 @@ build-step-51-20260924005815, based on 64a499c.
 - Step 51 / issue #87 is in progress, not reviewed, merged, or marked DONE. Steps 52–55
   remain pending; Step 56 is attended private-archive acceptance. Main was clean at
   64a499c before this documentation update. Issue #87 has a started comment.
-- The Step 51 worktree contains uncommitted pta_finance/cli.py, new
-  pta_finance/mail_actions.py, tests/test_mail_actions.py, and fictional fixtures in
+- The Step 51 worktree contains uncommitted np_finance/cli.py, new
+  np_finance/mail_actions.py, tests/test_mail_actions.py, and fictional fixtures in
   tests/fixtures/mail_actions/. Its developer report is at
   C:\Users\abero\dev\worktree_build-step-51-20260924005815\.build-step\dev-report.md.
   Keep this worktree; it is the only copy of the unfinished implementation.

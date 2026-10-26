@@ -1,4 +1,4 @@
-"""Tests for pta_finance.analytics — known-fixture -> exact-number assertions, no I/O.
+"""Tests for np_finance.analytics — known-fixture -> exact-number assertions, no I/O.
 
 The fixture is a small hand-built ``transactions`` ledger that exercises every case the
 analytics engine must handle:
@@ -21,8 +21,8 @@ from decimal import Decimal
 
 import pytest
 
-from pta_finance import analytics, schema
-from pta_finance.analytics import aggregate
+from np_finance import analytics, schema
+from np_finance.analytics import aggregate
 
 _TXN_COLS = schema.TRANSACTIONS_COLUMNS
 _BUD_COLS = schema.BUDGET_COLUMNS

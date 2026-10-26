@@ -20,10 +20,10 @@ from test_shared_workflow_helpers import new_store, require_emulator  # noqa: E4
 from test_shared_workflow_http import assert_error  # noqa: E402
 from test_shared_workflow_store import actor, body  # noqa: E402
 
-from pta_finance.shared_workflow.app import create_app  # noqa: E402
-from pta_finance.shared_workflow.config import Config  # noqa: E402
-from pta_finance.shared_workflow.models import Deadline, WorkflowError  # noqa: E402
-from pta_finance.shared_workflow.store import Store  # noqa: E402
+from np_finance.shared_workflow.app import create_app  # noqa: E402
+from np_finance.shared_workflow.config import Config  # noqa: E402
+from np_finance.shared_workflow.models import Deadline, WorkflowError  # noqa: E402
+from np_finance.shared_workflow.store import Store  # noqa: E402
 from scripts.shared_workflow_smoke import ORIGIN, Signer, assert_shapes  # noqa: E402
 
 require_emulator()

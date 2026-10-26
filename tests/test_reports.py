@@ -1,4 +1,4 @@
-"""Tests for pta_finance.reports — both variants render, external is PII-free, autoescape.
+"""Tests for np_finance.reports — both variants render, external is PII-free, autoescape.
 
 No live Google calls and no real WeasyPrint: the report data model is built from a small
 hand-built ledger fixture via the real ``build_internal_report`` / ``build_external_report``
@@ -21,9 +21,9 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import cli, report_source, reports, schema
-from pta_finance.config import Config, load_config
-from pta_finance.reports import builder
+from np_finance import cli, report_source, reports, schema
+from np_finance.config import Config, load_config
+from np_finance.reports import builder
 
 _TXN_COLS = schema.TRANSACTIONS_COLUMNS
 _BUD_COLS = schema.BUDGET_COLUMNS
@@ -33,7 +33,7 @@ _FY = 2026
 
 _CONFIG_TEXT = """\
 [organization]
-name = "Example PTA"
+name = "Example Non-profit"
 school_name = "Example Elementary"
 school_email = "office@example.org"
 
@@ -162,7 +162,7 @@ def test_internal_report_renders_with_expected_sections(tmp_path: Path) -> None:
     ):
         assert marker in html
     # Identity from config + the period.
-    assert "Example PTA" in html
+    assert "Example Non-profit" in html
     assert f"FY{_FY}" in html
     assert f"Fiscal Year {_FY}" in html
     # Full detail: the payee appears in the INTERNAL report (escaped or plain — plain here).
@@ -184,7 +184,7 @@ def test_external_report_renders_with_expected_sections(tmp_path: Path) -> None:
         'data-section="budget-headline"',
     ):
         assert marker in html
-    assert "Example PTA" in html
+    assert "Example Non-profit" in html
     assert f"Fiscal Year {_FY}" in html
     # External never carries the per-category breakdown or any transaction table.
     assert 'data-section="by-category"' not in html
@@ -362,7 +362,7 @@ class _ContaminatedExternal:
 def test_runtime_guard_raises_on_contaminated_payee() -> None:
     """``_assert_external_safe`` raises ExternalReportPIIError naming ``payee``."""
     contaminated = _ContaminatedExternal(
-        organization="Example PTA",
+        organization="Example Non-profit",
         fiscal_year=_FY,
         by_grade=(_ContaminatedLeaf(grade="3", payee="Smuggled Vendor"),),
     )
@@ -578,7 +578,7 @@ def test_report_cli_defaults_to_current_fiscal_year_without_fy(
     """
     from datetime import UTC, datetime
 
-    from pta_finance import ids
+    from np_finance import ids
 
     FakeReportClient.instances = []
     monkeypatch.setattr(cli, "SheetsClient", FakeReportClient)

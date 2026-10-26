@@ -1,4 +1,4 @@
-"""Tests for pta_finance.sheets — mocked gspread, NO live Google calls.
+"""Tests for np_finance.sheets — mocked gspread, NO live Google calls.
 
 The headline test exercises the **production** ``SheetsClient.upsert_rows`` path (not a
 parallel helper) and asserts (a) a single row-targeted ``batch_update`` and (b) the
@@ -13,10 +13,10 @@ import pytest
 from gspread.exceptions import APIError
 from gspread.utils import ValueInputOption, rowcol_to_a1
 
-from pta_finance import schema
-from pta_finance import sheets as sheets_module
-from pta_finance.config import Config
-from pta_finance.sheets import SchemaError, SheetsClient
+from np_finance import schema
+from np_finance import sheets as sheets_module
+from np_finance.config import Config
+from np_finance.sheets import SchemaError, SheetsClient
 from tests.conftest import (
     FakeClient,
     FakeSpreadsheet,

@@ -1,4 +1,4 @@
-"""Tests for pta_finance.gmail_source — the pinned read-only scope + actionable failures.
+"""Tests for np_finance.gmail_source — the pinned read-only scope + actionable failures.
 
 Nothing here touches the network or a real credential, but nothing here fakes a
 production component either. Credentials are always built by the module's own factory and
@@ -35,9 +35,9 @@ from google.auth.exceptions import RefreshError, TransportError
 from google.oauth2 import reauth
 from google.oauth2.credentials import Credentials
 
-from pta_finance import cli, gmail_source, receipt_ingest
-from pta_finance.config import Config, load_config
-from pta_finance.gmail_source import SCOPES, GmailAuthError, load_credentials
+from np_finance import cli, gmail_source, receipt_ingest
+from np_finance.config import Config, load_config
+from np_finance.gmail_source import SCOPES, GmailAuthError, load_credentials
 
 _READONLY = "https://www.googleapis.com/auth/gmail.readonly"
 _SEND = "https://www.googleapis.com/auth/gmail.send"
@@ -47,7 +47,7 @@ _METADATA = "https://www.googleapis.com/auth/gmail.metadata"
 # PUBLIC repo); the [gmail] block mirrors the commented-out one in config.example.toml.
 _BASE_CONFIG = """\
 [organization]
-name = "Example PTA"
+name = "Example Non-profit"
 school_name = "Example Elementary"
 school_email = "office@example.org"
 

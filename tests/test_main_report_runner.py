@@ -1,7 +1,7 @@
-"""Tests for pta_finance.main_reports.runner and the ``pta-finance end-to-end-run`` command.
+"""Tests for np_finance.main_reports.runner and the ``np-finance end-to-end-run`` command.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). The production CLI entry
-point (:func:`pta_finance.cli.main`) runs end to end: the real read-only capture against fake
+point (:func:`np_finance.cli.main`) runs end to end: the real read-only capture against fake
 gspread workbooks (``gspread.service_account`` returns a fake client routed by workbook key),
 the real reimbursement refresh over a fictional mail archive, the real reconciliation,
 journal projection and recording, facts, renderers, run manifest and publication. Content
@@ -32,7 +32,7 @@ from google.auth.exceptions import RefreshError, TransportError
 from PIL import Image
 from requests.exceptions import ReadTimeout
 
-from pta_finance import (
+from np_finance import (
     cli,
     gmail_source,
     receipt_assets,
@@ -40,7 +40,7 @@ from pta_finance import (
     receipt_viewer,
     reimbursement_report,
 )
-from pta_finance.main_reports import (
+from np_finance.main_reports import (
     adjustments,
     export,
     facts,
@@ -49,9 +49,9 @@ from pta_finance.main_reports import (
     runner,
     sources,
 )
-from pta_finance.main_reports.export import ExportError, ExportJob
-from pta_finance.main_reports.models import make_adjustment_id
-from pta_finance.sheets import SheetsClient
+from np_finance.main_reports.export import ExportError, ExportJob
+from np_finance.main_reports.models import make_adjustment_id
+from np_finance.sheets import SheetsClient
 from tests.conftest import (
     _FULL_CONFIG,
     AS_OF,
@@ -906,7 +906,7 @@ def test_a_second_writer_is_refused_while_the_lock_is_held(
 
 
 def test_the_runner_catches_the_one_sheets_failure_set() -> None:
-    from pta_finance import sheets as sheets_module
+    from np_finance import sheets as sheets_module
 
     assert runner.SHEETS_FAILURES is sheets_module.SHEETS_FAILURES
     assert adjustments.SHEETS_FAILURES is sheets_module.SHEETS_FAILURES

@@ -87,7 +87,7 @@ fingerprint from the validated report rather than duplicating the fingerprint al
 
 ```python
 from pathlib import Path
-from pta_finance import receipt_viewer, reimbursement_report
+from np_finance import receipt_viewer, reimbursement_report
 
 report = reimbursement_report.load_bundle(Path("reports/output/reimbursement-report.json"))
 ticket = next(t for t in report.tickets if t.ref == "NEW-01")
@@ -105,5 +105,5 @@ to suppress an error. Changes only to review status or reviewer explanations ret
 Rebuild after saving the sidecar:
 
 ```powershell
-uv run pta-finance report-reimbursements
+uv run np-finance report-reimbursements
 ```

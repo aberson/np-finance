@@ -38,7 +38,7 @@ $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8787'
 uv run python scripts/shared_workflow_smoke.py --emulator-host 127.0.0.1:8787 --deadline-seconds 60
 uv run pytest -q tests/test_shared_workflow_store.py tests/test_shared_workflow_http.py
 uv run pytest -q
-uv run mypy --strict pta_finance
+uv run mypy --strict np_finance
 uv run ruff check .
 uv run ruff format --check .
 uv build
@@ -117,7 +117,7 @@ Optional production-entry startup check, without printing private configuration:
 
 ```powershell
 $env:PTA_WORKFLOW_CONFIG = [IO.File]::ReadAllText((Resolve-Path -LiteralPath 'secrets/shared-workflow.runtime.json'))
-uv run python -m pta_finance.shared_workflow
+uv run python -m np_finance.shared_workflow
 ```
 
 Stop with Ctrl+C, then `Remove-Item Env:PTA_WORKFLOW_CONFIG`. Protected routes still require

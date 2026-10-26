@@ -30,18 +30,18 @@ from test_shared_workflow_helpers import require_emulator, setup  # noqa: E402
 from test_shared_workflow_http import assert_error  # noqa: E402
 from test_shared_workflow_store import actor, body  # noqa: E402
 
-from pta_finance.shared_workflow import models  # noqa: E402
-from pta_finance.shared_workflow.app import CSP, create_app  # noqa: E402
-from pta_finance.shared_workflow.auth import IAPVerifier  # noqa: E402
-from pta_finance.shared_workflow.catalog import load_catalog  # noqa: E402
-from pta_finance.shared_workflow.config import Config  # noqa: E402
-from pta_finance.shared_workflow.models import (  # noqa: E402
+from np_finance.shared_workflow import models  # noqa: E402
+from np_finance.shared_workflow.app import CSP, create_app  # noqa: E402
+from np_finance.shared_workflow.auth import IAPVerifier  # noqa: E402
+from np_finance.shared_workflow.catalog import load_catalog  # noqa: E402
+from np_finance.shared_workflow.config import Config  # noqa: E402
+from np_finance.shared_workflow.models import (  # noqa: E402
     Deadline,
     WorkflowError,
     load_source,
     wire,
 )
-from pta_finance.shared_workflow.store import Store  # noqa: E402
+from np_finance.shared_workflow.store import Store  # noqa: E402
 from scripts.shared_workflow_smoke import ORIGIN, Signer, emulator_client  # noqa: E402
 
 require_emulator()
@@ -89,7 +89,7 @@ def test_exact_catalog_and_list_projection(queue: Queue, monkeypatch: pytest.Mon
         "DEMO-05": ("Field day activity supplies", "225.00"),
         "DEMO-06": ("Art display mounting materials", "63.40"),
     }
-    source_bytes = Path("pta_finance/shared_workflow/example-request.json").read_bytes()
+    source_bytes = Path("np_finance/shared_workflow/example-request.json").read_bytes()
     # Pin the accepted source with Git checkout line-ending normalization only.
     assert (
         hashlib.sha256(source_bytes.replace(b"\r\n", b"\n")).hexdigest()
@@ -376,7 +376,7 @@ def test_dependencies_fail_before_any_seed(problem: str, monkeypatch: pytest.Mon
 def test_catalog_validation_precedes_all_seeding_and_map_is_copied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import pta_finance.shared_workflow.catalog as inventory
+    import np_finance.shared_workflow.catalog as inventory
 
     config, signer, verifier, _ = setup("queue")
     stores = queue_stores(config)
@@ -412,7 +412,7 @@ def test_disabled_identity_blocks_all_queue_routes_and_exact_replay(
     )
     new_stores = queue_stores(disabled)
     _, _, _, transport = setup("queue")
-    from pta_finance.shared_workflow.auth import KeyCache
+    from np_finance.shared_workflow.auth import KeyCache
 
     transport.keys = {signer.kid: signer.public_pem()}
     with TestClient(

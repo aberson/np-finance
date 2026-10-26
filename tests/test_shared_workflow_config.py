@@ -10,8 +10,8 @@ pytest.importorskip("fastapi")
 pytest.importorskip("google.cloud.firestore_v1")
 pytest.importorskip("cryptography")
 
-from pta_finance.shared_workflow.config import load_config  # noqa: E402
-from pta_finance.shared_workflow.models import WorkflowError, load_source, strict_json  # noqa: E402
+from np_finance.shared_workflow.config import load_config  # noqa: E402
+from np_finance.shared_workflow.models import WorkflowError, load_source, strict_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -153,11 +153,11 @@ def test_binding_and_duplicate_subject_email_guards() -> None:
 
 
 def test_fixture_projection_uses_only_source_fields() -> None:
-    from pta_finance.reimbursement_report import load_bundle
+    from np_finance.reimbursement_report import load_bundle
 
     source = load_source()
-    bundle = load_bundle(ROOT / "pta_finance/shared_workflow/example-request.json")
-    assert bundle.settings.organization == "Example PTA"
+    bundle = load_bundle(ROOT / "np_finance/shared_workflow/example-request.json")
+    assert bundle.settings.organization == "Example Non-profit"
     assert source["source_sha256"] == bundle.tickets[0].source_evidence_sha256
     assert source["display"]["total"] == "184.50"
     assert "payment" not in json.dumps(source) and "requestor" not in json.dumps(source)

@@ -1,4 +1,4 @@
-"""Unit tests for the reimbursement -> flat-ledger mapper (:mod:`pta_finance.receipt_map`).
+"""Unit tests for the reimbursement -> flat-ledger mapper (:mod:`np_finance.receipt_map`).
 
 Submissions are built directly with OBVIOUSLY-FAKE identity (``Jane Doe`` / ``jane@example.org``)
 per the repo identity rule — no real data.
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import receipt_ingest, receipt_map
-from pta_finance.receipt_ingest import LineItem, Submission
+from np_finance import receipt_ingest, receipt_map
+from np_finance.receipt_ingest import LineItem, Submission
 
 _MAP = {"garden club": "Garden Club Expenses"}
 

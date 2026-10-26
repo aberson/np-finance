@@ -1,6 +1,6 @@
 # Main Report Set guide
 
-`pta-finance end-to-end-run` produces the whole private report set from one captured set of
+`np-finance end-to-end-run` produces the whole private report set from one captured set of
 inputs:
 
 | Report | Period | Files |
@@ -46,7 +46,7 @@ adds per-source freshness and coverage. Layout contract:
 ## Check first: dry run
 
 ```powershell
-uv run pta-finance end-to-end-run --as-of 2030-08-15 --dry-run
+uv run np-finance end-to-end-run --as-of 2030-08-15 --dry-run
 ```
 
 A dry run reads and validates the live Sheets, the existing reimbursement evidence and the
@@ -83,7 +83,7 @@ row issue) rather than producing a silent wrong total:
 ## Run and publish
 
 ```powershell
-uv run pta-finance end-to-end-run --as-of 2030-08-15
+uv run np-finance end-to-end-run --as-of 2030-08-15
 ```
 
 Then open `reports/output/main-report-set.html`.
@@ -227,7 +227,7 @@ a private JSON file:
 Record keys and revision hashes are in the latest run's `records/reconciliation.json`. Then:
 
 ```powershell
-uv run pta-finance end-to-end-run --as-of 2030-08-15 --adjustments-file reports/output/adjustments.json
+uv run np-finance end-to-end-run --as-of 2030-08-15 --adjustments-file reports/output/adjustments.json
 ```
 
 The journal lives below the existing content of your Assumptions tab. Before writing, the

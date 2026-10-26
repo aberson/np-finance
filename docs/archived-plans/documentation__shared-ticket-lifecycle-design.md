@@ -53,7 +53,7 @@ Every original packaged request, source identity and receipt remains intact. Cre
 
 ## 5. Implementation boundary
 
-The current implementation supports a fixed immutable source and four handoff states. [models.py](../pta_finance/shared_workflow/models.py#L21) owns those states and transitions; [load_source](../pta_finance/shared_workflow/models.py#L235) constructs the packaged source; [Store._request](../pta_finance/shared_workflow/store.py#L164) compares stored details against it. [app.py](../pta_finance/shared_workflow/app.py#L130) admits only the configured request and exposes comment/decision/completion routes. These producer reads establish that creation, draft updates, archive and restore do not exist today.
+The current implementation supports a fixed immutable source and four handoff states. [models.py](../np_finance/shared_workflow/models.py#L21) owns those states and transitions; [load_source](../np_finance/shared_workflow/models.py#L235) constructs the packaged source; [Store._request](../np_finance/shared_workflow/store.py#L164) compares stored details against it. [app.py](../np_finance/shared_workflow/app.py#L130) admits only the configured request and exposes comment/decision/completion routes. These producer reads establish that creation, draft updates, archive and restore do not exist today.
 
 The pending queue plan deliberately admits exactly six packaged sources. Ticket creation is a subsequent scope change: it needs a durable catalog of user-created tickets, new lifecycle/revision storage, list/count behavior for a growing catalog, corresponding authenticated forms/routes, and installed-image compatibility checks. It must not merely append an in-memory row or edit a packaged fixture.
 

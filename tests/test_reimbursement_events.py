@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance import reimbursement_events
+from np_finance import reimbursement_events
 
 
 def _selector(ref: str = "NEW-01") -> dict[str, str]:

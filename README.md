@@ -1,10 +1,12 @@
-# pta_finance
+# np-finance
 
-[![CI](https://github.com/aberson/pta_finance/actions/workflows/ci.yml/badge.svg)](https://github.com/aberson/pta_finance/actions/workflows/ci.yml)
+[Project rename and compatibility notes](docs/project-rename.md).
+
+[![CI](https://github.com/aberson/np-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/aberson/np-finance/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Keep PTA finances in order: **plan a budget, review reimbursements, and explain the numbers to
+Keep non-profit finances in order: **plan a budget, review reimbursements, and explain the numbers to
 your board.** Also suited to booster clubs and small nonprofits.
 
 - **Plan the budget.** Edit amounts in Google Sheets and check changes before saving.
@@ -14,7 +16,7 @@ your board.** Also suited to booster clubs and small nonprofits.
 Google Sheets holds the budget. A local Python tool prepares the reports, which open in your
 browser.
 
-![Reimbursement review showing totals, request statuses, and next actions for a fictional PTA](docs/screenshots/reimbursement-queue.png)
+![Reimbursement review showing totals, request statuses, and next actions for a fictional non-profit](docs/screenshots/reimbursement-queue.png)
 
 *The real review report with fictional names, amounts, and decisions. All examples on this page
 use fictional data.*
@@ -43,10 +45,10 @@ The [spreadsheet guide](docs/using-the-spreadsheet.md) explains which tabs to ed
 <summary><strong>Budget and report commands</strong></summary>
 
 ```powershell
-uv run pta-finance sync-budget --fy 2027          # preview changes
-uv run pta-finance sync-budget --fy 2027 --apply  # back up, then save
-uv run pta-finance analyze --fy 2027             # show totals and comparisons
-uv run pta-finance report --fy 2027 --variant both
+uv run np-finance sync-budget --fy 2027          # preview changes
+uv run np-finance sync-budget --fy 2027 --apply  # back up, then save
+uv run np-finance analyze --fy 2027             # show totals and comparisons
+uv run np-finance report --fy 2027 --variant both
 ```
 
 The last command saves two HTML reports in `reports/output/` and records the run in the
@@ -106,21 +108,21 @@ including a category map and private review data file.
 
 ```powershell
 # Download emails. Gmail access is read-only.
-uv run pta-finance fetch-mail --since 2026-07-01
+uv run np-finance fetch-mail --since 2026-07-01
 
 # Check the complete local archive before updating the Sheet.
-uv run pta-finance ingest-receipts --source mail_samples --profile --originals-only
-uv run pta-finance map-receipts --source mail_samples
+uv run np-finance ingest-receipts --source mail_samples --profile --originals-only
+uv run np-finance map-receipts --source mail_samples
 
 # Optional: back up and replace the Reimbursements tab.
-uv run pta-finance map-receipts --source mail_samples --write-tab Reimbursements
+uv run np-finance map-receipts --source mail_samples --write-tab Reimbursements
 
 # Preview a review-queue refresh, then run it.
-uv run pta-finance update-reimbursements --dry-run
-uv run pta-finance update-reimbursements
+uv run np-finance update-reimbursements --dry-run
+uv run np-finance update-reimbursements
 
 # Rebuild the HTML from saved review data, without checking email.
-uv run pta-finance report-reimbursements
+uv run np-finance report-reimbursements
 ```
 
 The Sheet ledger and private review report are separate. Refreshing the report does not update
@@ -144,13 +146,13 @@ every report checks out. A failed run leaves the previous set in place.
 Check first; the dry run validates everything and writes nothing:
 
 ```powershell
-uv run pta-finance end-to-end-run --as-of 2030-08-15 --dry-run
+uv run np-finance end-to-end-run --as-of 2030-08-15 --dry-run
 ```
 
 Then build and publish:
 
 ```powershell
-uv run pta-finance end-to-end-run --as-of 2030-08-15
+uv run np-finance end-to-end-run --as-of 2030-08-15
 ```
 
 Open `reports/output/main-report-set.html`. Setup, adjustments and recovery are in the
@@ -162,8 +164,8 @@ Day-to-day budget editing happens in Google Sheets. Initial setup and report upd
 **Python 3.12+**, **[uv](https://docs.astral.sh/uv/)**, and Google credentials.
 
 ```powershell
-git clone https://github.com/aberson/pta_finance.git
-cd pta_finance
+git clone https://github.com/aberson/np-finance.git
+cd np-finance
 uv sync --locked --extra dev
 Copy-Item config.example.toml config.toml
 ```
@@ -247,7 +249,7 @@ Google access uses `gspread` and Google's API client.
 uv sync --locked --extra dev --extra slides --extra web
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy --strict pta_finance
+uv run mypy --strict np_finance
 uv run pytest -q
 uv run python scripts/check_no_identity.py
 ```

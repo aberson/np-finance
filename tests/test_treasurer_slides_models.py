@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from pta_finance.treasurer_slides import models as treasurer_models
-from pta_finance.treasurer_slides.models import (
+from np_finance.treasurer_slides import models as treasurer_models
+from np_finance.treasurer_slides.models import (
     PRIVATE_JSON_MAX_BYTES,
     AccountRole,
     ActivityColumn,

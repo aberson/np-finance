@@ -75,16 +75,16 @@
     <h2>What the operator can do now</h2>
     <p>Choose the smallest action that matches the job in front of you.</p>
     <div class="cards">
-      <article class="card"><div class="num">1</div><h3>Email only</h3><p>Update the private local archive without building a report or touching Sheets.</p><pre><code>uv run pta-finance fetch-mail \
+      <article class="card"><div class="num">1</div><h3>Email only</h3><p>Update the private local archive without building a report or touching Sheets.</p><pre><code>uv run np-finance fetch-mail \
   --since YYYY-MM-DD</code></pre></article>
-      <article class="card"><div class="num">2</div><h3>Report only</h3><p>Validate the current private bundle and atomically regenerate the HTML offline.</p><pre><code>uv run pta-finance \
+      <article class="card"><div class="num">2</div><h3>Report only</h3><p>Validate the current private bundle and atomically regenerate the HTML offline.</p><pre><code>uv run np-finance \
   report-reimbursements</code></pre></article>
-      <article class="card"><div class="num">3</div><h3>End to end</h3><p>Preview first; then acquire mail, refresh stable evidence, and render in one local run.</p><pre><code>uv run pta-finance \
+      <article class="card"><div class="num">3</div><h3>End to end</h3><p>Preview first; then acquire mail, refresh stable evidence, and render in one local run.</p><pre><code>uv run np-finance \
   update-reimbursements \
   --fetch-since YYYY-MM-DD \
   --dry-run
 
-uv run pta-finance \
+uv run np-finance \
   update-reimbursements \
   --fetch-since YYYY-MM-DD</code></pre></article>
     </div>

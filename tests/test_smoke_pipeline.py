@@ -2,7 +2,7 @@
 
 This is a producer -> consumer **drift gate**, distinct from the per-module unit tests (which
 mock their own boundaries) and from the M3 operator observation run (which uses a real Sheet).
-It runs the whole pipeline once, through the **real** :class:`~pta_finance.sheets.SheetsClient`
+It runs the whole pipeline once, through the **real** :class:`~np_finance.sheets.SheetsClient`
 wired to the conftest in-memory ``gspread`` fake (``FakeClient`` / ``FakeSpreadsheet`` /
 ``FakeWorksheet``), and asserts every hop fits together — NOT what any number comes out to.
 
@@ -23,9 +23,9 @@ the expected structural section markers; and the external HTML does NOT contain 
 payee (the PII boundary holds through the whole chain). No dollar totals are asserted — that is
 ``test_analytics.py`` / ``test_reports.py``'s job.
 
-Identity is obviously-fake placeholders only (``Example PTA``, ``treasurer@example.org``); the
-recognizable fixture payee ``Acme Supply Co`` is a sentinel that must never reach external
-output.
+Identity is obviously-fake placeholders only (``Example Non-profit``,
+``treasurer@example.org``); the recognizable fixture payee ``Acme Supply Co`` is a sentinel
+that must never reach external output.
 """
 
 from __future__ import annotations
@@ -35,9 +35,9 @@ from typing import Any
 
 from gspread.utils import a1_range_to_grid_range
 
-from pta_finance import analytics, etl, reports, schema
-from pta_finance.config import Config
-from pta_finance.sheets import SheetsClient
+from np_finance import analytics, etl, reports, schema
+from np_finance.config import Config
+from np_finance.sheets import SheetsClient
 from tests.conftest import FakeClient, FakeSpreadsheet, FakeWorksheet
 
 _TXN_COLS = schema.TRANSACTIONS_COLUMNS

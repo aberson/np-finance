@@ -1,11 +1,11 @@
-"""Tests for pta_finance.ids — exact ID formats + fiscal-year logic."""
+"""Tests for np_finance.ids — exact ID formats + fiscal-year logic."""
 
 from __future__ import annotations
 
 from datetime import date
 
-from pta_finance.etl import _TXN_ID_RE
-from pta_finance.ids import (
+from np_finance.etl import _TXN_ID_RE
+from np_finance.ids import (
     budget_id,
     event_id,
     fiscal_year_label,

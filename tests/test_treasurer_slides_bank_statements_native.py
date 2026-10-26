@@ -16,13 +16,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from pta_finance.treasurer_slides import bank_statements
-from pta_finance.treasurer_slides.bank_statements import (
+from np_finance.treasurer_slides import bank_statements
+from np_finance.treasurer_slides.bank_statements import (
     SlidesDependencyError,
     StatementExtractionError,
     WellsFargoStatementExtractor,
 )
-from pta_finance.treasurer_slides.models import (
+from np_finance.treasurer_slides.models import (
     AccountRole,
     ActivityColumn,
     BalanceBoundary,
@@ -3467,10 +3467,10 @@ def test_built_base_wheel_loads_cli_without_the_slides_extra(tmp_path: Path) -> 
         [
             str(interpreter),
             "-c",
-            "import importlib.util; import pta_finance.cli; "
-            "import pta_finance.treasurer_slides.bank_statements; "
+            "import importlib.util; import np_finance.cli; "
+            "import np_finance.treasurer_slides.bank_statements; "
             "assert importlib.util.find_spec('pypdfium2') is None; "
-            "assert pta_finance.cli.build_parser() is not None",
+            "assert np_finance.cli.build_parser() is not None",
         ],
         check=False,
         capture_output=True,

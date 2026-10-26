@@ -20,7 +20,7 @@ from typing import Any
 
 from playwright.sync_api import Page, sync_playwright
 
-from pta_finance import reimbursement_report
+from np_finance import reimbursement_report
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "docs" / "screenshots"
@@ -212,10 +212,10 @@ def example_bundle() -> dict[str, Any]:
         "schema_version": 2,
         "report": {
             "title": "Reimbursement Review",
-            "eyebrow": "Example PTA / Treasurer",
+            "eyebrow": "Example Non-profit / Treasurer",
             "subtitle": "Receipts, decisions, and next steps / Fictional example data",
-            "organization": "Example PTA",
-            "email_signoff": ["Thank you!", "Example PTA Treasurer"],
+            "organization": "Example Non-profit",
+            "email_signoff": ["Thank you!", "Example Non-profit Treasurer"],
             "logo_data_uri": "",
             "confirmed_outstanding": "240.00",
             "cutoff_date": "2026-07-01",
@@ -255,7 +255,7 @@ def render_examples(directory: Path) -> None:
 def open_report(page: Page, path: Path) -> None:
     page.goto(path.as_uri(), wait_until="load")
     page.evaluate("document.fonts.ready")
-    page.locator("img").evaluate_all("imgs => Promise.all(imgs.map(img => img.decode()))")
+    page.locator("img[src]").evaluate_all("imgs => Promise.all(imgs.map(img => img.decode()))")
 
 
 def main() -> None:

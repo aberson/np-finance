@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "project": "pta_finance",
+  "project": "np_finance",
   "plan_path": "docs/plans/master_plan.md",
   "plan_sha256": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
   "generated_at": "2026-10-14T17:17:33.950242+00:00",
@@ -48,7 +48,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 67,
         "line_end": 91
@@ -83,7 +83,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 92,
         "line_end": 110
@@ -118,7 +118,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 111,
         "line_end": 125
@@ -155,7 +155,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 126,
         "line_end": 138
@@ -192,7 +192,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 139,
         "line_end": 178
@@ -229,7 +229,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 179,
         "line_end": 202
@@ -266,7 +266,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 203,
         "line_end": 230
@@ -303,7 +303,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 231,
         "line_end": 256
@@ -340,7 +340,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 257,
         "line_end": 281
@@ -377,7 +377,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 282,
         "line_end": 311
@@ -414,7 +414,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 312,
         "line_end": 341
@@ -451,7 +451,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 342,
         "line_end": 372
@@ -488,7 +488,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 373,
         "line_end": 403
@@ -525,7 +525,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 404,
         "line_end": 458
@@ -562,7 +562,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 459,
         "line_end": 475
@@ -599,7 +599,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 476,
         "line_end": 490
@@ -636,7 +636,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 491,
         "line_end": 507
@@ -673,7 +673,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 508,
         "line_end": 522
@@ -710,7 +710,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 523,
         "line_end": 537
@@ -747,7 +747,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 538,
         "line_end": 551
@@ -784,7 +784,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 552,
         "line_end": 570
@@ -821,7 +821,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 571,
         "line_end": 585
@@ -858,7 +858,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 586,
         "line_end": 601
@@ -896,7 +896,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 602,
         "line_end": 616
@@ -935,7 +935,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 617,
         "line_end": 631
@@ -974,7 +974,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 632,
         "line_end": 646
@@ -1011,7 +1011,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 647,
         "line_end": 663
@@ -1048,7 +1048,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 664,
         "line_end": 678
@@ -1085,7 +1085,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 679,
         "line_end": 693
@@ -1122,7 +1122,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 694,
         "line_end": 855
@@ -1159,7 +1159,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 856,
         "line_end": 871
@@ -1196,7 +1196,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 872,
         "line_end": 887
@@ -1233,7 +1233,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 888,
         "line_end": 903
@@ -1270,7 +1270,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 904,
         "line_end": 919
@@ -1307,7 +1307,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 920,
         "line_end": 935
@@ -1344,7 +1344,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 936,
         "line_end": 948
@@ -1381,7 +1381,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 949,
         "line_end": 958
@@ -1418,7 +1418,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 959,
         "line_end": 968
@@ -1455,7 +1455,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 969,
         "line_end": 978
@@ -1492,7 +1492,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 979,
         "line_end": 988
@@ -1529,7 +1529,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 989,
         "line_end": 998
@@ -1566,7 +1566,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 999,
         "line_end": 1008
@@ -1603,7 +1603,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1009,
         "line_end": 1018
@@ -1640,7 +1640,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1019,
         "line_end": 1027
@@ -1677,7 +1677,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1028,
         "line_end": 1037
@@ -1714,7 +1714,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1038,
         "line_end": 1047
@@ -1751,7 +1751,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1048,
         "line_end": 1057
@@ -1788,7 +1788,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1058,
         "line_end": 1067
@@ -1825,7 +1825,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1068,
         "line_end": 1077
@@ -1862,7 +1862,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1078,
         "line_end": 1086
@@ -1899,7 +1899,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1087,
         "line_end": 1095
@@ -1936,7 +1936,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1096,
         "line_end": 1105
@@ -1973,7 +1973,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1106,
         "line_end": 1115
@@ -2010,7 +2010,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1116,
         "line_end": 1125
@@ -2047,7 +2047,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1126,
         "line_end": 1135
@@ -2084,7 +2084,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1136,
         "line_end": 1145
@@ -2121,7 +2121,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1146,
         "line_end": 1155
@@ -2158,7 +2158,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1156,
         "line_end": 1165
@@ -2195,7 +2195,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1166,
         "line_end": 1175
@@ -2232,7 +2232,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1176,
         "line_end": 1185
@@ -2269,7 +2269,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1186,
         "line_end": 1195
@@ -2306,7 +2306,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1196,
         "line_end": 1205
@@ -2343,7 +2343,7 @@
       "unresolved_dependencies": [],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1206,
         "line_end": 1215
@@ -2380,7 +2380,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1216,
         "line_end": 1225
@@ -2417,7 +2417,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1226,
         "line_end": 1235
@@ -2454,7 +2454,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1236,
         "line_end": 1245
@@ -2491,7 +2491,7 @@
       ],
       "source_ref": {
         "source_id": "src_97e91c52272b62cc896a6678ff63e3eae52acc3cfea06432992b23b261b0b2ac",
-        "locator": "pta_finance/docs/plans/master_plan.md",
+        "locator": "np_finance/docs/plans/master_plan.md",
         "digest": "e04cbbcff079ebf06dab332c81aae7701515991cd510c896c949a1ef74739fb2",
         "line_start": 1246,
         "line_end": 1276

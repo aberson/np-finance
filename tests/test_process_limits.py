@@ -10,11 +10,11 @@ from typing import Any
 
 import pytest
 
-from pta_finance import process_limits
-from pta_finance.treasurer_slides import native_sandbox, native_worker
+from np_finance import process_limits
+from np_finance.treasurer_slides import native_sandbox, native_worker
 
 _ROOT = Path(__file__).resolve().parents[1]
-_LEAF = _ROOT / "pta_finance" / "process_limits.py"
+_LEAF = _ROOT / "np_finance" / "process_limits.py"
 _MiB = 1024 * 1024
 
 
@@ -85,7 +85,7 @@ def _layout(structure: type[ctypes.Structure]) -> list[tuple[str, Any, int, int]
     return rows
 
 
-def test_the_leaf_imports_nothing_from_pta_finance() -> None:
+def test_the_leaf_imports_nothing_from_np_finance() -> None:
     tree = ast.parse(_LEAF.read_text(encoding="utf-8"))
     imported = set()
     for node in ast.walk(tree):
@@ -95,13 +95,13 @@ def test_the_leaf_imports_nothing_from_pta_finance() -> None:
             imported.add((node.module or "").split(".")[0])
     assert imported <= {"__future__", "ctypes", "dataclasses", "sys", "typing"}
     script = (
-        "import sys\nimport pta_finance.process_limits\n"
-        "print(sorted(m for m in sys.modules if m.startswith('pta_finance')))"
+        "import sys\nimport np_finance.process_limits\n"
+        "print(sorted(m for m in sys.modules if m.startswith('np_finance')))"
     )
     loaded = subprocess.run(
         [sys.executable, "-I", "-c", script], capture_output=True, text=True, check=True
     ).stdout
-    assert loaded.strip() == "['pta_finance', 'pta_finance.process_limits']"
+    assert loaded.strip() == "['np_finance', 'np_finance.process_limits']"
 
 
 def test_job_structures_match_the_native_worker_copy_recursively() -> None:

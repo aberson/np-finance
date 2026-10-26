@@ -1,7 +1,7 @@
 # Phase 6 — reimbursement summary issue synchronization
 
 **Status:** READY for build. Plan-expedite completed 2026-09-10.
-**Repository:** `aberson/pta_finance`, default branch `main`.
+**Repository:** `aberson/np_finance`, default branch `main`.
 **Source plan:** [reimbursement-board-summary-plan.md](plans/master_plan.md).
 **Design snapshot:** `620ae19`; subsequent edits fill tracking references only.
 
@@ -11,13 +11,13 @@ issue synchronization. The production workflow remains unbuilt.
 
 | Unit | Issue | Boundary |
 |---|---|---|
-| Phase 6 umbrella | [#55](https://github.com/aberson/pta_finance/issues/55) | Tracks all six steps |
-| Step 26 — Prepare the review packet | [#56](https://github.com/aberson/pta_finance/issues/56) | Automated |
-| Step 27 — Render one-page HTML | [#57](https://github.com/aberson/pta_finance/issues/57) | Automated |
-| Step 28 — Preserve the approved export | [#58](https://github.com/aberson/pta_finance/issues/58) | Automated |
-| Step 29 — Provide the monthly runner | [#59](https://github.com/aberson/pta_finance/issues/59) | Automated |
-| Step 30 — Exercise a complete cycle | [#60](https://github.com/aberson/pta_finance/issues/60) | Automated |
-| Step 31 — Accept the private Windows workflow | [#61](https://github.com/aberson/pta_finance/issues/61) | Attended operator handoff |
+| Phase 6 umbrella | [#55](https://github.com/aberson/np-finance/issues/55) | Tracks all six steps |
+| Step 26 — Prepare the review packet | [#56](https://github.com/aberson/np-finance/issues/56) | Automated |
+| Step 27 — Render one-page HTML | [#57](https://github.com/aberson/np-finance/issues/57) | Automated |
+| Step 28 — Preserve the approved export | [#58](https://github.com/aberson/np-finance/issues/58) | Automated |
+| Step 29 — Provide the monthly runner | [#59](https://github.com/aberson/np-finance/issues/59) | Automated |
+| Step 30 — Exercise a complete cycle | [#60](https://github.com/aberson/np-finance/issues/60) | Automated |
+| Step 31 — Accept the private Windows workflow | [#61](https://github.com/aberson/np-finance/issues/61) | Attended operator handoff |
 
 Created one umbrella and six step issues. No pre-existing issues were updated, enriched,
 reopened, or closed. All six step bodies contain context, file lists, acceptance, flags,

@@ -19,8 +19,8 @@ from typing import TypedDict
 
 import pytest
 
-from pta_finance import cli, reimbursement_events, reimbursement_pipeline, reimbursement_report
-from pta_finance.config import Config
+from np_finance import cli, reimbursement_events, reimbursement_pipeline, reimbursement_report
+from np_finance.config import Config
 
 _CUTOFF = date(2030, 9, 1)
 _AS_OF = date(2030, 9, 10)

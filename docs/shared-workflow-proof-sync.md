@@ -1,15 +1,15 @@
 # Shared workflow proof issue synchronization
 
-Completed 2026-09-11 against `aberson/pta_finance`, default branch `main`, after the recorded technical review, redline publication and plan-wrap. The operator authorized planning closeout, issue synchronization and Phase A through Step 32; M6 remains attended.
+Completed 2026-09-11 against `aberson/np_finance`, default branch `main`, after the recorded technical review, redline publication and plan-wrap. The operator authorized planning closeout, issue synchronization and Phase A through Step 32; M6 remains attended.
 
-Source: [shared-workflow-proof-plan.md](plans/master_plan.md), published at planning commit `2b74e25`. [Umbrella #62](https://github.com/aberson/pta_finance/issues/62) links all four steps.
+Source: [shared-workflow-proof-plan.md](plans/master_plan.md), published at planning commit `2b74e25`. [Umbrella #62](https://github.com/aberson/np-finance/issues/62) links all four steps.
 
 | Execution phase | Step | Issue | Dependency |
 |---|---|---|---|
-| A | 32: Authenticated shared comments | [#63](https://github.com/aberson/pta_finance/issues/63) | Planning preparation |
-| A | 33: Deployed identity/comments/persistence proof, M6 | [#64](https://github.com/aberson/pta_finance/issues/64) | Step 32 |
-| B | 34: Reviewer-to-processor handoff | [#65](https://github.com/aberson/pta_finance/issues/65) | Checked M6 record and Step 33 DONE |
-| B | 35: Deployed handoff acceptance, M7 | [#66](https://github.com/aberson/pta_finance/issues/66) | Step 34 |
+| A | 32: Authenticated shared comments | [#63](https://github.com/aberson/np-finance/issues/63) | Planning preparation |
+| A | 33: Deployed identity/comments/persistence proof, M6 | [#64](https://github.com/aberson/np-finance/issues/64) | Step 32 |
+| B | 34: Reviewer-to-processor handoff | [#65](https://github.com/aberson/np-finance/issues/65) | Checked M6 record and Step 33 DONE |
+| B | 35: Deployed handoff acceptance, M7 | [#66](https://github.com/aberson/np-finance/issues/66) | Step 34 |
 
 ## Verification
 
@@ -46,7 +46,7 @@ M6's ordered runbook is prepared in the candidate, and its blank private accepta
 
 The operator authorized one additional bounded iteration. Delivery `9652b159df877b373bbe55bfb0676dc518869784` preserves the original candidate and fixes only the remaining origin validation and HTTP test findings. The origin guard now rejects unsupported serialized forms at startup; a complete duplicate-key operation proves the real HTTP parser rejects the request without changing events or version. A temporary in-memory ordinary-JSON parser substitution made that corrected test fail; the real parser was restored before gates.
 
-The complete Windows suite passed in both the candidate and main checkout: 1,110 cases, 1,107 passed, three unchanged existing skips; all 160 web cases passed without skips. The optional PyYAML supplement passed all nine workflow tests. Strict package mypy, Ruff lint/format, installed-wheel HTTP/Chromium/restart smoke, packaging/privacy and identity checks passed. All six independent review lenses passed with zero findings. All three [feature CI jobs](https://github.com/aberson/pta_finance/actions/runs/34674326030) passed on `9652b15`.
+The complete Windows suite passed in both the candidate and main checkout: 1,110 cases, 1,107 passed, three unchanged existing skips; all 160 web cases passed without skips. The optional PyYAML supplement passed all nine workflow tests. Strict package mypy, Ruff lint/format, installed-wheel HTTP/Chromium/restart smoke, packaging/privacy and identity checks passed. All six independent review lenses passed with zero findings. All three [feature CI jobs](https://github.com/aberson/np-finance/actions/runs/34674326030) passed on `9652b15`.
 
 Integration used a three-way Git merge so the earlier main documentation updates survived. The pre-existing `.gitignore` change remains local, unstaged and byte-identical. The R3 candidate, R4 patch, tests and independent review receipts remain preserved in the original worktree. Step 32/#63 is complete; umbrella #62 and Steps 33–35/#64–66 remain open.
 
@@ -67,7 +67,7 @@ Step 33/#64 is complete; umbrella #62 and Steps 34–35/#65–66 remain open. Th
 
 Delivery `fd4b45a1e38df4d82041fac0cb473bf9611d29a6` adds optional handoff mode. Reviewer approval transfers the next action to the processor; only the processor can complete an approved workflow. Not-approval is terminal. Comments preserve the decision, and completion explicitly remains administrative. The existing shared transaction lane enforces roles, versions, exact retry receipts and event ordering across comments, decisions and completion. Identity and comments modes retain their earlier behavior.
 
-The complete Windows suite passed in both the isolated candidate and main checkout: 1,173 collected, 1,170 passed, three unchanged existing skips; all 223 web cases passed without skips. Strict package mypy, Ruff lint/format, build and identity gates passed. Installed-wheel HTTP/Chromium/emulator smoke passed the comments/restart proof and both durable handoff branches. The unchanged workflow files retain their nine-case optional PyYAML supplement pass. All six fresh independent review lenses passed after the bounded second iteration; the original review findings and earlier candidate remain archived. All three [feature CI jobs](https://github.com/aberson/pta_finance/actions/runs/34728978038) passed on `fd4b45a`.
+The complete Windows suite passed in both the isolated candidate and main checkout: 1,173 collected, 1,170 passed, three unchanged existing skips; all 223 web cases passed without skips. Strict package mypy, Ruff lint/format, build and identity gates passed. Installed-wheel HTTP/Chromium/emulator smoke passed the comments/restart proof and both durable handoff branches. The unchanged workflow files retain their nine-case optional PyYAML supplement pass. All six fresh independent review lenses passed after the bounded second iteration; the original review findings and earlier candidate remain archived. All three [feature CI jobs](https://github.com/aberson/np-finance/actions/runs/34728978038) passed on `fd4b45a`.
 
 Integration used Git's three-way merge. The pre-existing `.gitignore` change remains local, unstaged and byte-identical. Step 34/#65 is complete; umbrella #62 and Step 35/#66 remain open. The root Manual UAT section and the expanded runbook now point to M7.
 

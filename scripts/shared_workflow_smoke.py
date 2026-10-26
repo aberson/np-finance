@@ -61,7 +61,7 @@ def emulator_client(host: str) -> FirestoreClient:
 
 
 def fixture_config(namespace: str, mode: str = "comments") -> Any:
-    from pta_finance.shared_workflow.config import Config, User
+    from np_finance.shared_workflow.config import Config, User
 
     return Config(
         mode,
@@ -126,7 +126,7 @@ class CertificateTransport:
         self.calls = 0
 
     def __call__(self, url: str, **kwargs: Any) -> Any:
-        from pta_finance.shared_workflow.auth import CERTS_URL, _Response
+        from np_finance.shared_workflow.auth import CERTS_URL, _Response
 
         if url != CERTS_URL:
             raise ValueError("unexpected certificate URL")
@@ -136,11 +136,11 @@ class CertificateTransport:
 
 def serve() -> int:
     """Nonpackaged subprocess factory; stdin contains synthetic setup and public keys only."""
-    from pta_finance.shared_workflow.app import create_app
-    from pta_finance.shared_workflow.auth import IAPVerifier, KeyCache
-    from pta_finance.shared_workflow.catalog import load_catalog
-    from pta_finance.shared_workflow.models import load_source
-    from pta_finance.shared_workflow.store import Store
+    from np_finance.shared_workflow.app import create_app
+    from np_finance.shared_workflow.auth import IAPVerifier, KeyCache
+    from np_finance.shared_workflow.catalog import load_catalog
+    from np_finance.shared_workflow.models import load_source
+    from np_finance.shared_workflow.store import Store
 
     setup = json.loads(sys.stdin.readline())
     config = fixture_config(setup["namespace"], setup.get("mode", "comments"))

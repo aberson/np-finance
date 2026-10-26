@@ -11,10 +11,10 @@ pytest.importorskip("fastapi")
 pytest.importorskip("google.cloud.firestore_v1")
 pytest.importorskip("cryptography")
 
-from pta_finance.shared_workflow.auth import IAPVerifier, KeyCache  # noqa: E402
-from pta_finance.shared_workflow.config import Config  # noqa: E402
-from pta_finance.shared_workflow.models import load_source  # noqa: E402
-from pta_finance.shared_workflow.store import Store  # noqa: E402
+from np_finance.shared_workflow.auth import IAPVerifier, KeyCache  # noqa: E402
+from np_finance.shared_workflow.config import Config  # noqa: E402
+from np_finance.shared_workflow.models import load_source  # noqa: E402
+from np_finance.shared_workflow.store import Store  # noqa: E402
 from scripts.shared_workflow_smoke import (  # noqa: E402
     CertificateTransport,
     Signer,

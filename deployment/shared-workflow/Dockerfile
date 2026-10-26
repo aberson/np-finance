@@ -3,7 +3,7 @@ FROM python:3.12-slim AS build
 COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /build
 COPY pyproject.toml uv.lock README.md ./
-COPY pta_finance ./pta_finance
+COPY np_finance ./np_finance
 RUN uv sync --locked --no-dev --extra web --no-editable --no-cache
 
 FROM python:3.12-slim
@@ -14,4 +14,4 @@ COPY source-content-manifest.json inspect_image.py ./
 RUN groupadd --gid 10001 proof && useradd --uid 10001 --gid 10001 --no-create-home proof
 USER 10001:10001
 EXPOSE 8080
-ENTRYPOINT ["/app/.venv/bin/python", "-m", "pta_finance.shared_workflow"]
+ENTRYPOINT ["/app/.venv/bin/python", "-m", "np_finance.shared_workflow"]
