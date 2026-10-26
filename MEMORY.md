@@ -1,9 +1,10 @@
 # Project handoff notes
 
-- Canonical dispatch/status: `docs/plans/master_plan.md`. Execute only an explicitly selected track; never run this multi-track master without phase/step scope.
-- Phase CFO plan reviewed, redlined with delegated approval, wrapped, and synced on 2026-10-21. Umbrella #95; code Steps 57–62 map to #96–#101; live acceptance Step 63 maps to #102. Implementation remains unbuilt.
-- Supporting contracts: `docs/plan-reference/cfo-main-report-set.md`. Proposal and review/wrap/sync reports are linked from the phase. Existing board/receipt/action tracks keep their own pending, blocked or paused states.
-- Future build uses the user's selected Opus Claude Code session; build-phase does not accept a model flag. Reviewer lanes keep their own routing. The automated invocation is `/build-phase --plan docs/plans/master_plan.md --phase CFO --steps 57,58,59,60,61,62`.
-- Preserve pre-existing staged documentation migration and unstaged reimbursement/copy-text work. The current working-tree queue implementation includes copy-text changes not present in baseline 243212e. Step 61 must retain/integrate that work when preparing its isolated checkout, not assume a clean HEAD contains it or overwrite the user's changes.
-- Use targeted changed-contract verification and one live report cycle for this phase, per the user's explicit testing preference; list exact suites, never claim subset evidence is a full-suite pass.
-- Keep financial inputs, identities, credentials, snapshots and reconciliation findings private and gitignored. Public examples and issue bodies remain generic.
+- Canonical status: `docs/plans/master_plan.md`. Select a track explicitly; never dispatch the entire master unattended.
+- Naming migration delivered 2026-10-26: repository/CLI `np-finance`, package `np_finance`; guide `docs/project-rename.md`.
+- CFO Steps 57-62 and 64 are delivered. Step 63 (#102) remains in progress: category crosswalk and operator financial review remain. Do not rebuild completed steps.
+- The renamed runner published all five reports. Public links, workspace hooks and workbook documentation were updated; the workbook audit covered 36 tabs and corrected eight text cells.
+- Prior validation: 281 web tests passed; four layout scenarios passed on Windows and Linux. The non-web run had 2,206 passes, three failures and 13 skips; the failures passed isolated rechecks. Do not call this a single clean full-suite run.
+- Preserve paused Step 51 and blocked Step 41 worktrees. Other master-plan tracks retain their recorded status.
+- The public pre-rename archive has 229 verified Git-tracked files. The old GitHub URL redirects to the live repository; do not delete it. Empty old-folder deletion was blocked by approval review.
+- Keep credentials, financial data and detailed workbook audit evidence private and gitignored. No bulk renaming of stable journal, receipt or cloud identifiers.

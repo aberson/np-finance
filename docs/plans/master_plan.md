@@ -120,7 +120,7 @@ Budget current editable name is FY2027 - Editable Internal Budget (configurable 
 - **Type:** operator + docs
 - **Problem:** The root cause was members working in a copy. The durable fix is process, not tooling.
 - **Do:** ensure `docs/using-the-spreadsheet.md` is shared with the people who touch the budget; going
-  forward, budget changes are made **directly in `FY2027 Budget`** and synced — which removes the
+  forward, budget changes are made **directly in the configured editable tab (`FY2027 - Editable Internal Budget` for the current workbook)** and synced — which removes the
   transcription step this whole plan exists to perform.
 - **Status:** PENDING
 
@@ -1465,3 +1465,54 @@ Approval: 2026-10-21. P entries preserve explicit user choices. D entries accept
 
 See [the migration guide](../project-rename.md) and [progress](../rename-progress.html).
 Existing feature acceptance boundaries remain unchanged.
+
+
+## Naming migration and workbook documentation closeout (2026-10-26)
+
+**Delivered scope:** `np-finance` repository, checkout and command; `np_finance`
+imports; workspace launchers and public project links; pre-rename public source
+archive; non-profit terminology in maintained documentation and the connected workbook.
+This is a completion record, not a new build queue or acceptance of unrelated tracks.
+
+- The renamed `end-to-end-run` published all five reports; 15 output files and 16
+  compatibility copies were verified during the migration.
+- A complete Sheets API scan of 36 workbook tabs found eight remaining text cells
+  across five tabs. Scoped text updates were reread and verified: no old project
+  names or PTA wording remained in returned workbook data. Other entered values,
+  formulas, cell formatting, notes, rich text and validation were unchanged.
+- Public source history is preserved in `docs/archive/pta_finance/source-e65e848.zip`;
+  all 229 members match the pre-rename commit's Git blobs. Private workbook audit
+  snapshots and cell-level changes remain gitignored and are never issue attachments.
+- GitHub profile, deployed portfolio, Observatory and Yarvis references are updated.
+  The old GitHub URL redirects to the same repository and must not be deleted.
+
+### Files refreshed at closeout
+
+| File | Change |
+|---|---|
+| `README.md` | User-visible migration outcome |
+| `docs/plans/master_plan.md` | This closeout and current editable-tab instruction |
+| `CLAUDE.md` | Current naming and workbook-audit status |
+| `MEMORY.md` | Replace stale unbuilt implementation handoff |
+
+### Verification and remaining boundaries
+
+The workbook audit is live readback evidence, not a pytest count. Previously observed
+rename checks: 281 web tests passed; four layout scenarios passed on each of Windows
+and Linux; strict mypy, Ruff, packaging and privacy checks passed. The earlier local
+non-web run recorded 2,206 passes, three failures and 13 skips; all three failures
+passed on isolated recheck. Observatory's focused suite recorded 242 passes, eight
+skips and two expected failures. The portfolio check, build, accessibility and live
+publication checks passed. This documentation-only closeout does not rerun product
+qualification or mark Step 63 accepted.
+
+The empty legacy checkout remains after Windows denied its move and automatic
+approval review blocked its removal. Existing cloud/wire/schema identifiers remain
+compatible. Step 63's category crosswalk and operator financial review, the paused
+and blocked worktrees, and all other pending tracks retain their existing statuses.
+
+Fresh checkout: Python 3.12+, `uv sync --extra dev --extra slides --extra receipts
+--extra reports`, `uv run playwright install chromium`, and private configuration
+per [SETUP](../../SETUP.md). Run `uv run np-finance end-to-end-run --as-of YYYY-MM-DD
+--dry-run` before publication. Preserve installed extras when syncing. Full test
+setup including the optional web emulator is documented in [CLAUDE.md](../../CLAUDE.md).

@@ -236,6 +236,16 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
 
 ## 6. Current state
 
+**Naming migration delivered (2026-10-26).** Use the `np-finance` checkout and CLI,
+with Python package `np_finance`. The renamed runner published all five reports.
+The connected workbook's 36 tabs were scanned and eight stale text cells corrected;
+readback confirmed other entered values/formulas, formatting, notes and validation
+unchanged. Public source is archived under `docs/archive/pta_finance/`; private
+cell-level audit evidence remains ignored. See `docs/project-rename.md` for external
+hooks and retained compatibility identifiers. The old empty checkout's removal is
+blocked; GitHub's old URL redirects to the same live repository. Financial
+acceptance below remains open.
+
 **Phase CFO Steps 57–62 (#96–#101) are DONE (2026-10-22)**: read-only CFO source import,
 processor-to-bank reconciliation, the append-only Assumptions adjustments journal, school-year/P&L
 facts, the five-report render/export, and `end-to-end-run` (runner, CLI, guide, bounded smoke with

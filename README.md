@@ -2,6 +2,10 @@
 
 [Project rename and compatibility notes](docs/project-rename.md).
 
+**Naming migration delivered (2026-10-26):** the renamed command published the five-report set;
+workspace and public project links were updated, and the connected workbook was checked across
+36 tabs with eight remaining text cells corrected. Financial acceptance remains separate.
+
 [![CI](https://github.com/aberson/np-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/aberson/np-finance/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
