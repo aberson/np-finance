@@ -89,3 +89,9 @@ configuration and launchers, local scheduled tasks, and the authenticated GitHub
 surfaces above. This is not a claim to have searched every external account,
 browser bookmark or private historical artifact. The empty old directory remains
 locked by Windows; its failed move did not affect the archived source or active checkout.
+
+Publication check: GitHub Pages deployment `40373769497` succeeded. The live
+homepage contains the new project name and no old project slug; all three new
+fictional screenshot URLs returned HTTP 200. Profile pins contain no old finance
+entry. A subsequent guarded removal of the verified-empty legacy directory was
+rejected by automatic approval review as "blocked by policy"; it remains in place.

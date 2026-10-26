@@ -20,3 +20,6 @@ identifiers remain stable, as described in [the migration guide](../../project-r
 An attempted move of the empty legacy checkout was denied by Windows. Only an
 empty hidden `.git` directory remains there; no source or financial data remains.
 Close processes holding that directory before removing the empty remnant.
+
+A guarded empty-directory removal was also rejected by automatic approval review
+("blocked by policy"). The archive is complete despite that leftover directory.
