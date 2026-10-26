@@ -29,7 +29,7 @@ the existing local archive. The separate `email-only` launcher and the documente
 | Local checkout | `<workspace>/np-finance`; repair linked worktree Git pointers. |
 | Python distribution / CLI | `np-finance`; reinstall dependencies after moving the checkout. |
 | Python module / packaged resources | `np_finance`; imports, worker entry points, Docker staging and tests updated together. |
-| Existing CLI command name | `pta-finance` remains a compatibility entry point to the same implementation. |
+| Existing CLI command name | `pta-finance` is deprecated for new use; retained as a compatibility entry point to the same implementation. |
 | Workspace registry / editor tasks | New project name/path and five-report commands. |
 | Main documents / examples | Non-profit wording, new links and commands; regenerate fictional screenshots and presentation preview. |
 | Private configuration | Preserve credentials and source IDs; update only paths referring to the moved checkout. |
@@ -54,3 +54,38 @@ Git metadata without modifying their unfinished work. Existing journal and reimb
 records must never be renamed by bulk text replacement.
 
 [Migration progress and evidence](rename-progress.html).
+
+## Deprecation and external-reference audit (2026-10-26)
+
+The [pre-rename source archive](archive/pta_finance/README.md) contains the 229
+public tracked files from the last pre-rename commit. The active repository remains
+`np-finance`. GitHub API checks resolve both names to repository ID `1278513113`;
+deleting or archiving the old URL would target the active repository.
+
+| Surface examined | Result |
+|---|---|
+| GitHub repository identity, remote, description | New canonical name; old URL redirects. History and issues preserved. No separate old repository exists. |
+| Repository webhooks / Actions variables / secret names | No webhooks, repository variables or secrets returned by the available API checks. Workflow compatibility variable names remain supported. |
+| GitHub profile (`aberson/aberson`) | README name, URL and description updated and pushed. |
+| Public portfolio (`aberson.github.io`) | Finance row refreshed from Observatory export; card selectors, visual gallery, content identifier and narrative updated. Replaced older branded images with current fictional examples. |
+| Observatory registry and snapshot | Exactly one finance entry, `np-finance`; preview showcases the full five-report runner. |
+| Observatory source / test inventory | Remaining old project identifier updated; focused plan-status suite: 242 passed, 8 skipped, 2 expected failures. The real-workspace invariant skips because its separate legacy workspace sentinel is absent. |
+| Editor tasks / linked Git worktrees | New checkout and commands; existing worktree metadata repaired during the migration. Unfinished historical branches preserved. |
+| Codex project trust entry | Local trusted checkout path changed to `np-finance`; trust level unchanged. |
+| Scheduled tasks / workspace scripts | No old-name references found in the inspected task actions or workspace script/config paths. |
+| Yarvis source-reference documents | Finance module paths and project references updated and pushed; no runtime dependency changed. |
+| Other local Git repositories | Matches in citation-needed, on-brand and skill-mesh are historical research/plan evidence; retained. No additional active code import found in the tracked-text scan. |
+| Workspace histories / ship log / private handoffs | Historical names preserved to keep old evidence and links interpretable. Generated installed skill profiles were not edited. |
+| Google credentials, workbooks, mail and report history | Private identities and immutable evidence preserved; checkout paths were migrated, and the new command published all five reports. |
+| Optional cloud proof | Existing service names, IAP audience and wire identifiers retained. Live cloud resources were not redeployed or independently enumerated in this cleanup. |
+
+Validation for the portfolio update: `npm run check`, `npm run build`, and
+`npm run check:a11y` passed (zero accessibility violations on the two checked pages).
+The finance portfolio row is copied from generated exporter output; unrelated
+portfolio entries retain their existing published values.
+
+Scope: tracked-text searches across local Git repositories, active workspace
+configuration and launchers, local scheduled tasks, and the authenticated GitHub
+surfaces above. This is not a claim to have searched every external account,
+browser bookmark or private historical artifact. The empty old directory remains
+locked by Windows; its failed move did not affect the archived source or active checkout.
