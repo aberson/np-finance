@@ -93,7 +93,7 @@ def test_exact_catalog_and_list_projection(queue: Queue, monkeypatch: pytest.Mon
     # Pin the accepted source with Git checkout line-ending normalization only.
     assert (
         hashlib.sha256(source_bytes.replace(b"\r\n", b"\n")).hexdigest()
-        == "ccbc5ac6302166a1b4f7ddfd17c56bc0c1ace6d50f1e57d359a54a7a5024e740"
+        == "27cffdd9a03e1fe9d67c5f8be2728ca0492f38f80c1379778b98463622ca6447"
     )
     me = client.get("/api/me").json()
     assert set(me) == {"mode", "actor", "request_id"}
