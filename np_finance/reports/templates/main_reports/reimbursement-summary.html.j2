@@ -26,7 +26,7 @@
     {{ m.section_heading('Largest open requests', 'Approved and not yet paid: ' ~ data.outstanding) }}
     <div class="tablewrap"><table>
       <colgroup><col style="width:29%"><col style="width:17%"><col style="width:13%"><col style="width:16%"><col style="width:25%"></colgroup>
-      <thead><tr><th>Request</th><th>Earliest expense</th><th class="amt">Undated items</th><th class="amt">Pay now</th><th>Prior-year carryover</th></tr></thead>
+      <thead><tr><th>Request</th><th>Earliest expense</th><th class="amt wrap">Undated items</th><th class="amt">Pay now</th><th>Prior-year carryover</th></tr></thead>
       <tbody>
         {% for row in data.rows %}<tr><td><strong>{% if row.anchor %}<a class="ref" href="{{ page.queue }}#{{ row.anchor }}">{{ m.label(row.ref) }}</a>{% else %}{{ m.label(row.ref) }}{% endif %}</strong> <span class="meta">submitted {{ row.submitted }}</span></td><td>{{ row.earliest }}</td><td class="amt">{{ row.undated }}</td>{{ m.amount(row.pay_now) }}<td>{% if row.carryover %}<span class="chip warn">{{ row.carryover }}</span>{% else %}<span class="zero">No</span>{% endif %}</td></tr>{% else %}<tr><td colspan="5">No open requests.</td></tr>{% endfor %}
         {% if data.other %}<tr class="other"><td colspan="3"><a href="{{ page.queue }}">{{ data.other.text }}</a></td>{{ m.amount(data.other.pay_now) }}<td></td></tr>{% endif %}

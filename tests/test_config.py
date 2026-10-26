@@ -405,16 +405,25 @@ def test_main_reports_output_dir_cannot_escape_into_the_project(
 
 def _alias_spellings_of_docs(project: Path) -> dict[str, str]:
     """Every known spelling of ``<project>/docs`` (structural regression for the guard)."""
+    spellings = {
+        "plain-absolute": str(project / "docs"),
+        "relative-dotdot": "reports/output/../../docs",
+    }
+    if os.name != "nt":
+        return spellings
+    # Device, extended-length and administrative-share spellings are aliases only
+    # on Windows. On POSIX, backslashes are filename characters instead.
     windows = str(project)
     drive, rest = os.path.splitdrive(windows)
-    return {
-        "plain-absolute": f"{windows}\\docs",
-        "relative-dotdot": "reports/output/../../docs",
-        "extended-backslash": f"\\\\?\\{windows}\\docs",
-        "extended-forward": f"//?/{project.as_posix()}/docs",
-        "device": f"\\\\.\\{windows}\\docs",
-        "unc-admin-share": f"\\\\localhost\\{drive.rstrip(':')}$" + f"{rest}\\docs",
-    }
+    spellings.update(
+        {
+            "extended-backslash": f"\\\\?\\{windows}\\docs",
+            "extended-forward": f"//?/{project.as_posix()}/docs",
+            "device": f"\\\\.\\{windows}\\docs",
+            "unc-admin-share": f"\\\\localhost\\{drive.rstrip(':')}$" + f"{rest}\\docs",
+        }
+    )
+    return spellings
 
 
 # Derived from the one table of spellings, so a new spelling can never go unexercised.
