@@ -70,7 +70,7 @@ white). Class names are part of the contract: tests select on them.
 --go:#236c48;--go-line:#80b797;--go-tint:#edf8f1;--clr:#8a5716;--clr-line:#d7ad68;--clr-tint:#fff7e7;
 --stop:#922f38;--stop-line:#d5a2a8;--stop-tint:#fff1f2;color-scheme:light}
 *{box-sizing:border-box}
-html{background:var(--page);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;line-height:1.4;-webkit-text-size-adjust:100%}
+html{background:var(--page);color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif;font-size:13px;line-height:1.4;-webkit-text-size-adjust:100%}
 body{margin:0;padding:24px;background:var(--page)}
 .sheet{width:8.5in;min-height:11in;margin:0 auto;padding:.43in .45in;background:var(--paper);box-shadow:0 8px 28px #1a394317}
 h1,h2,h3,p,figure{margin:0}h1,h2,h3{color:var(--deep)}

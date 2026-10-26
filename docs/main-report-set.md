@@ -28,6 +28,10 @@ adds per-source freshness and coverage. Layout contract:
    uv run playwright install chromium
    ```
 
+   On Linux, use `uv run playwright install --with-deps chromium` to include Chromium
+   system dependencies and the Liberation Sans font. Summaries use Arial on Windows and
+   its compatible Liberation Sans fallback on Linux for stable one-page layout.
+
 2. Add a `[main_reports]` section to your private `config.toml`. The commented example in
    `config.example.toml` lists every field: the CFO workbook ID, one binding per source tab
    with its exact header rows, declared coverage with its evidence, the category crosswalk,

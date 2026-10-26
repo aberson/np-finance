@@ -36,6 +36,9 @@ without that option uses the existing local mail archive; it does not fetch new 
 | Private report history / source mail | Preserve existing bytes; publish a new versioned run. |
 | Cloud deployment / journal schema | Retain existing wire identifiers below; no cloud resource recreation. |
 
+The old checkout directory could not be removed while locked by Windows; it is an empty
+leftover, not a forwarding alias. Open terminals and projects at the new checkout path.
+
 ## Stable compatibility identifiers
 
 `PTA_CONFIG_B64`, `PTA_WORKFLOW_CONFIG`, `PTA_IDENTITY_DENYLIST`, `X-PTA-CSRF`,
