@@ -17,19 +17,19 @@ Invoke-Item reports/output/main-report-set.html
 ```
 
 The workspace `end-to-end-run` launcher now calls this five-report runner. It previously
-called the reimbursement-only refresh. Mail acquisition remains the separate `email-only`
-launcher, or use the documented `--fetch-since` option on the full runner. A report run
-without that option uses the existing local mail archive; it does not fetch new mail.
+called the reimbursement-only refresh. The full-report launcher retains an optional mail-fetch date prompt; leave it blank to use
+the existing local archive. The separate `email-only` launcher and the documented
+`--fetch-since` CLI option remain available. Runs without that option do not fetch new mail.
 
 ## Hookup inventory
 
 | Hookup | Migration |
 |---|---|
-| GitHub repository | Rename the existing repository, retaining its history and issues. |
-| Local checkout | `C:/Users/abero/dev/np-finance`; repair linked worktree Git pointers. |
+| GitHub repository | Existing repository renamed; history, issues, and old-link redirects retained. |
+| Local checkout | `<workspace>/np-finance`; repair linked worktree Git pointers. |
 | Python distribution / CLI | `np-finance`; reinstall dependencies after moving the checkout. |
 | Python module / packaged resources | `np_finance`; imports, worker entry points, Docker staging and tests updated together. |
-| Existing CLI shortcuts | `pta-finance` remains a compatibility entry point to the same implementation. |
+| Existing CLI command name | `pta-finance` remains a compatibility entry point to the same implementation. |
 | Workspace registry / editor tasks | New project name/path and five-report commands. |
 | Main documents / examples | Non-profit wording, new links and commands; regenerate fictional screenshots and presentation preview. |
 | Private configuration | Preserve credentials and source IDs; update only paths referring to the moved checkout. |
