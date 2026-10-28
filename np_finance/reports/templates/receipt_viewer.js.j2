@@ -76,13 +76,14 @@
   document.querySelectorAll('.receipt-item').forEach(button => {
     button.addEventListener('click', () => {
       opener = button;
-      const {receiptId, itemLabel, itemAmount, ticketRef} = button.dataset;
+      const {receiptId, itemLabel, itemAmount, sourceAmount, ticketRef} = button.dataset;
       const entry = Object.hasOwn(data.items, receiptId) ? data.items[receiptId] : null;
       regions = entry ? entry.regions.map(region => ({...region, match_method: entry.match_method})) : [];
       pageIds = [...new Set(regions.map(region => region.page_id))];
       index = 0;
       get('title').textContent = itemLabel;
-      get('claim').textContent = `${ticketRef} · Submitted for review: ${itemAmount}`;
+      get('claim').textContent = `${ticketRef} · Reviewed amount: ${itemAmount}` +
+        (sourceAmount && sourceAmount !== itemAmount ? ` · Originally claimed: ${sourceAmount}` : '');
       page.hidden = true;
       picture.removeAttribute('src');
       marks.replaceChildren();

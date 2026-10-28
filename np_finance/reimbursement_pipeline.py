@@ -413,8 +413,18 @@ def _item_recommendation(
         reasons.append("The budget category is not deterministically mapped.")
         asks.append(f"Item {item.source_index}: confirm the budget category.")
     if "total-mismatch" in item.flags:
-        reasons.append("The claimed line total does not reconcile to the stated form total.")
-        asks.append("Confirm the intended reimbursement total and any corrected item amounts.")
+        mapped = Decimal(evidence.mapped_total)
+        stated = Decimal(evidence.stated_total)
+        reasons.append(
+            f"Item amounts total ${mapped:,.2f}; the form total is ${stated:,.2f} "
+            f"(difference ${abs(stated - mapped):,.2f}). "
+            "Compare the receipt's items, tax, discounts, and final total before correcting "
+            "the reviewed amount; the form alone does not establish the cause."
+        )
+        asks.append(
+            "Check the receipt first. Record the supported amount and explain the difference; "
+            "ask the requester only if the receipt leaves it unresolved."
+        )
     if evidence.receipt_asset_count == 0:
         reasons.append("No receipt asset is present in the available email evidence.")
         asks.append(f"Item {item.source_index}: provide the vendor receipt.")
@@ -471,7 +481,7 @@ def _recommended_review(
         block = "Verify receipt contents and policy applicability, then record the decision."
     else:
         action = "Resolve specific evidence questions"
-        block = "Review the listed evidence limits before recording an item-level decision."
+        block = " ".join(_unique(tuple(item["why"] for item in items if item["status"] == "C")))
     review = {
         "status": status,
         "action": action,

@@ -3224,3 +3224,82 @@ def test_operator_payment_quarantine_replays_exactly_after_later_state_change(
         anchors_path=anchors_path,
     )
     assert bundle_path.read_bytes() == stable_bytes
+
+
+@pytest.mark.parametrize(("claimed", "stated"), [("20.00", "22.00"), ("20.01", "20.00")])
+def test_total_mismatch_explains_amounts_without_inventing_receipt_findings(
+    tmp_path: Path, claimed: str, stated: str
+) -> None:
+    source = tmp_path / "mail"
+    source.mkdir()
+    bundle_path = tmp_path / "bundle.json"
+    _write_bundle(bundle_path)
+    _write_eml(
+        source / "original.eml",
+        message_id="<amount-difference@example.invalid>",
+        received="Thu, 05 Sep 2030 08:00:00 +0000",
+        amount=claimed,
+        stated_total=stated,
+        receipt_label="JPEG",
+    )
+    planned, _ = reimbursement_pipeline.plan_bundle_refresh(
+        **_refresh_kwargs(
+            bundle_path=bundle_path,
+            source=source,
+            category_map_path=_write_category_map(tmp_path),
+        )
+    )
+    ticket = next(t for t in planned["tickets"] if t["ref"] == "NEW-01")
+    block = ticket["review"]["block"]
+    assert f"Item amounts total ${claimed}" in block
+    assert f"form total is ${stated}" in block
+    assert f"difference ${abs(Decimal(stated) - Decimal(claimed)):.2f}" in block
+    assert "form alone does not establish the cause" in block
+    assert "Check the receipt first" in ticket["review"]["asks"][0]
+    assert ticket["items"][0]["reviewed_amount"] == ""
+    assert ticket["live"]["decision"] == "UNREVIEWED"
+
+    # A subsequent explicit receipt review can resolve the mismatch without changing
+    # the source claim or manufacturing a payment, and must survive ordinary refresh.
+    bundle_path.write_text(json.dumps(planned), encoding="utf-8")
+    anchors_path = tmp_path / "anchors.json"
+    _write_anchors(
+        anchors_path,
+        operator_reviews=[
+            {
+                "ticket": _selector("<amount-difference@example.invalid>", "NEW-01"),
+                "record_decision": True,
+                "items": [
+                    {
+                        "source_index": 1,
+                        "status": "A",
+                        "why": f"Example vendor receipt supports ${stated}; operator approved.",
+                        "reviewed_amount": stated,
+                    }
+                ],
+                "action": f"Pay ${stated}",
+                "block": f"Pay ${stated}, the verified receipt total.",
+                "asks": [],
+                "note": "Synthetic authorized receipt review; no payment recorded.",
+                "email_questions": [],
+                "email_context": "",
+            }
+        ],
+    )
+    kwargs = _refresh_kwargs(
+        bundle_path=bundle_path,
+        source=source,
+        category_map_path=tmp_path / "category-map.csv",
+    )
+    corrected, _ = reimbursement_pipeline.plan_bundle_refresh(**kwargs, anchors_path=anchors_path)
+    bundle_path.write_text(json.dumps(corrected), encoding="utf-8")
+    replayed, _ = reimbursement_pipeline.plan_bundle_refresh(**kwargs, anchors_path=anchors_path)
+    assert corrected == replayed
+    reviewed = next(t for t in replayed["tickets"] if t["ref"] == "NEW-01")
+    assert reviewed["items"][0]["source_amount"] == claimed
+    assert reviewed["items"][0]["reviewed_amount"] == stated
+    assert reviewed["source"] == ticket["source"]
+    assert reviewed["live"]["decision"] == "APPROVED"
+    assert reviewed["live"]["payment_status"] == "NOT_PAID"
+    assert not reviewed["review"]["asks"]
+    assert not reviewed["review"]["email_questions"]

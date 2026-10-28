@@ -283,7 +283,13 @@ def test_browser_receipt_navigation_zoom_focus_and_missing_source(
     tmp_path: Path, viewport: dict[str, int]
 ) -> None:
     playwright = pytest.importorskip("playwright.sync_api")
-    bundle, _, _ = _inputs(tmp_path)
+    bundle, sidecar, locations = _inputs(tmp_path)
+    corrected = json.loads(bundle.read_text(encoding="utf-8"))
+    corrected["tickets"][0]["items"][0]["reviewed_amount"] = "11.00"
+    bundle.write_text(json.dumps(corrected), encoding="utf-8")
+    ticket = reimbursement_report.load_bundle(bundle).tickets[0]
+    locations["items"][0]["item_sha256"] = receipt_viewer.item_fingerprint(ticket, ticket.items[0])
+    sidecar.write_text(json.dumps(locations), encoding="utf-8")
     output = tmp_path / "report.html"
     reimbursement_report.build_report(bundle, output)
     with playwright.sync_playwright() as driver:
@@ -304,6 +310,8 @@ def test_browser_receipt_navigation_zoom_focus_and_missing_source(
         page.keyboard.press("Enter")
         page.wait_for_function("document.getElementById('receipt-image').naturalWidth === 400")
         assert page.locator("#receipt-viewer").is_visible()
+        assert "Reviewed amount: $11.00" in page.locator("#receipt-claim").inner_text()
+        assert "Originally claimed: $10.00" in page.locator("#receipt-claim").inner_text()
         assert page.locator("#receipt-close").evaluate("el => el === document.activeElement")
         assert page.locator("#receipt-marks ellipse").count() == 2
         assert page.locator("#receipt-prev").is_disabled()

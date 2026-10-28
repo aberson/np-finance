@@ -236,6 +236,24 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
 
 ## 6. Current state
 
+**Same-day follow-up supersedes the mail blocker below:** read-only Gmail consent succeeded;
+all 138 listed October 1-28 messages are archived, and the ordinary October 23-28 fetch passed.
+A second live run published all five reports with seven new submissions. Five unique check photos
+were visually inspected and matched privately, including a two-check full-request match backed
+by an earlier posted bank row. Payment statuses remain unchanged pending reconciliation: the
+current reducer cannot accumulate partial checks. See the same-day retry record in the report
+guide. No financial-acceptance claim is implied.
+
+**Latest operational run (2026-10-28):** all five reports published and all compatibility copies
+refreshed. Gmail re-consent timed out after token expiry; local mail remains through 2026-10-23.
+Do not call the reports mail-current through the as-of date or financially accepted: 5,637
+unresolved discrepancies, 8 issues and 19 coverage flags remain. Category Mapping now includes
+date columns in the private signature, but classification does not apply their limits. New
+self-emailed checks remain uninspected; schema-v2 automatic payment links are Zelle-only, while
+verified checks can use audited `operator_payments`. See `docs/main-report-set.md` for the run
+record and `docs/loading-receipts.md` for check handling. Focused tests: 234 passed; no full-suite
+rerun. Step 63 remains in progress.
+
 **Naming migration delivered (2026-10-26).** Use the `np-finance` checkout and CLI,
 with Python package `np_finance`. The renamed runner published all five reports.
 The connected workbook's 36 tabs were scanned and eight stale text cells corrected;
@@ -364,6 +382,13 @@ touches actuals/other-years/enrichment; removed lines flagged not deleted). **Go
 setup + M2 real-sheet smoke are DONE). **Next = operator-gated observation:** M3 monthly-report run
 (plan §11 Manual Steps). Live Drive upload is deferred to Phase 2 (`google-api-python-client`).
 
+Current reimbursement review update (2026-10-28): manual follow-ups share the queue;
+original item sums, form totals and reviewed totals are visible together. Corrected rows
+and receipt dialogs retain the original claimed amount. Receipt-backed decisions belong
+in private operator reviews, with verified item/tax/total regions and fresh fingerprints.
+The focused pipeline/report/viewer/refresh/runner gate passed 223 tests; strict mypy and
+changed-file Ruff/format passed. This does not complete Phase 10 or financial acceptance.
+
 ## 7. Environment requirements
 
 - Windows 11 + Python `>=3.12`; `uv` on PATH. No `pip` (uv-managed).
@@ -421,3 +446,7 @@ setup + M2 real-sheet smoke are DONE). **Next = operator-gated observation:** M3
   pushes a `.github/last-run.txt` timestamp each run to reset that timer. If the workflow ever shows
   as disabled, re-enable it one-click under the repo's **Actions** tab → the workflow → "Enable
   workflow", or push any commit.
+
+- Later operator-directed check correction: two verified requests now PAID / SETTLED, with separate actual check references retained and stale clarification prompts cleared. Private bundle/anchor backups and superseded review evidence retained; two refresh previews confirmed persistence and unchanged unrelated tickets. This supersedes the earlier review-only status.
+
+- Manual follow-ups (2026-10-28): optional private `appendix.follow_ups` records now render alongside reimbursements with the existing receipt viewer. The runner captures/preserves them and their image pages; they never add payable totals. Automatic Phase 10 scanning remains paused. The actual private email and check review is now consolidated in the latest reimbursement report.

@@ -220,3 +220,15 @@ exact tab or command involved — so they can help me quickly.
   and always run the **preview** of a command before the real one.
 - **Never paste private data into a shared or public AI you don't trust.** Stick to an assistant
   your organization is comfortable using for financial information.
+
+## Review check-payment evidence
+
+```text
+I emailed myself evidence of checks used to pay reimbursements. Fetch the relevant date window,
+keep the evidence private, and inventory which checks match existing approved requests. Distinguish
+promised, issued/delivered, cleared, voided and replacement checks. Do not infer payment from a
+photo alone or change the payment method to Zelle. Use the check-evidence procedure in
+https://github.com/aberson/np-finance/blob/main/docs/loading-receipts.md and show unresolved matches.
+After verified operator payment records are applied, regenerate the Main Report Set and explain
+which checks it now accounts for and which still need review.
+```

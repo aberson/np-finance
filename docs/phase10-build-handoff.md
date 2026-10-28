@@ -74,3 +74,13 @@ The plan entry point remains:
 /build-phase --plan docs/plans/master_plan.md --resume 51
 Resume against the preserved Step 51 worktree rather than creating a new
 implementation.
+
+## Later report integration (2026-10-28)
+
+The current reimbursement report now supports manually maintained `appendix.follow_ups` cases,
+rendered in the same queue with receipt-sidecar source pages. `end-to-end-run` preserves and captures
+these records. This is a bounded presentation/manual-intake addition, not completion of Steps 51-56:
+no `update-actions` classifier, decisions merge or automatic action stage has been shipped. Reuse
+this report section when considering future action integration; avoid a second disconnected review
+page. One observed intake gap is a quoted-first reply with an inline JPEG: its actionable trailing
+text and image were absent from normal supplemental evidence and needed manual promotion.

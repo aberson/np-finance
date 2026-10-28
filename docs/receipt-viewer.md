@@ -11,6 +11,12 @@ This also works for tickets expanded in the closed-case appendix.
 page without a marked location opens with an explicit explanation and no red outline.
 These are evidence-reading aids; they do not change reimbursement amounts or decisions.
 
+When a reviewed amount differs from the original claim, the item row and receipt dialog
+show both values. For a tax or total correction, mark the relevant item and the receipt's
+tax/total lines, which may be on different pages. The queue explanation should name the
+source of the difference and the corrected amount; see
+[receipt-supported corrections](loading-receipts.md#receipt-supported-amount-corrections).
+
 The HTML embeds the receipt images and works offline without a server or third-party scripts.
 It contains private receipt details as well as the queue. Keep it with the other private reports.
 

@@ -1648,3 +1648,66 @@ def test_chromium_end_to_end_run_publishes_real_exports_within_the_bound(
         assert (run_dir / f"{name}.png").read_bytes().startswith(PNG_SIGNATURE)
         assert (world.output / f"{name}.pdf").read_bytes() == (run_dir / f"{name}.pdf").read_bytes()
     assert _manifest(run_dir)["artifacts"]["export_sandboxed"] == export.default_sandbox()
+
+
+def test_follow_up_cases_survive_refresh_and_publish_with_staged_evidence(world: World) -> None:
+    payload = json.loads(world.bundle.read_text(encoding="utf-8"))
+    payload["appendix"]["follow_ups"] = [
+        {
+            "key": "paper-request",
+            "title": "Paper request <script>bad()</script>",
+            "status": "OPEN",
+            "summary": "Receipt arrived outside the form.",
+            "next_action": "Locate the original request before approving payment.",
+            "evidence": ["Fictional email evidence"],
+            "page_ids": ["follow-up-page"],
+        }
+    ]
+    world.bundle.write_text(json.dumps(payload), encoding="utf-8")
+    sidecar_path = world.bundle.with_suffix(".receipts.json")
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    sidecar["pages"].append(
+        {
+            "id": "follow-up-page",
+            "path": "receipt-pages/follow-up.png",
+            "sha256": _sha(RECEIPT_PNG),
+            "label": "Paper evidence",
+        }
+    )
+    (world.output / "receipt-pages/follow-up.png").write_bytes(RECEIPT_PNG)
+    sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
+    assert world.main() == runner.EXIT_OK
+    (run_dir,) = world.run_dirs()
+    rendered = (run_dir / "reimbursement-report.html").read_text(encoding="utf-8")
+    assert 'id="follow-ups"' in rendered
+    assert "Paper request &lt;script&gt;bad()&lt;/script&gt;" in rendered
+    assert "Paper request <script>bad()</script>" not in rendered
+    assert 'data-receipt-id="follow-up-paper-request"' in rendered
+    assert '"follow-up-page"' in rendered
+    assert (run_dir / "inputs/receipt-pages/follow-up.png").read_bytes() == RECEIPT_PNG
+    staged = json.loads((run_dir / "inputs" / world.bundle.name).read_text(encoding="utf-8"))
+    assert staged["appendix"]["follow_ups"] == payload["appendix"]["follow_ups"]
+    # A repeated production run keeps the operator-owned case and its status unchanged.
+    assert world.main() == runner.EXIT_OK
+    assert (
+        json.loads(world.bundle.read_text(encoding="utf-8"))["appendix"]["follow_ups"]
+        == payload["appendix"]["follow_ups"]
+    )
+
+
+def test_follow_up_missing_page_refuses_publication(world: World) -> None:
+    payload = json.loads(world.bundle.read_text(encoding="utf-8"))
+    payload["appendix"]["follow_ups"] = [
+        {
+            "key": "missing-proof",
+            "title": "Example follow-up",
+            "status": "OPEN",
+            "summary": "Needs evidence",
+            "next_action": "Review the missing source.",
+            "evidence": [],
+            "page_ids": ["absent"],
+        }
+    ]
+    world.bundle.write_text(json.dumps(payload), encoding="utf-8")
+    assert world.main() == runner.EXIT_FAILED
+    assert not (world.output / runner.POINTER_NAME).exists()

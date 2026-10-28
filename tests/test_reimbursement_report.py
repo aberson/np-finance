@@ -1015,3 +1015,47 @@ def test_incomplete_html_is_never_published(tmp_path: Path) -> None:
         reimbursement_report.write_html_atomic(output, "<html></html>")
 
     assert output.read_text(encoding="utf-8") == "old"
+
+
+@pytest.mark.parametrize("change", ["duplicate", "key", "status", "unknown"])
+def test_follow_up_contract_rejects_ambiguous_operator_records(change: str) -> None:
+    payload = _bundle()
+    case = {
+        "key": "example",
+        "title": "Example",
+        "status": "OPEN",
+        "summary": "Review a paper request",
+        "next_action": "Match evidence",
+        "evidence": [],
+        "page_ids": [],
+    }
+    cases = [case]
+    if change == "duplicate":
+        cases.append(dict(case))
+    elif change == "key":
+        case["key"] = '../bad"'
+    elif change == "status":
+        case["status"] = "PAID"
+    else:
+        case["unexpected"] = "value"
+    payload["appendix"]["follow_ups"] = cases  # type: ignore[index]
+    with pytest.raises(reimbursement_report.ReimbursementReportError):
+        reimbursement_report._load_data(payload)
+
+
+def test_reviewed_amount_keeps_claim_and_form_total_visible(tmp_path: Path) -> None:
+    path = tmp_path / "bundle.json"
+    _write_bundle(path, _bundle())
+    report = reimbursement_report.load_bundle(path)
+    ticket = report.tickets[0]
+    changed = replace(ticket.items[0], reviewed_amount=Decimal("11.00"))
+    ticket = replace(ticket, items=(changed,))
+    report = replace(report, tickets=(ticket, *report.tickets[1:]))
+    rendered = reimbursement_report.render_html(report)
+    card = rendered.split('id="new-01"', 1)[1].split("</section>", 1)[0]
+    assert "Original item sum $10.00" in card
+    assert "Form total $10.00" in card
+    assert "Reviewed total $11.00" in card
+    assert "Claimed $10.00" in card
+    assert 'data-item-amount="$11.00" data-source-amount="$10.00"' in card
+    assert ticket.items[0].source_amount == Decimal("10.00")

@@ -233,6 +233,11 @@ def load_receipts(path: Path, report: ReimbursementReport) -> dict[str, Any]:
         ):
             raise ReceiptViewerError("receipt match_method is unsupported")
         ticket_items[item_key] = {"regions": regions, "match_method": match_method}
+    for case in report.appendix.follow_ups:
+        for page_id in case.page_ids:
+            if page_id not in pages:
+                raise ReceiptViewerError("follow-up source page is missing")
+            used_pages.add(page_id)
     if used_pages != set(pages):
         raise ReceiptViewerError("receipt sidecar contains unreferenced pages")
     return {"pages": pages, "items": items}

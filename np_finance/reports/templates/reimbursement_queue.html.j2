@@ -66,12 +66,13 @@
       <div class="ttot">{{ money(ticket.total) }}</div>
       <div class="tvd">{{ chip(ticket.review.status) }} <span class="act">{{ ticket.review.action }}</span>{% if ticket.live.decision == 'UNREVIEWED' %}<span class="flag">{% if ticket.review.status in ['A', 'C', 'D'] %}Evidence-limited recommendation{% else %}Review pending{% endif %}</span>{% endif %}</div>
     </header>
+    {% if ticket.source.mapped_total is not none %}<p class="nt amount-reconciliation">Original item sum {{ money(ticket.source.mapped_total) }}{% if ticket.source.stated_total is not none %} &middot; Form total {{ money(ticket.source.stated_total) }}{% endif %} &middot; Reviewed total {{ money(ticket.total) }}</p>{% endif %}
     <div class="tablewrap"><table class="items">
       <thead><tr><th>Date</th><th>Item</th><th class="amt">Amount</th><th>Status</th><th>Why</th></tr></thead>
       <tbody>
       {% for category, items in ticket.item_groups %}
         <tr class="grp"><td colspan="5">Category &middot; {{ category }}</td></tr>
-        {% for item in items %}{% set receipt = receipts['items'].get(receipt_id(ticket, item)) %}<tr><td>{{ iso_date(item.effective_date) }}</td><td class="nm"><button type="button" class="receipt-item" data-receipt-id="{{ receipt_id(ticket, item) }}" data-item-label="{{ item.effective_item }}" data-item-amount="{{ money(item.effective_amount) }}" data-ticket-ref="{{ ticket.ref }}" aria-haspopup="dialog">{{ item.effective_item }}<span class="receipt-hint">{% if receipt %}View source receipt{% if receipt.match_method %} · automatic suggestion{% endif %}{% else %}Receipt not linked{% endif %}</span></button></td><td class="amt">{{ money(item.effective_amount) }}</td><td>{{ chip(item.status) }}</td><td class="wy">{{ item.why }}</td></tr>{% endfor %}
+        {% for item in items %}{% set receipt = receipts['items'].get(receipt_id(ticket, item)) %}<tr><td>{{ iso_date(item.effective_date) }}</td><td class="nm"><button type="button" class="receipt-item" data-receipt-id="{{ receipt_id(ticket, item) }}" data-item-label="{{ item.effective_item }}" data-item-amount="{{ money(item.effective_amount) }}" data-source-amount="{{ money(item.source_amount) }}" data-ticket-ref="{{ ticket.ref }}" aria-haspopup="dialog">{{ item.effective_item }}<span class="receipt-hint">{% if receipt %}View source receipt{% if receipt.match_method %} · automatic suggestion{% endif %}{% else %}Receipt not linked{% endif %}</span></button></td><td class="amt">{{ money(item.effective_amount) }}{% if item.effective_amount != item.source_amount %}<span class="receipt-hint">Claimed {{ money(item.source_amount) }}</span>{% endif %}</td><td>{{ chip(item.status) }}</td><td class="wy">{{ item.why }}</td></tr>{% endfor %}
       {% endfor %}
       </tbody>
     </table></div>
@@ -104,6 +105,8 @@
     <p class="review-disclaimer"><b>Decision boundary:</b> recommendation cards whose live decision remains UNREVIEWED are evidence-limited reading aids. They do not perform OCR, visual receipt inspection, or policy adjudication. Record the decision before treating any recommendation as payment authorization.</p>
   </section>
 
+  {% if report.appendix.follow_ups %}<section class="index"><div class="cap"><h3><a href="#follow-ups">Email follow-ups and check review</a></h3><p>{{ report.appendix.follow_ups|selectattr('status', 'equalto', 'OPEN')|list|length }} need attention &middot; {{ report.appendix.follow_ups|selectattr('status', 'equalto', 'DONE')|list|length }} recorded / resolved</p></div><ul>{% for case in report.appendix.follow_ups %}<li><a href="#follow-up-{{ case.key }}">{{ case.title }}</a> &mdash; {{ 'Needs attention' if case.status == 'OPEN' else 'Recorded / resolved' }}</li>{% endfor %}</ul></section>{% endif %}
+
   <div class="score">
     <div class="box"><div class="n">{{ money(summary.known_total) }}</div><div class="k">Known reviewed total</div></div>
     <div class="box a"><div class="n">{{ money(summary.approved) }}</div><div class="k">Approved</div></div>
@@ -125,6 +128,20 @@
   {% if report.active_new %}<section class="new-queue" id="new-intake"><div class="cap"><h2>New submission review</h2><p>{{ report.active_new|length }} active submission records with structured item-level adjudication.</p></div>{% for ticket in report.active_new %}{{ ticket_card(ticket) }}{% endfor %}</section>{% endif %}
 
   {% if report.active_legacy %}<section class="legacy-divider"><h2>Prior reviewed queue</h2><p>{{ report.active_legacy|length }} active legacy records preserved under their recorded policy scope.</p></section>{% for ticket in report.active_legacy %}{{ ticket_card(ticket) }}{% endfor %}{% endif %}
+
+  {% if report.appendix.follow_ups %}
+  <section id="follow-ups" class="new-queue">
+    <div class="cap"><h2>Email follow-ups and check review</h2><p>{{ report.appendix.follow_ups|selectattr('status', 'equalto', 'OPEN')|list|length }} open follow-ups. These cases are tracked separately from reimbursement totals.</p></div>
+    {% for case in report.appendix.follow_ups %}
+    <article class="ticket t-{{ 'c' if case.status == 'OPEN' else 'a' }}" id="follow-up-{{ case.key }}">
+      <header class="thead"><div class="tid">Follow-up</div><div class="tname"><h2>{{ case.title }}</h2></div><div class="tvd"><span class="act">{{ 'Needs attention' if case.status == 'OPEN' else 'Recorded / resolved' }}</span></div></header>
+      <div class="do"><p>{{ case.summary }}</p><p><b>{{ 'Next' if case.status == 'OPEN' else 'Outcome' }}</b> {{ case.next_action }}</p></div>
+      {% if case.page_ids %}<div class="do"><button type="button" class="receipt-item" data-receipt-id="follow-up-{{ case.key }}" data-item-label="{{ case.title }}" data-item-amount="" data-ticket-ref="Follow-up" aria-haspopup="dialog">View source evidence<span class="receipt-hint">{{ case.page_ids|length }} source page(s)</span></button></div>{% endif %}
+      {% if case.evidence %}<details class="do"><summary>Evidence and provenance</summary><ul>{% for entry in case.evidence %}<li>{{ entry }}</li>{% endfor %}</ul></details>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   {% if report.closed_tickets %}<section class="closed"><div class="cap"><h3>Appendix &mdash; closed cases</h3><p>Resolved claims; nothing remains to pay.</p></div>{% for ticket in report.closed_tickets %}<details><summary><strong>{{ ticket.ref }}</strong><span>{{ ticket.requestor_name }}</span><span>{% if ticket.review.status == 'D' %}Paid + declined{% else %}Paid{% endif %}</span><span class="amt">{{ money(ticket.total) }}</span></summary><div class="closed-body">{% if ticket.archive_note %}<p class="archive-note">{{ ticket.archive_note }}</p>{% endif %}{{ ticket_card(ticket) }}</div></details>{% endfor %}</section>{% endif %}
 

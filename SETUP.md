@@ -347,7 +347,7 @@ guide:
 | HTTP 429 during a big import | normal under load — the client retries with backoff automatically |
 | `fetch-mail: config.toml has no [gmail] section` | §6 step 4 — uncomment and fill in the `[gmail]` block |
 | `fetch-mail: no Gmail OAuth client-secrets file at …` | §6 step 4 — the downloaded client JSON isn't where `client_secrets_file` points |
-| `fetch-mail` opens the browser again a week later | expected in Testing mode (7-day refresh-token expiry) — just re-approve |
+| `fetch-mail` refuses an expired or revoked refresh token | retain the old token privately under a different filename, then run `fetch-mail --since YYYY-MM-DD --dry-run` to open fresh read-only consent; complete it in the browser, then fetch normally. Keep the project's Testing-mode configuration. Never print token contents. |
 | Consent shows "Google hasn't verified this app" | expected **for the client you created yourself in §6** — read §6 step 5 before clicking through |
 | Consent fails with a redirect-URI mismatch | the OAuth client isn't type **Desktop app** (§6 step 3) — create a Desktop-app client |
 

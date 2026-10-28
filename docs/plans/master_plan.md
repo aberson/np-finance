@@ -860,6 +860,7 @@ uv run np-finance report-reimbursements
 
 
 ### Step 51: Propose actions from archived mail
+- **Later bounded addition (2026-10-28):** manually flagged email/check follow-ups now render inside the reimbursement report and persist through `end-to-end-run`, with source images using the existing sidecar. This does not implement the automatic scanner or change this step's paused status. See [report integration](../main-report-set.md#email-follow-ups-and-check-review-in-the-queue).
 - **Status:** PAUSED — unfinished worktree; resume from [handoff](../phase10-build-handoff.md), never restart or discard it.
 - **Problem:** Make `np-finance update-actions` scan the local archive and produce a strict private proposal/uncategorized inventory with stable source keys, narrow type reasons, attachment provenance, and exact-thread deduplication.
 - **Type:** code
@@ -1374,7 +1375,11 @@ uv run np-finance report-reimbursements
 
 <!-- autofix-applied: 2026-10-21 -->
 ### Step 63: Regenerate and reconcile the live Main Report Set
+- **Paid-state correction (2026-10-28):** operator-directed correction settles two verified check-paid requests and removes stale clarification prompts. Individual checks and superseded review evidence retained privately; consecutive refresh previews preserve the corrected states without changing unrelated tickets. General split-check ingestion and financial acceptance remain open.
+- **Same-day retry (2026-10-28):** read-only Gmail consent and acquisition succeeded; a second report set published with seven new submissions. Five check images were inspected and matched privately. Check reconciliation remains open (split payments, paper-only requests, direct vendor payment and an apparent one-cent mismatch); no payment-status edits or financial acceptance. This supersedes the earlier mail blocker below.
 - **Status:** IN PROGRESS. Live runs were published on 2026-10-22 and 2026-10-23, after the live-only fixes and Step 64 recorded below. Still open: the category crosswalk (budget actuals read Unknown until it exists) and the operator's acceptance review.
+- **2026-10-28 operational refresh:** all five reports published; 15 artifacts validated and 16 compatibility copies refreshed. Mail acquisition was blocked by expired OAuth and timed-out consent; local evidence reaches 2026-10-23. The run retains 5,637 discrepancies, 8 issues and 19 coverage flags. Category Mapping date columns are captured but not applied to guidance. Emailed check images cannot automatically record payment under schema v2; audited operator records are available after evidence review. New check emails remain uninspected. See [run record and limitations](../main-report-set.md#latest-operational-run-2026-10-28). Focused payment/pipeline/runner tests: 234 passed; no full-suite acceptance claim. Financial acceptance remains open.
+
 - **Type:** operator
 - **Problem:** Run the completed command against the authorized live source tabs and our workbook. Record defensible adjustments as authorized, generate all five current reports, and expose actual remaining discrepancies. Check the report experience and period bridge using retained snapshots; preserve originals and prior published outputs.
 - **Issue:** #102
@@ -1516,3 +1521,44 @@ Fresh checkout: Python 3.12+, `uv sync --extra dev --extra slides --extra receip
 per [SETUP](../../SETUP.md). Run `uv run np-finance end-to-end-run --as-of YYYY-MM-DD
 --dry-run` before publication. Preserve installed extras when syncing. Full test
 setup including the optional web emulator is documented in [CLAUDE.md](../../CLAUDE.md).
+
+## Reimbursement evidence and report review closeout (2026-10-28)
+
+Delivered operational/reporting scope; no numbered build step or unrelated acceptance gate
+is marked complete by this record.
+
+### What was built
+
+- Optional private `appendix.follow_ups` records render email/check work in the reimbursement
+  queue with captured source pages and the existing receipt viewer; repeated runs preserve them.
+- The queue compares original item sums, form totals and reviewed totals, retaining original
+  claimed amounts on corrected rows and in receipt dialogs.
+- Metadata mismatch advice gives exact totals/differences and directs receipt inspection.
+  Authorized receipt corrections and verified regions persist through normal refresh.
+- The live end-to-end command published the five-report set, with 15 verified artifacts and
+  16 refreshed compatibility copies. Private corrections, confirmations and source images
+  remain outside Git; no payment was sent by the reporting work.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `np_finance/reimbursement_report.py` | Strict optional follow-up records and viewer projection |
+| `np_finance/receipt_viewer.py` | Validate referenced follow-up source pages |
+| `np_finance/reimbursement_pipeline.py` | Specific amount mismatch explanations |
+| `np_finance/reports/templates/` | Combined follow-up cards and original/reviewed amounts |
+| `tests/test_main_report_runner.py` and report/pipeline/viewer tests | Persistence, validation, amount and browser regression checks |
+| `docs/main-report-set.md`, `docs/loading-receipts.md`, `docs/receipt-viewer.md` | Run evidence and receipt correction procedure |
+
+### Validation and boundaries
+
+223 focused tests cover pipeline, report, receipt viewer, receipt refresh and runner behavior;
+strict package mypy, changed-file Ruff/format, identity and whitespace checks passed. Published
+HTML was inspected in Chromium, including amount labels, red outlines, follow-ups and mobile
+layout. This is not a full-suite acceptance claim.
+
+Phase 10 Step 51 remains paused in its preserved worktree. The manual follow-up records do
+not implement the automatic scanner. Step 63 financial acceptance, dated category-mapping
+behavior, automatic split-check settlement and issued/cleared check lifecycle remain open.
+The exact follow-up schema and receipt correction procedure are in the linked operator guides;
+live financial evidence and private continuation pointers are never public issue attachments.

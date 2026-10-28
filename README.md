@@ -2,6 +2,11 @@
 
 [Project rename and compatibility notes](docs/project-rename.md).
 
+**Reimbursement review update (2026-10-28):** email/check follow-ups can share the review
+report, amount corrections retain the original claim, and receipt dialogs show verified
+item and tax/total outlines. See the [run and validation record](docs/main-report-set.md).
+Automatic action discovery and broader financial acceptance remain pending.
+
 **Naming migration delivered (2026-10-26):** the renamed command published the five-report set;
 workspace and public project links were updated, and the connected workbook was checked across
 36 tabs with eight remaining text cells corrected. Financial acceptance remains separate.
@@ -90,6 +95,14 @@ checks totals, and prepares the review queue.
 Each request shows its items, decision, payment status, and next step. New requests stay
 **unreviewed** until a decision is recorded. Suggestions help with review; they do not authorize
 payment. The treasurer sends replies and handles payments.
+
+Emailed check photos do not automatically mark requests paid. Verified checks can be recorded
+through a private audited operator payment after matching the approved request and amount.
+See [check-payment handling](docs/loading-receipts.md#checks-and-emailed-payment-evidence).
+
+Manually flagged email and check-review cases can appear in the same report, with open/resolved
+statuses and click-to-view source images. The end-to-end run preserves them; automatic discovery
+of non-form email actions remains unfinished. See [follow-ups](docs/main-report-set.md#email-follow-ups-and-check-review-in-the-queue).
 
 ![Reimbursement request with item decisions, a question to resolve, and an email draft](docs/screenshots/reimbursement-detail.png)
 

@@ -312,11 +312,23 @@ class ExcludedEntry:
 
 
 @dataclass(frozen=True)
+class FollowUpCase:
+    key: str
+    title: str
+    status: str
+    summary: str
+    next_action: str
+    evidence: tuple[str, ...]
+    page_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Appendix:
     amendments: tuple[Amendment, ...]
     cfo_checks: tuple[CfoCheck, ...]
     excluded: tuple[ExcludedEntry, ...]
     defects: tuple[str, ...]
+    follow_ups: tuple[FollowUpCase, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1197,10 +1209,14 @@ def _parse_ticket(value: Any, *, index: int) -> Ticket:
 
 
 def _parse_appendix(value: Any) -> Appendix:
+    # Optional on existing schema-v2 bundles; operator-owned, never inferred from mail.
+    keys = frozenset({"amendments", "cfo_checks", "excluded", "defects"})
+    if isinstance(value, dict) and "follow_ups" in value:
+        keys |= {"follow_ups"}
     raw = _object(
         value,
         label="appendix",
-        keys=frozenset({"amendments", "cfo_checks", "excluded", "defects"}),
+        keys=keys,
     )
     amendments_raw = raw["amendments"]
     checks_raw = raw["cfo_checks"]
@@ -1248,11 +1264,44 @@ def _parse_appendix(value: Any) -> Appendix:
             )
         )
 
+    follow_ups_raw = raw.get("follow_ups", [])
+    if not isinstance(follow_ups_raw, list):
+        _fail("appendix.follow_ups must be an array")
+    follow_ups: list[FollowUpCase] = []
+    seen: set[str] = set()
+    for index, item in enumerate(follow_ups_raw):
+        label = f"appendix.follow_ups[{index}]"
+        entry = _object(
+            item,
+            label=label,
+            keys=frozenset(
+                {"key", "title", "status", "summary", "next_action", "evidence", "page_ids"}
+            ),
+        )
+        key = _string(entry["key"], label=f"{label}.key")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", key) or key in seen:
+            _fail("follow-up keys must be unique lowercase identifiers")
+        seen.add(key)
+        status = _string(entry["status"], label=f"{label}.status")
+        if status not in {"OPEN", "DONE"}:
+            _fail("follow-up status must be OPEN or DONE")
+        follow_ups.append(
+            FollowUpCase(
+                key=key,
+                title=_string(entry["title"], label=f"{label}.title"),
+                status=status,
+                summary=_string(entry["summary"], label=f"{label}.summary"),
+                next_action=_string(entry["next_action"], label=f"{label}.next_action"),
+                evidence=_strings(entry["evidence"], label=f"{label}.evidence"),
+                page_ids=_strings(entry["page_ids"], label=f"{label}.page_ids"),
+            )
+        )
     return Appendix(
         amendments=tuple(amendments),
         cfo_checks=tuple(checks),
         excluded=tuple(excluded),
         defects=_strings(raw["defects"], label="appendix.defects"),
+        follow_ups=tuple(follow_ups),
     )
 
 
@@ -1572,6 +1621,14 @@ def render_html(report: ReimbursementReport, *, receipts: Mapping[str, Any] | No
             if (entry := receipt_data["items"].get(ticket.review_key, {}).get(item.item_key))
         },
     }
+    for case in report.appendix.follow_ups:
+        if any(page_id not in receipt_data["pages"] for page_id in case.page_ids):
+            _fail("follow-up source page is missing from the receipt sidecar")
+        if case.page_ids:
+            viewer_data["items"]["follow-up-" + case.key] = {
+                "regions": [{"page_id": page_id, "box": None} for page_id in case.page_ids],
+                "match_method": None,
+            }
     rendered = template.render(
         report=report,
         summary=report.summary,

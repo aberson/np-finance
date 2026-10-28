@@ -401,6 +401,49 @@ decoded attachment hashes and normalized RFC timestamps. That requires deliberat
 never carries an approval forward by guessing. A late-arriving in-scope email is still detected
 because the bundle persists every accounted source key rather than relying on archive order.
 
+### Mail that needs attention outside the reimbursement form
+
+Use the report's [Email follow-ups and check review](main-report-set.md#email-follow-ups-and-check-review-in-the-queue)
+section to retain manually flagged mail alongside the reimbursement cases. An inline receipt image
+or a reply below quoted text can be missed by the normal form/supplemental parser. Inspect the
+original MIME message when the subject indicates work but parsed text and attachments are empty.
+Record the source/hash, a clear next action, and any relevant receipt-sidecar pages. Search for an
+existing submission before creating another payable claim. These follow-ups survive refreshes
+but are not an automatic inbox scan; Phase 10's separate action queue remains paused.
+
+### Checks and emailed payment evidence
+
+The current schema-v2 workflow does **not** automatically record payment from a check photo,
+scan, forwarded image, or free-form check email. Fetching archives the message; receipt linking
+or OCR does not establish that a reimbursement was paid. The automatic `payment_links` lane
+accepts the documented Zelle confirmations and Zelle tickets only. The legacy check-text parser
+is not a route for recording new schema-v2 check payments.
+
+An already-verified check can be accommodated through the existing private `operator_payments`
+record after review. That lane has no Zelle-only restriction. Preserve the original email/image,
+identify exactly one approved ticket, verify its payable total against the check, and record the
+actual date, exact amount, real check reference, and an audit note locating the source evidence.
+The existing reducer requires one payment to equal the whole payable ticket total; it does not
+accumulate separate partial checks. Preserve each check and its item allocation in a private
+review record rather than inventing a combined payment reference or marking already-paid items
+outstanding. Paper-only multi-request checks and direct vendor invoices also need distinct intake
+and reconciliation.
+
+A check number alone is not globally unique: include the account/series context in a stable
+reference when needed, using the schema's letters, digits and hyphens. Never invent missing data.
+
+The operator record is an explicit attestation: the audit note does not automatically bind or
+validate the email/image bytes. A promise to write a check or a photo of an unsigned check is
+insufficient. Record what the evidence establishes (issued/delivered versus cleared); the current
+payment model has no separate issued, cleared, voided or replacement-check lifecycle. Do not add
+an already-recorded check a second time, and do not use a report adjustment to mark a ticket paid.
+
+For emailed checks, retain a private review inventory until the evidence and ticket match are
+confirmed. A future check-evidence workflow needs an exact source/hash binding, proposed payee,
+date, amount and reference extraction, explicit review, duplicate/replacement handling and a
+bank-clearing link. These capabilities are not shipped. Keep unresolved checks visible for review;
+do not change a ticket to Zelle to force it through the automatic lane.
+
 ### Private supplemental anchors, payment links, and operator records
 
 By default, `update-reimbursements` looks for
@@ -627,3 +670,27 @@ token goes into CI. A refresh token for a personal mailbox stored in a public re
 secrets would let a compromised workflow run read the entire inbox, and these rounds are hands-on
 anyway. Fetching stays **local-only** by design (`docs/plans/master_plan.md` § Design
 Decision 7); revisit only as a deliberate, separate decision.
+
+
+### Receipt-supported amount corrections
+
+The queue shows the original item sum, stated form total, and reviewed total together.
+A corrected line retains its original claimed amount beside the reviewed amount, including
+inside the receipt dialog. A metadata total mismatch names both totals and the difference;
+it asks the operator to inspect items, tax, discounts, and the final receipt total before
+contacting the requester. Metadata does not establish a tax omission or authorize an increase.
+
+After visual inspection and operator authorization, record exact corrected amounts in the
+private `operator_reviews` anchor, with the receipt vendor/date, original amount, adjustment,
+and corrected total in the explanation. Retain source amounts and form totals unchanged.
+For an order spanning multiple claim lines, allocate only the applicable receipt tax, in cents,
+proportionally with largest fractional remainders receiving remaining cents. Explain that
+allocation and ensure its sum equals the receipt tax; never add tax already included.
+A resolved tax omission or small transcription error should have a concrete `Pay $?` action
+and no obsolete clarification questions. Approval and payment remain separate states.
+
+Save visually verified item and tax/total regions in the private receipt sidecar. Recheck
+fingerprints after an amount correction, remove the automatic-match tag only for locations
+actually inspected, and validate replay before publishing. Whole-ticket automatic attachment
+links have no exact item coordinates, so they cannot show honest red outlines until matched.
+Original images remain unchanged; the report draws the red outlines as overlays.
