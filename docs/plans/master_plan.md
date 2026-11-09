@@ -4,7 +4,7 @@
 
 Reusable private finance reporting and reimbursement evidence, with independently scoped delivery tracks.
 
-Proposal: docs/plan-reference/cfo-main-report-set-proposal.html (Phase CFO only).
+Proposal: docs/plan-reference/cfo-main-report-set-proposal.html (current CORE-BRIEFS extension; earlier CFO proposal retained as history).
 
 ## Source
 
@@ -1421,6 +1421,219 @@ uv run np-finance report-reimbursements
 
 **Contract:** Supporting specification sections 5, 6 and 10 define the records, algorithms, failure cases and commands. New module paths in Files are relative to `np_finance/main_reports/` when only a basename is shown.
 
+## Phase CORE-BRIEFS: Classroom budgets and fundraising obligations
+
+**Objective:** Running `uv run np-finance end-to-end-run` refreshes Classroom Budgets and Fundraising vs. Obligations as two core documents in the same private, captured, validated Main Report Set.
+**Planning state:** REVIEW-READY for this phase only. No implementation or financial acceptance is claimed.
+**Accepted financial rules (2026-11-04):** Reserves are the actual CD account balance from the configured monthly-balance source, refreshed on every run and dated on the report. The earlier rough reserve estimate and total cash/CD proxy are superseded. Checking, savings and credit-card netting do not enter the reserve denominator. The earlier-cycle specialist payment does not settle the current year-end obligation; keep that obligation outstanding and count its annual cost only once. Real account bindings and amounts remain private, never hard-coded in production or this public plan.
+**Status:** Steps 65-69 PENDING. Numeric IDs 65-69 are newly reserved; no existing step is renumbered.
+**Scope of dispatch and review:** CORE-BRIEFS only, Steps 65-69. Never dispatch the entire master. Existing CFO Step 63 remains in progress; this phase must not mark its broader reconciliation accepted.
+**Parent relationship:** Extends the shipped CFO Steps 57-62 and 64. Reuses their capture, facts, render/export and publication machinery. The bounded reserve comparison here does not complete deferred F16 (broader sustainability views), and planned remaining spending does not complete F17 (a commitment ledger).
+**Planning baseline:** `724c9ffd1d3767d1f5546cb9ad8920523474a949`, branch `main`, 2026-11-04. Tracked tree was clean; pre-existing untracked `.build-step/` is unrelated and must be preserved.
+
+### What This Feature Does
+
+The board gets the two accepted summary designs every time the ordinary command refreshes its core documents. The set grows from five reports to seven, with six summary HTML/PDF/PNG triplets and the existing reimbursement queue/copy text; the fundraising-obligations PDF contains a one-page summary plus two portrait appendix pages. No separate report-generation command or manual copy of the prototype is needed.
+
+Classroom Budgets shows teacher names on the horizontal axis, dollars on the vertical axis, a paid/remaining stacked bar per classroom, a short list of larger reimbursed purchases, and a factual spending description. Fundraising vs. Obligations shows paid spending, remaining planned spending, fundraising received versus target, four no-reserve-draw scenarios, and the alternative reserve draw in dollars, percent and approximate repeat-gap years.
+
+### Accepted report presentation
+
+Keep the final concise one-page summary layout: paid and remaining spending side by side; fundraising progress; four scenario rows, with Central case highlighted; a CD reserve strip; and a distinct **Central-case assumptions** section. Keep the bold **Total sans SP** row immediately above the bold **Total** in the not-yet-paid column. `Total sans SP = total remaining - remaining specialist teacher contracts`, using explicit configured category mappings, never display-name guessing. Define SP once as specialist teacher contracts. This subtotal excludes contracts only, not specialist supplies, and is a subtotal rather than another expense. Show nine largest nonzero categories per summary column plus an exact Other subtotal (three more than the prior six-row design). Keep the complete central explanation on page 1. Add appendix page 2 with every nonzero paid category and page 3 with every nonzero remaining category, in descending amount order with deterministic category tie-breaks. Include the displayed categories and those grouped into Other; never print an aggregate Other row instead of its underlying detail. Each appendix total must reconcile exactly to its summary total before rounding; remaining appendix repeats Total sans SP immediately above Total. Use full category labels, distinct page headings and page numbers; these are parts of the same report/PDF, not additional report entries or independent data reads. A category may appear on both pages when partly paid. Omit zero-only rows and headings/subtotals from detail, and preserve signed refunds/reversals rather than dropping negative nonzero rows. Each appendix occupies one portrait Letter page with no clipped/omitted rows; overflow fails validation. HTML presents three separate sheets and PNG export follows existing full-document behavior. Retain the same standard full-plan totals above the scenario table; central spending assumptions affect only that scenario.
+
+The central explanation must retain the prior classroom actual/budget and utilization percentage, current classroom forecast and total annual spending, names of the selected future fundraising events and equal receipts/costs, the prior-year fundraising dollar benchmark, received-plus-event floor and its adjustment, and the statement that event income is included once with any implied additional non-event receipts. Event timing/coverage uncertainty stays visible. Keep short explanations that other scenarios retain full planned spending and that repeat-gap coverage is not a cash-flow forecast. Do not restore the removed generic outlook subtitle, the separate other-income sentence, the operator-correction label, duplicate reserve arithmetic, formula exposition or long source boilerplate. Other income remains in all calculations and private audit facts. Use a compact source/as-of footer; put full evidence, reconciliation and computation details in the run records. Required missing-data findings must still be visible.
+
+### Existing Context
+
+- `np_finance/cli.py:_cmd_end_to_end_run` dispatches to `runner.run`; `runner._build_run` captures sources, refreshes/stages reimbursement evidence, builds facts, renders, validates and publishes. `runner._dry_run` is strictly no-write.
+- `sources.py:capture` and `CaptureSet` preserve one input set with content hashes and consistency checks. `models.py:SOURCE_KINDS` currently contains three transaction and four control kinds. `sources.validate_config` currently requires every kind; adding an optional feed to that enumeration would accidentally make it mandatory for existing configurations.
+- `sources.py:_capture_budget` retains proposed/adopted rows only; historical actuals are not available just because historical targets are present. `budget_tracker` is presently captured as a control, not a verified itemized payment ledger.
+- `facts.py:build_from(capture_set, ledger, bundle, config)` is the production calculation seam. `models.py:ReportFacts.to_dict` writes the audit facts. `render.py:write` consumes facts and the staged review bundle; it does not query Sheets.
+- `render.py:SUMMARY_NAMES`, `REPORT_TITLES`, `OUTPUT_NAMES`, `_links` and `pointer_page` govern exports and navigation. The four-name tuple unpacking beside `SUMMARY_NAMES` needs updating. `runner.COMPATIBILITY_FILES` derives from `OUTPUT_NAMES`; `_check_set` verifies the set before the atomic pointer switch.
+- Existing templates under `np_finance/reports/templates/main_reports/` share `base.html.j2`, `style.css.j2` and `macros.html.j2`. Chromium exports are offline and already tested for page count. Keep the approved teal/gold visual language, masthead, Letter layout and audit footer.
+- The accepted private prototype supplies visual reference only. Its assumed roster, equal allowances, amount-only check attribution, name parsing, unverified specialist payment-period treatment and current-balance reserve proxy are not authoritative production inputs. The operator subsequently rejected treating total cash as reserves and confirmed that the current specialist obligation remains outstanding despite an earlier-cycle payment. Private artifact locations stay in private handoff state, not this public plan. A builder without those artifacts can implement from this specification and the existing template family.
+
+### Scope
+
+**In:** typed captured planning inputs; teacher/payment attribution; school-year spending and fundraising facts; four scenarios; explicit reserve basis; two templates; shared exports/index/manifest/compatibility copies; privacy, failure and missing-data behavior; source detail records; focused tests; one real private acceptance cycle.
+
+**Out:** a new dashboard, hosted app, scheduler, email delivery, payments, approvals, CFO workbook writes, bank-PDF ingestion, automated roster inference, a comprehensive accounts-payable ledger, predictive fundraising models, generic refactors, or closing unrelated financial discrepancies. This is a one-shot CLI feature, not an always-on service; no elapsed soak is required.
+
+### Impact Analysis
+
+Search boundary: tracked Python under `np_finance/` and `tests/`, shared report templates, `config.example.toml`, `README.md`, `CLAUDE.md`, `.github/workflows/ci.yml`, `pyproject.toml` and the report guides. Private outputs, archived plans and paused worktrees were excluded from consumer enumeration.
+
+| File or interface | Change | Reason | Verified evidence |
+|---|---|---|---|
+| `np_finance/config.py`, `config.example.toml` | Optional typed board-planning configuration | Explicit private source and roster bindings | `MainReports`, `SourceBinding`, `_load_main_reports` |
+| `main_reports/sources.py`, `models.py` | Optional planning capture envelope and validation | Capture all new inputs once without changing required legacy source kinds | `CaptureSet`, `SOURCE_KINDS`, `ADAPTERS`, `validate_config`, `capture`, `_verify_stored`, `store_capture_set` |
+| `main_reports/planning.py` (new) | Pure parsing, attribution and scenario calculations | Keep new financial semantics separate from presentation | Invoked by existing `facts.build_from` |
+| `main_reports/facts.py`, `models.py` | Add classroom and obligation facts with quality/provenance | Every displayed number must be auditable | `ReportFacts`, `build_from`, `to_dict` |
+| `main_reports/runner.py` | Hash/stage planning inputs; carry records; validate complete exports | Prevent mixed snapshots and partially published sets | `_input_components`, `_write_records`, `_check_set`, `_build_run`, `_dry_run`, `COMPATIBILITY_FILES` |
+| `main_reports/render.py`, two new templates | Register and render both core summaries | Normal index, pointer and compatibility paths | `SUMMARY_NAMES`, `OUTPUT_NAMES`, `write`, `_write_set`, `_links`, `pointer_page` |
+| `main_reports/export.py` | Reuse exporter; change only if required for layout validation | No second PDF engine | `ExportJob`, `export_documents`, `verify_outputs` |
+| `tests/conftest.py`, `test_config.py`, `test_main_report_sources.py`, `test_main_report_facts.py`, `test_main_report_render.py`, `test_main_report_runner.py`; new `test_main_report_planning.py` | Fictional inputs and seam/regression cases | Constructor, artifact count, source/hash and publication consumers | Repository search for `MainReports(`, `CaptureSet(`, `ReportFacts(`, `build_from(`, `SUMMARY_NAMES`, `OUTPUT_NAMES` |
+| `main_reports/reconcile.py` | Verify unchanged transaction routing; change only if capture interface requires it | Supplemental annual ledger must never be counted as another bank feed | Consumer of transaction/control kinds and captures |
+| `np_finance/cli.py`, README, CLAUDE, report guide/design spec, CI | Update five/four-report descriptions, counts, browser coverage expectations | Discoverability and installed-package evidence | CLI parser/help, `docs/main-report-set.md`, `docs/plan-reference/main-report-design.md`, `.github/workflows/ci.yml` |
+
+All `main_reports/` paths above are relative to `np_finance/`. Shared consumers found: config validation; sources capture/storage/load; reconcile; facts; render; runner; the listed test modules and `tests/conftest.py`. Re-run this search before changing a shared interface; preserve unrelated constructor callers and serialized fields.
+
+### New Components and Input Contract
+
+Introduce `np_finance/main_reports/planning.py`, two templates named `classroom-budgets.html.j2` and `fundraising-vs-obligations.html.j2`, and `tests/test_main_report_planning.py`. Use existing Decimal, dataclass, JSON, Jinja and Chromium facilities; no new service or dependency.
+
+Proposed configuration, implemented in Step 65: optional `[main_reports.board_planning]` with `input_file` pointing to a private versioned JSON document, resolved against the config directory. It contains the roster, explicit mappings/policies and supplemental source bindings, not cached live amounts. All names, real identities and bindings remain private. The JSON schema is version 1 with these fields:
+
+- `schema_version: 1`; `fiscal_year: int` (ending-year label); `roster_complete: bool`; `roster_as_of: YYYY-MM-DD`; `roster_evidence: nonempty string`.
+- `classes[]`: `class_id` (unique stable private lowercase slug, e.g. `class-a`), `teacher_label`, `student_count` (nonnegative integer or null), `per_student_amount` (nonnegative decimal string or null), `effective_start`, `effective_end` (inclusive ISO dates), `eligible` (boolean). Allocation = count times rate; do not distribute the adopted total automatically. A teacher can have multiple class IDs; render class-qualified labels. No student identities are collected.
+- `payee_aliases[]`: exact `source_payee` to `class_id`. Explicit mapping only; spelling normalization must not merge distinct people. `payment_allocations[]`: `source_record_key`, `source_revision_hash`, `class_id`, `amount` and `evidence`; multiple allocations must sum to the linked payment amount. These are reporting assignments, not payment-authority records.
+- `category_roles[]`: `source_category`, `role` (`fundraising`, `other_income`, `expense`, `transfer`), `budget_category`; `classroom_categories[]` identifies eligible expense categories. A mapping is explicit and does not replace the existing category crosswalk or journal. Missing roles are unresolved, not income by sign alone.
+- `bindings[]`: `role` (`academic_ledger`, `prior_year_budget`, `balances`), `workbook` (`cfo` or `own`, resolved only through existing configured workbook IDs), `tab`, `header_signature`, `columns` (logical field to exact label), `coverage_start`, `coverage_end`, `coverage_evidence`. At most one binding per role; no new credentials. Required logical columns are described below. `prior_fiscal_year` must equal the selected year minus one.
+- `reserve_basis`: `kind: source_account_balance`, `binding_role: balances`, `component: cd`, and `evidence` (nonempty operator basis). The reserve amount and date come from the latest captured CD-column row no later than as-of; do not store a manually estimated amount. The operator defines the CD balance as reserves. Exclude checking and savings; do not subtract the credit-card balance from the CD. Actual workbook/account identity stays in private configuration. Missing, unreadable, future-only or stale CD data makes reserve columns unavailable; no fallback to total cash or an old estimate.
+- `specialist_contract_categories[]`: exact current budget-category keys identifying contract costs for the SP subtotal; empty/missing mapping makes that subtotal unavailable, not identical to total remaining. Specialist supplies are not included unless incorrectly mapped; validate the declared contract role and evidence.
+- `central_case`: `fundraising_basis: prior_actual_dollars`; `classroom_budget_categories[]` and `prior_classroom_categories[]` (explicit comparable expense-category keys; do not assume current and prior labels match); `future_events[]` with unique stable `event_id` slug, `label`, `income_categories[]`, `expense_categories[]`, `event_date` (ISO date after report as-of), `confirmed: bool`, and nonempty `evidence`. Each income/expense category belongs to at most one event, and central classroom categories cannot overlap event or specialist-contract categories. These are source bindings and policy, never cached live totals. A past/unconfirmed date makes the central forecast partial/unavailable; zero transactions are not proof of a future date. An absent central policy makes only the central scenario unavailable. Policy/schema corruption or duplicate/conflicting category bindings fails validation. Current targets come from the existing captured adopted budget, joined through `budget_category`; missing joins are unknown, not zero. A missing/nonpositive historical classroom budget or missing actual makes classroom utilization unavailable; never substitute a default ratio.
+- `period_allocations[]`: exact `source_record_key`, `source_revision_hash`, `fiscal_year`, and `evidence` for an operator-verified attribution overriding an incorrect academic-year source label. Preserve both original and corrected assignments in facts; reject duplicate/conflicting assignments and conflicts with recorded journal adjustments. This changes report attribution only, not source data or payment status.
+
+Supplemental source rows are captured verbatim with existing source row/ref/hash conventions:
+
+| Role | Logical fields | Rules |
+|---|---|---|
+| Academic ledger | payment date, description, signed amount, category, fiscal year; optional explicit payment reference and payee | Each expense is negative; preserve academic-year allocation even if paid before the school-year start. Exclude transactions after `--as-of`. Require a declared academic-year mapping; do not infer it from payment date. |
+| Prior-year budget | fiscal year (binding constant allowed), category, type, proposed, actual | Read both target and actual, never sum subtotal rows with detail. Distinguish blank/unknown from zero. Classify fundraising consistently across years; exclude interest from both sides of the historical fundraising ratio. |
+| Balances | date, checking, savings, CDs, credit-card liability, total | Latest complete date no later than `--as-of`; reconcile components to total. Declare liability sign in column mapping. Flag mismatched/stale/incomplete snapshots. |
+
+Use an optional `PlanningCapture` field on `CaptureSet`, separate from `SOURCE_KINDS`: schema version, fiscal year, captured-at, input JSON bytes/hash, supplemental reference captures, and quality findings. Each reference capture carries role, workbook role, tab ID/title, header signature, column mapping, captured-at, raw values/formulas/entered numbers, coverage and SHA-256; reuse source provenance helpers without registering it as a normalized bank feed. Capture both workbook roles read-only, using the existing retry/consistency discipline. Before-and-after checks include supplemental tabs and the private JSON; changed input causes bounded retry/failure, never a mixed set. Extend capture serialization/stored verification and aggregate/input hashes; add typed reconstruction for the new envelope where needed. Old captures lacking the field reconstruct as unavailable; preserve their historical hashes rather than retroactively rehashing them. The renderer never rereads the original file or Sheets.
+
+Identifiers: existing run IDs, input hashes and reimbursement item/review keys retain their current generators and formats. New academic rows use the existing `v1:<alias>:<sha256>:<occurrence>` record-key convention, with a distinct planning alias and a deterministic occurrence index; revision hashes identify exact source revisions. `planning.py` generates these using shared source identity helpers, and attribution/audit records consume them. Do not deduplicate distinct identical-looking source rows by amount. Exact payment references provide cross-ledger links; rows lacking them stay unassigned until an evidence-backed private allocation identifies the source key/revision. No new public person identifier is introduced.
+
+`ReportFacts` gets optional typed `classroom` and `obligations` sections with their own versioned serialized payloads. Each carries `status` (`complete`, `partial`, `unavailable`), source refs, coverage/as-of, amounts as decimal strings, and findings. Class rows contain class ID/label, enrollment, rate, allocation, paid, signed remainder and evidence. Obligation rows contain category, adopted target, paid, remaining and overruns; facts also retain the specialist-contract remaining subtotal and remaining excluding contracts. Scenarios contain annual spending, classroom utilization and forecast, event costs/receipts and refs, benchmark/floor/adjustment, additional non-event receipts, received, projected full-year fundraising, cuts, surplus, required reserve funding, usable reserve draw, reserves left, unfunded remainder, required-funding percentage, repeat-gap years, captured CD balance and basis date. Preserve all existing facts fields and old-reader behavior; test explicit old/new shapes rather than changing every stored schema version globally.
+
+### Design Decisions
+
+| Choice | Decision | Provenance | Rationale / alternatives |
+|---|---|---|---|
+| Report membership and design | Both pages become ordinary core outputs, retaining the accepted layout | operator | No separate preview workflow for routine use |
+| Classroom allocations | Use actual enrollment times rate in production; equal distribution is design-only | operator | Actual roster is still to be supplied; no fabricated production budget |
+| Scenario policy | No reserve draw in cuts; additionally show draw dollars, share and repeat-gap years | operator | Reserve use is an alternative, never added to the cuts |
+| Input maintenance | One private versioned roster/policy JSON plus live bound finance tabs | agent default | Smallest explicit input surface; no new spreadsheet editor or automatic name guessing |
+| Classroom paid basis | Posted payments allocated to the school year, reconciled to paid review evidence | agent default | Preserves the draft's posting basis. Issued-but-unposted reimbursements appear separately and are not counted twice |
+| Missing inputs | Always publish both page shells as unavailable/partial, never reuse prototype assumptions | agent default | Existing configurations still work; missing planning data must be visible |
+| Remaining obligations | Remaining adopted plan, not a claim of invoices legally owed | agent default | Keep the draft's semantics and label them honestly |
+| Reserve denominator | Use the captured CD account balance as reserves; never total cash/CDs or an estimate | operator | Operating money cannot be counted again as reserve capacity |
+| Specialist obligation | An earlier-cycle specialist payment does not settle the current year-end obligation | operator | Verify the service/fiscal period; include the current obligation once in the annual budget |
+| Failure behavior | Invalid configured schemas, ambiguous duplicates and failed financial invariants halt publication | agent default | Missing optional data is different from corrupt supplied data |
+
+Calculation and display contract:
+
+1. Verify the service/fiscal period before reducing current-year obligations. A prior-cycle payment must be excluded from current-year paid spending while the current budget remains outstanding; moving paid to remaining must not increase the annual expense total. Let `B_i` be a readable adopted expense target and `P_i` school-year attributed posted spending. Remaining `R_i = max(B_i - P_i, 0)`; annual spending estimate `E = sum(P_i + R_i)`. An explicitly unbudgeted expense has target zero and remains in `E`; an unmapped target is unknown, not zero. Show already-incurred overruns and explain the difference between `E` and the adopted budget. Refunds/reversals retain signed net effects and provenance; do not silently clamp anomalous negative net spending. Tracker totals are a reconciliation control, not added to the academic ledger. Never add this ledger to the bank P&L.
+2. `F` = fundraising received on the academic-ledger basis through as-of, `T` = adopted fundraising target, `O` = other recorded income. Exclude transfers and do not add processor gross to posted receipts. Historical ratio `r = prior_actual / prior_target`, for the same declared fundraising scope. No-more case `A=F`; historical case `A=max(F,T*r)`; full-target case `A=max(F,T)`. Cuts `max(E-A-O,0)`; surplus `max(A+O-E,0)`. Retain future fundraising costs until explicitly changed. Missing or nonpositive prior target makes only the historical projection unavailable; never substitute 100%. Do not clamp ratios above 100%.
+   Central case (operator addition): use prior-year classroom actual / adopted classroom budget as utilization, with projected classroom spending floored at already-paid spending. Other expenses retain the full modeled plan. Treat an explicitly captured, confirmed set of future fundraising events as break-even: their full-year receipts equal full-year costs, including prepaid costs, with received/paid amounts retained and no impossible negative future receipts or costs. Use prior-year total fundraising dollars (not the target-achievement percentage) as the annual benchmark, the agent default retained in the accepted design. Future event receipts count INSIDE annual fundraising, not on top. For each event, full-year expense `E_j=paid_j+max(adopted_j-paid_j,0)` retains prepaid costs, and required future receipts `N_j=E_j-received_j`. If observed receipts already exceed `E_j`, exact break-even is incompatible: mark the central case unavailable with a finding rather than inventing refunds. Let `N=sum(N_j)` for the confirmed future events: central annual fundraising `A_c=max(prior_actual,F+N)`; central annual expense `E_c=E-original_classroom_estimate+max(classroom_paid,current_classroom_budget*prior_classroom_actual/prior_classroom_budget)`. Round projected money to cents, then apply the same gap/reserve formulas with `E_c,A_c`. Disclose any floor adjustment above the benchmark, event scope/dates, event income/cost bridge and implied additional non-event receipts. Do not identify future events from zero postings alone. Missing prior classroom data or unverified event scope makes this case partial/unavailable without affecting the other cases. This utilization assumption changes only the central forecast, never teacher entitlements or the Classroom Budgets allocation chart. Capture these policy inputs and source mappings with the planning input hash. Test event income counted once, benchmark below received-plus-event floor, prepaid events, missing historical denominator and already-paid classroom floor.
+3. Preserve the existing Fundraising Summary's bank basis. Explain its difference from this academic-allocation/posted basis with a source-backed bridge (timing/prepayments, classification, gross/fees, exclusions and unresolved residual). The prototype alone is not reconciliation. No silent disagreement between core documents is acceptable.
+4. Required reserve funding equals the no-draw annual gap; usable draw = min(gap, available reserves), with the unfunded remainder shown separately. Percent needed = gap / captured CD balance; repeated-gap coverage = CD balance / gap. Zero gap means no draw needed. Missing/invalid reserves yield unavailable comparisons; a valid zero reserve means no coverage and the full gap unfunded, with percentage undefined. The configured CD component supplies the denominator and its date; a historical rough estimate is not an input. A gap larger than reserves must say insufficient, never claim the entire gap can be drawn. These are annual-gap comparisons, not months until cash runs out; current-year operating cash and payment timing require a separate reconciliation. Never add total cash/CDs to revenue or use operating cash again as reserve capacity.
+5. Classroom posted payments require exact source identifiers/verified mappings, not matching check amount alone. Reuse the project's record key and revision-hash identities; do not mint display-name payment IDs. Ambiguous/unassigned payments remain a visible total with refs. The sum of assigned plus unassigned equals source classroom spending. Shared purchases use explicit amount splits. Roster coverage, specialists, unknown dates, carryovers, duplicates and issued-but-unposted items stay explicit. Larger purchases come from paid, dated itemized review evidence, with source references; aggregate paper totals are not invented individual products.
+6. Signed classroom remainder = enrollment times rate minus posted payments. Negative remainder gets an over-budget marker; the visual does not draw a negative remaining stack or hide the overrun. Zero observed payments are distinct from absent coverage. Enrollment totals/rates need not sum to the adopted classroom envelope; show any difference rather than silently scaling them.
+7. Keep a bounded list of large items/categories plus an exact other subtotal, with complete rows in private audit records. Narrative is deterministic from category/item descriptions, with fallback for insufficient detail; no external model or unsupported purchase conclusions. Long names and larger rosters must fit the page legibly without omitting teachers; automated layout failure prevents publication rather than clipping data. No fixed fictional teacher limit in production.
+8. Each new page carries run ID, input hash, as-of, data basis, source freshness and findings like existing pages. Machine records retain cents; display rounding follows existing helpers. No real names, source IDs, amounts, screenshots or private prototype paths in committed fixtures/docs.
+9. Materially incomplete current income/spending coverage yields partial observed subtotals and unavailable definitive cuts, not a precise forecast based on missing rows. Missing historical data affects the historical case only; missing reserves affects reserve columns only. A cash balance dated before the calendar month preceding as-of is stale for cash reconciliation; reserve comparisons use the CD row date and are unavailable if it predates the calendar month preceding as-of. A current tracker snapshot is not a historical as-of control; compare only compatible periods and show an unavailable control otherwise. Preserve source dates and the unresolved bridge residual in audit records.
+
+### Build Steps
+
+### Step 65: Capture the planning inputs through the normal command
+- **Status:** PENDING
+- **Problem:** The ordinary run cannot capture the roster and school-year planning sources needed to substantiate either new page.
+- **Type:** code
+- **Issue:** #109
+- **Flags:** --reviewers deep
+- **Files:** `np_finance/config.py`, `config.example.toml`, `np_finance/main_reports/models.py`, `sources.py`, `runner.py`, `tests/test_config.py`, `tests/test_main_report_sources.py`, `tests/test_main_report_runner.py`, `tests/conftest.py`
+- **Produces:** The optional planning configuration/capture contract above, version-compatible stored snapshots and input-set hashing.
+- **Done when:** `end-to-end-run --dry-run` validates fictional planning inputs without creating any files; a real-component normal CLI fixture run retains a hashed planning capture; changing roster/alias/policy/one source row changes the input hash; capture mutation is detected; an old config/capture still runs and retains old-source semantics; invalid configured inputs fail before pointer publication. Supplemental ledger rows never enter bank P&L reconciliation as a second bank feed.
+- **Depends on:** 62, 64 (both DONE)
+
+### Step 66: Refresh the classroom one-pager with the core report set
+- **Status:** PENDING
+- **Problem:** The approved classroom design is a private one-off rather than a reproducible core report.
+- **Type:** code
+- **Issue:** #110
+- **Flags:** --reviewers deep
+- **Files:** `np_finance/main_reports/planning.py` (new), `models.py`, `facts.py`, `render.py`, `runner.py`; `np_finance/reports/templates/main_reports/classroom-budgets.html.j2` (new), shared base/style/macros as needed; `tests/test_main_report_planning.py` (new), `test_main_report_facts.py`, `test_main_report_render.py`, `test_main_report_runner.py`
+- **Produces:** Classroom HTML/PDF/PNG from captured actual allocations and attributed payments, private complete detail records, and all normal publication links/copies.
+- **Done when:** A normal CLI fixture run publishes the classroom triplet and the five existing reports with one run/input identity; source payments reconcile to assigned plus unassigned; verified shared/check mappings and issued-but-unposted cases do not duplicate spend; missing roster yields an explicit unavailable allocation rather than the draft's equal distribution; an over-budget case shows a signed negative remainder; large/long-label fixtures remain a single readable Letter page without hidden teacher rows. The failed-export case leaves the previous pointer unchanged.
+- **Depends on:** 65
+
+### Step 67: Refresh fundraising obligations and reserve scenarios
+- **Status:** PENDING
+- **Problem:** The normal run does not show the remaining school-year spending plan under the four requested fundraising/spending scenarios.
+- **Type:** code
+- **Issue:** #111
+- **Flags:** --reviewers deep
+- **Files:** `np_finance/main_reports/planning.py`, `models.py`, `facts.py`, `render.py`, `runner.py`; `np_finance/reports/templates/main_reports/fundraising-vs-obligations.html.j2` (new); existing/new planning, facts, render and runner tests
+- **Produces:** The second triplet, scenario/obligation/reserve audit records, a basis bridge to the existing fundraising page, and seven-report publication.
+- **Done when:** The production CLI fixture run produces all seven reports; paid plus remaining equals modeled annual spending, including overspends and verified payment-period treatment; an earlier-cycle specialist payment leaves the current obligation unpaid without adding a second current-year expense; all four scenarios independently recompute from serialized facts; the bold Total sans SP row directly precedes Total, excludes only mapped specialist contracts and is never double-counted; the distinct central-assumptions section explains the classroom ratio and event/fundraising interaction while the removed copy stays absent; historical missing/zero targets, over-target receipts, stale/missing/negative balances, CD-only selection with checking/savings/credit-card amounts present and insufficient-reserve cases render explicitly; fundraiser scope is consistent across years; no processor, transfer or alternate-ledger double counting occurs; Classroom Budgets PDF is one page and Fundraising vs. Obligations PDF is exactly three pages (summary, complete paid appendix, complete remaining appendix) and appear in the manifest, immutable index, current pointer and compatibility copies.
+- **Depends on:** 66
+
+### Step 68: Verify the seven-report refresh and document operation
+- **Status:** PENDING
+- **Problem:** The expanded publication needs evidence that the installed command refreshes all outputs together without regressing the existing five.
+- **Type:** code
+- **Issue:** #112
+- **Flags:** --reviewers deep
+- **Files:** `tests/test_main_report_runner.py`, `test_main_report_render.py`, `test_main_report_sources.py`, `test_main_report_planning.py`, `tests/conftest.py`, `.github/workflows/ci.yml`, `np_finance/cli.py`, `README.md`, `CLAUDE.md`, `docs/main-report-set.md`, `docs/plan-reference/main-report-design.md`; bounded production fixes in `np_finance/main_reports/`
+- **Produces:** Installed-wheel/template smoke, production-caller tests, actionable no-data/error pages, updated seven-report guide and a live-acceptance checklist.
+- **Done when:** The focused commands below pass; a real-component CLI/Chromium smoke completes under the existing bounded runner test (no mocked parser/facts/render/export/publication); old and new capture/facts wire shapes are asserted; repeat runs preserve semantic totals and immutable prior outputs; dry-run writes nothing; injected capture/export/validation failures keep the old complete set; post-pointer alias-copy failure retains the new pointer and reports the existing partial-publication state. Old reports retain their existing financial basis and receipt behavior. The built wheel contains both templates. Changed suites and exclusions are recorded explicitly.
+- **Depends on:** 67
+
+### Step 69: Accept the two core documents on actual private inputs
+- **Status:** PENDING
+- **Problem:** Correct fixtures do not establish actual roster/payment attribution or the board's financial acceptance.
+- **Type:** operator
+- **Issue:** #113
+- **Files:** Private roster/mapping/source evidence, generated run records, and the Step 68 acceptance checklist; no public source changes
+- **Produces:** Private live-run observations and explicit acceptance or a bounded discrepancy list.
+- **Done when:** The operator supplies/verifies actual roster counts/rates and mappings; observes one `end-to-end-run --dry-run` followed by one ordinary `end-to-end-run` at the selected as-of date against real Sheets; opens both new PDFs from the current index; verifies class allocations/payment totals, largest items, paid/remaining totals, historical ratio, central utilization and event dates/category coverage, central income floor, Total sans SP and the reserve definition/date against source evidence; confirms the accepted layout and the one-page classroom export and three-page fundraising export, with its summary confined to page 1. Record unresolved issues without accepting fabricated allocations, calling cash unrestricted reserves, or marking CFO Step 63 complete by inference.
+- **Depends on:** 68; actual roster and source/evidence availability (data prerequisite, not an architectural decision)
+
+### Risks and Open Questions
+
+| Item | Consequence | Mitigation / owner | Blocking state |
+|---|---|---|---|
+| Actual enrollment/rates are not yet supplied | Classroom allocations cannot be financially final | Operator supplies source data in Step 69; code must support unavailable allocations | Blocks final live acceptance, not implementation |
+| Ambiguous payees, checks and shared purchases | Wrong teacher budget usage | Exact IDs, revisions and private splits; visible unassigned total | Blocks affected attribution only; no invented match |
+| School-year tracker differs from cash-window reports | Conflicting-looking totals | Captured academic ledger, prepayment treatment and explicit basis bridge | Material unexplained residual blocks financial acceptance |
+| Current cash/CD balance includes operating funds | Reserve coverage could be overstated | Captured CD component only; no checking/savings/total or estimate fallback | Missing/stale CD data blocks reserve columns only |
+| Earlier specialist payment is attributed to the wrong year | Current obligation incorrectly appears settled | Operator-evidenced source-key/revision period correction, preserving the source row | Blocks financial acceptance until payment period is resolved |
+| Source/category/roster drift and later-date snapshots | Wrong historical or fiscal-year figures | As-of clipping, exact signatures, coverage, effective dates, consistency checks | Invalid configured input halts publication |
+| Scope overlap with Step 63 and deferred F16/F17 | Accidental broader acceptance or duplicate machinery | Phase-scoped dispatch; reuse and separate acceptance boundaries | No blocker to this bounded phase |
+
+The accepted central fundraising-dollar basis is explicit; event scope/dates and actual enrollment remain source-verification prerequisites for Step 69, not unresolved implementation architecture choices. Agent defaults remain visible in the decision inventory and can be revised before build. The existing broader financial-acceptance issues are not silently waived.
+
+### Testing Strategy and Quickstart
+
+Use Python 3.12+ and the existing `uv` environment. Install with `uv sync --extra dev --extra receipts --extra reports`; install browser with `uv run playwright install chromium`. These are setup instructions for build execution, not commands run during planning. Configuration stays in ignored `config.toml`; the configured service-account file is read by the existing clients. Bind only already-authorized read-only workbook sources; do not print credentials or grant new permissions. Create the private input file from the documented schema, point `input_file` at it, and first run `uv run np-finance end-to-end-run --dry-run`. The ordinary run uses the same command without `--dry-run`; `--as-of YYYY-MM-DD` selects a historical cutoff using an actual ISO date. Do not add `--fetch-*` or `--adjustments-file` to this feature's acceptance run.
+
+There is no dev server, deployment command or stop daemon: the existing CLI is the development/production entry point and Ctrl+C retains its existing interrupt handling. Build with `uv build`. Test the installed wheel in a temporary environment with the reports extra and the existing fixture harness; do not install over unrelated environments. Explicitly check packaged resource presence and actual export through the normal runner.
+
+Verified command surfaces (`pyproject.toml`, CLI parser and existing tests):
+
+```powershell
+uv run pytest tests/test_config.py tests/test_main_report_sources.py tests/test_main_report_facts.py tests/test_main_report_render.py tests/test_main_report_runner.py -q
+uv run pytest tests/test_main_report_planning.py -q
+uv run ruff check np_finance tests
+uv run ruff format --check np_finance tests
+uv run mypy --strict np_finance
+uv run python scripts/check_no_identity.py
+uv build
+```
+
+The planning test module is a new Step 66 output; that command becomes runnable after creation. Existing Chromium smoke: `tests/test_main_report_runner.py:test_chromium_end_to_end_run_publishes_real_exports_within_the_bound`. Exercise real parsing/facts/templates/Chromium/publication with fictional captured inputs; only the external network boundary is supplied by the fixture harness. Before live acceptance, use the real source capture once as Step 69 specifies. Do not describe the fixture as a live finance run. No long observation period is applicable.
+
+Test calculations with Decimal cents and independent expected arithmetic, including unequal class sizes, zero enrollment, multiple classes per teacher, shared purchases, check revisions, missing data, ambiguous aliases, duplicate refs, refunds, verified prepayments and prior-cycle payments that do not settle current obligations, target shortfalls, ratios above one, and no-data reserve cases. Assert exact per-document page counts, complete appendix category coverage and totals, nine summary categories plus Other per column, visible table/SVG labels, non-overflow, no omitted classroom rows, no external resource requests, accessible chart labels and fake-only fixture identities. Narrow tests first; broaden to affected reconciliation/adjustment/reimbursement suites if their shared interfaces change. Follow the existing targeted-testing decision for this track, recording suites/counts instead of claiming a full-suite gate.
+
+Reserve regression acceptance: changing only the captured CD balance on a subsequent run must change reserve percentages, usable draw, reserves left, unfunded remainder and coverage as applicable, while leaving the annual spending plan and no-draw cuts unchanged. Changing only checking, savings or credit-card balances must not change these reserve calculations. Never embed the prototype's captured amount as a constant. Specialist regression acceptance: correcting a prior-cycle payment moves its amount from current-year paid to remaining without changing the total annual budget or counting a second specialist expense.
+
+Compatibility/backout: absent configuration yields both new documents with unavailable facts and keeps the existing five usable. New optional fields are versioned and old stored captures remain readable and immutable; no destructive migration or report-history rewrite. Capture/fact hashes include all policy and source inputs. Before publication, preserve existing all-or-nothing pointer semantics; after the switch preserve the existing per-alias partial-copy reporting. On rollback, use the last known-good code/config and the retained prior complete run; do not edit historical records or silently point at a partial new run.
+
+Planning handoff order for this phase only: `/plan-review --autofix docs/plans/master_plan.md`, `/plan-redline --plan docs/plans/master_plan.md`, `/plan-wrap --autofix docs/plans/master_plan.md`, then `/repo-sync --plan docs/plans/master_plan.md` scoped to CORE-BRIEFS. After issue fields are populated, build only Steps 65-68 with `/build-phase --plan docs/plans/master_plan.md --phase CORE-BRIEFS --steps 65,66,67,68`; Step 69 remains attended. The operator has now authorized plan-expedite, including scoped issue synchronization and its durable handoff. Implementation and live acceptance remain later work; do not run the build as part of this preparation.
+
 ## 11. Compute target
 
 Python3.12+/uv on Windows. Native statement/PDF LPAC and Tesseract5 require supported Windows and actual boundaries; portable image child supports Windows/Linux only. Chromium export needs explicitly installed browser. Shared integration uses local Firestore emulator and actual installed wheel; live Google evidence is separate. No private financial data enters a model service.
@@ -1452,19 +1665,40 @@ Approval: 2026-10-21. P entries preserve explicit user choices. D entries accept
 
 | ID | P/D | choice | status |
 |---|---|---|---|
-| P1 | P | CFO workbook is the ongoing Wells Fargo, WIX and PayPal source; retire default bank PDF imports. | operator-picked |
-| P2 | P | July-June school summaries, January-December P&L; retain all outstanding carryovers and the existing mail collection window. | operator-picked |
-| P3 | P | Valid adjustments recorded in our Assumptions journal affect reports immediately. | operator-picked |
-| P4 | P | Publish the five-report Main Report Set with receipts/red marks and copy text retained. | operator-picked |
-| P5 | P | Targeted verification and one live cycle; avoid repeated unrelated test campaigns. | operator-picked |
-| P6 | P | Review, redline with delegated approval, wrap and sync now; build later in an Opus session. | operator-picked |
-| D1 | D | Preserve CFO bank-based monthly-category net treatment, with processor detail as reconciled enrichment. | accepted by delegated approval 2026-10-21 |
-| D2 | D | Append a versioned immutable journal below existing Assumptions content; require target revision/precondition matches. | accepted by delegated approval 2026-10-21 |
-| D3 | D | Publish immutable private run folders through one atomic HTML index; refresh compatibility filenames afterwards. | accepted by delegated approval 2026-10-21 |
-| D4 | D | Use numeric Steps 57-63 in Phase CFO, split reconciliation and adjustment writes, and build only 57-62 automatically. | accepted by delegated approval 2026-10-21 |
-| D5 | D | Use deep review for financial identities, reconciliation, journal, facts and publication; code review plus browser evidence for rendering. | accepted by delegated approval 2026-10-21 |
-| D6 | D | Treat source coverage gaps and ambiguous matching as visible unresolved data, never invented zeroes or balancing entries. | accepted by delegated approval 2026-10-21 |
-| D7 | D | Use strict no-write dry-run, bounded capture retries and local serialization with explicit Sheets external-edit race limits. | accepted by delegated approval 2026-10-21 |
+| P1 | P | CFO workbook is the ongoing Wells Fargo, WIX and PayPal source; retire default bank PDF imports. | stands |
+| P2 | P | July-June school summaries, January-December P&L; retain all outstanding carryovers and the existing mail collection window. | stands |
+| P3 | P | Valid adjustments recorded in our Assumptions journal affect reports immediately. | stands |
+| P4 | P | Publish the five-report Main Report Set with receipts/red marks and copy text retained. | stands |
+| P5 | P | Targeted verification and one live cycle; avoid repeated unrelated test campaigns. | stands |
+| P6 | P | Review, redline with delegated approval, wrap and sync now; build later in an Opus session. | stands |
+| D1 | D | Preserve CFO bank-based monthly-category net treatment, with processor detail as reconciled enrichment. | stands |
+| D2 | D | Append a versioned immutable journal below existing Assumptions content; require target revision/precondition matches. | stands |
+| D3 | D | Publish immutable private run folders through one atomic HTML index; refresh compatibility filenames afterwards. | stands |
+| D4 | D | Use numeric Steps 57-63 in Phase CFO, split reconciliation and adjustment writes, and build only 57-62 automatically. | stands |
+| D5 | D | Use deep review for financial identities, reconciliation, journal, facts and publication; code review plus browser evidence for rendering. | stands |
+| D6 | D | Treat source coverage gaps and ambiguous matching as visible unresolved data, never invented zeroes or balancing entries. | stands |
+| D7 | D | Use strict no-write dry-run, bounded capture retries and local serialization with explicit Sheets external-edit race limits. | stands |
+
+| P7 | P | Add Classroom Budgets and Fundraising vs. Obligations to the ordinary end-to-end-run core documents. | stands |
+| P8 | P | Retain the accepted one-page design; equal classroom distributions are design-only until actual enrollment and rates arrive. | stands |
+| P9 | P | Calculate cuts with no reserve draw, also showing alternative draw dollars, percent and approximate repeated-gap years. | stands |
+| P10 | P | Plan production integration now; implementation is a later task. | stands |
+| D8 | D | Use one private versioned roster/policy JSON and read-only live financial bindings. | stands |
+| D9 | D | Use school-year attributed posted classroom payments, with issued-but-unposted items separately identified. | stands |
+| D10 | D | Publish explicit unavailable/partial new pages when optional data is missing. | stands |
+| D11 | D | Treat not-yet-paid spending as remaining adopted plan, retaining already-incurred overruns. | stands |
+| D12 | D | Superseded by P11: do not use total cash/CDs as a reserve proxy. | changed 2026-11-04 |
+| D13 | D | Reuse capture, facts, templates, exports, manifests and atomic publication. | stands |
+| D14 | D | Build four code slices, then perform one attended live acceptance. | stands |
+| P11 | P | Separate reserves from operating cash; the later P13 selects the actual CD balance instead of a rough estimate. | changed 2026-11-04 |
+| P12 | P | The earlier specialist payment does not satisfy the current year-end obligation; correct period attribution without counting the annual cost twice. | stands |
+| P13 | P | Reserves equal the captured CD account balance. Exclude checking/savings; replace the earlier rough estimate. | stands |
+| P14 | P | Add a central scenario using prior-year classroom utilization and break-even future fundraising events; account for their interaction with total fundraising. | stands |
+| P15 | P | Show bold Total sans SP immediately above remaining Total, excluding specialist teacher contracts. | stands |
+| P16 | P | Keep concise approved copy and a distinct central-case assumptions section; omit the generic outlook subtitle and separate other-income sentence without changing calculations. | stands |
+| P17 | P | Expand summary obligations by three rows per column and add complete paid and remaining appendices, one portrait page each after the one-page summary. | stands |
+| D15 | D | Use prior-year total fundraising dollars as the central benchmark and floor it at received plus future break-even event receipts; count event income once. | stands |
+| D16 | D | Require explicit comparable classroom/category mappings and confirmed future-event dates; keep unavailable assumptions visible instead of guessing. | stands |
 
 ## Project naming migration
 
