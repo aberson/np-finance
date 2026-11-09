@@ -317,6 +317,82 @@ def test_main_reports_section_parses_bindings(tmp_path: Path) -> None:
     ]
 
 
+_BOARD_PLANNING_SECTION = """
+[main_reports.board_planning]
+input_file = "reports/output/private/planning.json"
+"""
+
+
+def _config_with_planning_input(project: Path, value: str) -> Path:
+    section = _BOARD_PLANNING_SECTION.replace(
+        'input_file = "reports/output/private/planning.json"', f"input_file = '{value}'"
+    )
+    return _write(project, _FULL_CONFIG + _MAIN_REPORTS_SECTION + section)
+
+
+def test_board_planning_path_is_optional_and_resolved_from_config(tmp_path: Path) -> None:
+    absent = load_config(_write(tmp_path, _FULL_CONFIG + _MAIN_REPORTS_SECTION)).main_reports
+    assert absent is not None and absent.board_planning is None
+    text = _FULL_CONFIG + _MAIN_REPORTS_SECTION + _BOARD_PLANNING_SECTION
+    main = load_config(_write(tmp_path, text)).main_reports
+    assert main is not None and main.board_planning is not None
+    assert main.board_planning.input_file == "reports/output/private/planning.json"
+    expected = tmp_path / "reports" / "output" / "private" / "planning.json"
+    assert main.board_planning.input_path == expected.resolve()
+    assert not (tmp_path / "reports").exists()  # loading config never creates the folder
+
+
+def test_board_planning_rejects_unknown_config_keys(tmp_path: Path) -> None:
+    section = _BOARD_PLANNING_SECTION + 'cached_amount = "1.00"\n'
+    text = _FULL_CONFIG + _MAIN_REPORTS_SECTION + section
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(tmp_path, text))
+    assert caught.value.field == "main_reports.board_planning"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "planning.json",  # beside config.toml
+        "private/planning.json",
+        "docs/planning.json",
+        "reports/planning.json",
+        "reports/output/../../docs/planning.json",
+        "{project}/planning.json",
+    ],
+)
+def test_board_planning_input_inside_the_project_must_be_under_reports_output(
+    tmp_path: Path, raw: str
+) -> None:
+    # The planning document holds the private roster, so the output_dir rule applies to it.
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    value = raw.format(project=project.as_posix())
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_planning_input(project, value))
+    assert caught.value.field == "main_reports.board_planning.input_file"
+    assert str(caught.value) == (
+        "main_reports.board_planning.input_file must be under reports/output/ (gitignored) "
+        "or outside the project directory"
+    )
+
+
+@pytest.mark.parametrize("inside", [True, False], ids=["under-reports-output", "outside"])
+def test_board_planning_input_accepts_private_and_outside_paths(
+    tmp_path: Path, inside: bool
+) -> None:
+    project = (tmp_path / "project").resolve()
+    project.mkdir()
+    target = (
+        project / "reports" / "output" / "planning.json"
+        if inside
+        else tmp_path / "elsewhere" / "planning.json"
+    )
+    main = load_config(_config_with_planning_input(project, str(target))).main_reports
+    assert main is not None and main.board_planning is not None
+    assert main.board_planning.input_path == target.resolve()
+
+
 @pytest.mark.parametrize(
     ("old", "new", "field"),
     [
@@ -570,6 +646,18 @@ def test_existing_private_root_rejects_siblings(tmp_path: Path, raw: str) -> Non
     with pytest.raises(ConfigError) as caught:
         load_config(_config_with_output_dir(project, raw))
     assert caught.value.field == "main_reports.output_dir"
+
+
+def test_output_dir_refusal_names_only_its_own_field(tmp_path: Path) -> None:
+    # The rule is shared with board_planning.input_file; output_dir keeps its own message.
+    project = _project_with_private_root(tmp_path)
+    with pytest.raises(ConfigError) as caught:
+        load_config(_config_with_output_dir(project, "docs/runs"))
+    assert caught.value.field == "main_reports.output_dir"
+    assert str(caught.value) == (
+        "main_reports.output_dir must be under reports/output/ (gitignored) "
+        "or outside the project directory"
+    )
 
 
 @pytest.mark.parametrize("raw", ["..", ".", "{parent}", "{project}"])

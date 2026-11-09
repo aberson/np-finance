@@ -123,6 +123,13 @@ service_account_file = "secrets/service-account.json"
 # source_category = "Example Fundraiser"
 # targets = [{ category = "Fundraiser Income", share = "1" }]
 # note = "one-to-one"
+#
+# board_planning names one private JSON document holding the roster, explicit aliases and
+# policies, and read-only supplemental tab bindings. input_file resolves relative to this
+# file and follows the output_dir rule: under reports/output/ or outside the project.
+#
+# [main_reports.board_planning]                # optional private roster/policy JSON (schema 1)
+# input_file = "reports/output/private/board-planning.json"
 
 # [llm]            # Phase 4
 # api_key_env = "ANTHROPIC_API_KEY"

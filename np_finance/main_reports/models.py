@@ -90,6 +90,8 @@ __all__ = [
     "SourceCapture",
     "AdoptedBudget",
     "CaptureConsistency",
+    "PlanningReferenceCapture",
+    "PlanningCapture",
     "CaptureSet",
     "SourceRef",
     "Allocation",
@@ -592,8 +594,100 @@ class CaptureConsistency:
 
 
 @dataclass(frozen=True)
+class PlanningReferenceCapture:
+    """One verbatim, read-only capture of a supplemental board-planning tab.
+
+    Never a :data:`SOURCE_KINDS` capture: its rows are not normalized into transactions or
+    routed into the bank P&L reconciliation. ``columns`` resolves each bound logical field to
+    its zero-based position (a fiscal-year constant binds none). ``sha256`` covers the binding
+    identity, header signature, columns, declared coverage, values, formulas and entered
+    numbers but NOT ``captured_at``, so an unchanged tab re-captured later hashes identically.
+    """
+
+    role: str
+    workbook: str
+    tab_title: str
+    tab_id: int | None
+    captured_at: datetime
+    header_signature: tuple[tuple[str, ...], ...]
+    columns: tuple[tuple[str, int], ...]
+    values: tuple[tuple[str, ...], ...]
+    formulas: tuple[FormulaCell, ...]
+    entered_numbers: tuple[EnteredNumber, ...]
+    coverage_start: date
+    coverage_end: date
+    coverage_evidence: str
+    sha256: str
+
+    def manifest_entry(self) -> dict[str, Any]:
+        return {
+            "role": self.role,
+            "workbook": self.workbook,
+            "tab_title": self.tab_title,
+            "tab_id": self.tab_id,
+            "captured_at": _utc_iso(self.captured_at),
+            "header_signature": [list(row) for row in self.header_signature],
+            "columns": {name: position for name, position in self.columns},
+            "row_count": len(self.values),
+            "formula_count": len(self.formulas),
+            "coverage_start": self.coverage_start.isoformat(),
+            "coverage_end": self.coverage_end.isoformat(),
+            "coverage_evidence": self.coverage_evidence,
+            "sha256": self.sha256,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        entry = self.manifest_entry()
+        entry["values"] = [list(row) for row in self.values]
+        entry["formulas"] = [cell.to_dict() for cell in self.formulas]
+        entry["entered_numbers"] = [cell.to_dict() for cell in self.entered_numbers]
+        return entry
+
+
+@dataclass(frozen=True)
+class PlanningCapture:
+    """The optional board-planning input: validated private JSON plus its bound tabs.
+
+    ``input_json`` is the private document's exact text and ``input_sha256`` the digest of its
+    exact bytes. ``sha256`` covers the schema version, fiscal year, input digest, every
+    reference digest and the quality findings but NOT ``captured_at``. The manifest entry
+    omits the document text and every cell value.
+    """
+
+    schema_version: int
+    fiscal_year: int
+    captured_at: datetime
+    input_json: str
+    input_sha256: str
+    references: tuple[PlanningReferenceCapture, ...]
+    quality_findings: tuple[str, ...]
+    sha256: str
+
+    def manifest_entry(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "fiscal_year": self.fiscal_year,
+            "captured_at": _utc_iso(self.captured_at),
+            "input_sha256": self.input_sha256,
+            "references": {item.role: item.manifest_entry() for item in self.references},
+            "quality_findings": list(self.quality_findings),
+            "sha256": self.sha256,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        entry = self.manifest_entry()
+        entry["input_json"] = self.input_json
+        entry["references"] = {item.role: item.to_dict() for item in self.references}
+        return entry
+
+
+@dataclass(frozen=True)
 class CaptureSet:
-    """Every source/control capture plus our adopted budget and Assumptions, read once."""
+    """Every source/control capture plus our adopted budget and Assumptions, read once.
+
+    ``planning`` is the optional board-planning capture. When it is ``None`` the serialized
+    forms carry no ``planning`` key, so a set without one keeps its historical shape.
+    """
 
     source_spreadsheet_id: str
     captures: tuple[SourceCapture, ...]
@@ -601,6 +695,7 @@ class CaptureSet:
     assumptions: SourceCapture
     consistency: CaptureConsistency
     aggregate_sha256: str
+    planning: PlanningCapture | None = None
     schema_version: int = SCHEMA_VERSION
 
     @property
@@ -609,7 +704,7 @@ class CaptureSet:
 
     def manifest(self) -> dict[str, Any]:
         """Private provenance manifest (no raw cell values; workbook binding is private)."""
-        return {
+        entry: dict[str, Any] = {
             "schema_version": self.schema_version,
             "source_spreadsheet_id": self.source_spreadsheet_id,
             "aggregate_sha256": self.aggregate_sha256,
@@ -618,9 +713,12 @@ class CaptureSet:
             "adopted_budget": self.adopted_budget.manifest_entry(),
             "assumptions": self.assumptions.manifest_entry(),
         }
+        if self.planning is not None:
+            entry["planning"] = self.planning.manifest_entry()
+        return entry
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        entry: dict[str, Any] = {
             "schema_version": self.schema_version,
             "source_spreadsheet_id": self.source_spreadsheet_id,
             "aggregate_sha256": self.aggregate_sha256,
@@ -629,6 +727,9 @@ class CaptureSet:
             "adopted_budget": self.adopted_budget.to_dict(),
             "assumptions": self.assumptions.to_dict(),
         }
+        if self.planning is not None:
+            entry["planning"] = self.planning.to_dict()
+        return entry
 
 
 @dataclass(frozen=True)
@@ -2117,11 +2218,13 @@ class RunManifest:
     ``status`` is a :data:`RUN_STATUSES` entry. ``input_sha256`` is the hash of
     ``input_components`` (capture aggregate, journal, crosswalk, bundle, receipt sidecar and
     pages, configuration semantics and as-of): every artifact of the run identifies that one
-    captured input set. The bundle and sidecar digests before and after the in-place
-    reimbursement refresh show what the run changed in the private evidence store. Journal
-    writes (``adjustments_written`` / ``journal_snapshot``) are carried into every later
-    failure record; a journal write that itself failed records the proposals attempted, the
-    writer's error code, whether the write may have landed, and its retained evidence files.
+    captured input set. ``planning_sha256`` is the optional board-planning capture's digest
+    (part of the capture aggregate), ``None`` when no planning input is configured. The bundle
+    and sidecar digests before and after the in-place reimbursement refresh show what the run
+    changed in the private evidence store. Journal writes (``adjustments_written`` /
+    ``journal_snapshot``) are carried into every later failure record; a journal write that
+    itself failed records the proposals attempted, the writer's error code, whether the write
+    may have landed, and its retained evidence files.
     A failed run records the ``stage`` it reached and, for an unexpected error, only its type
     name (``failure_type``). Paths are relative to the run folder (artifacts, records) or to the
     private output root (``capture_ref``, ``journal_snapshot``, ``journal_evidence``). Copies
@@ -2144,6 +2247,7 @@ class RunManifest:
     capture_hashes: tuple[tuple[str, str], ...] = ()
     adopted_budget_sha256: str | None = None
     assumptions_sha256: str | None = None
+    planning_sha256: str | None = None
     journal_sha256: str | None = None
     crosswalk_sha256: str | None = None
     bundle_sha256_before_refresh: str | None = None
@@ -2187,6 +2291,7 @@ class RunManifest:
             "capture_hashes": dict(self.capture_hashes),
             "adopted_budget_sha256": self.adopted_budget_sha256,
             "assumptions_sha256": self.assumptions_sha256,
+            "planning_sha256": self.planning_sha256,
             "journal_sha256": self.journal_sha256,
             "crosswalk_sha256": self.crosswalk_sha256,
             "bundle_sha256_before_refresh": self.bundle_sha256_before_refresh,

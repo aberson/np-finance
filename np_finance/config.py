@@ -39,6 +39,7 @@ __all__ = [
     "CrosswalkTarget",
     "CrosswalkEntry",
     "CategoryCrosswalk",
+    "BoardPlanning",
     "MainReports",
     "Config",
     "load_config",
@@ -202,6 +203,23 @@ class CategoryCrosswalk:
 
 
 @dataclass(frozen=True)
+class BoardPlanning:
+    """The OPTIONAL ``[main_reports.board_planning]`` block.
+
+    ``input_file`` names one private, versioned JSON document (roster, explicit mappings and
+    policies, supplemental tab bindings). As with :class:`Google`, ``input_path`` is resolved
+    relative to the config file's directory and is a PATH ONLY: the document is read,
+    validated and captured by ``main_reports.sources.capture``, never here. Like
+    ``MainReports.output_path``, it must pass :func:`_private_path` (under ``reports/output/``
+    or outside the project). Absent block: no planning capture, and every existing run keeps
+    its historical input identity.
+    """
+
+    input_file: str
+    input_path: Path
+
+
+@dataclass(frozen=True)
 class MainReports:
     """The OPTIONAL ``[main_reports]`` block: CFO workbook bindings for the Main Report Set.
 
@@ -216,6 +234,7 @@ class MainReports:
     assumptions_tab: str
     sources: tuple[SourceBinding, ...]
     crosswalk: CategoryCrosswalk | None = None
+    board_planning: BoardPlanning | None = None
 
 
 @dataclass(frozen=True)
@@ -460,14 +479,12 @@ def _optional_str(section: dict[str, Any], key: str, dotted: str, default: str) 
 _OUTPUT_DIR_FIELD = "main_reports.output_dir"
 
 
-def _same_file(a: Path, b: Path) -> bool:
+def _same_file(a: Path, b: Path, dotted: str) -> bool:
     """Filesystem identity of two EXISTING paths; an unverifiable comparison fails closed."""
     try:
         return os.path.samefile(a, b)
     except OSError:
-        raise ConfigError(
-            _OUTPUT_DIR_FIELD, f"{_OUTPUT_DIR_FIELD} location could not be verified"
-        ) from None
+        raise ConfigError(dotted, f"{dotted} location could not be verified") from None
 
 
 def _existing_ancestors(path: Path) -> list[Path]:
@@ -484,12 +501,12 @@ def _lexically_within(child: Path, parent: Path) -> bool:
     return _normcased_parts(child)[: len(parent_parts)] == parent_parts
 
 
-def _private_output_path(raw: str, base_dir: Path) -> Path:
-    r"""Resolve ``main_reports.output_dir``; refuse a location that could be committed.
+def _private_path(raw: str, base_dir: Path, dotted: str) -> Path:
+    r"""Resolve the private location named by ``dotted``; refuse one that could be committed.
 
-    Captures hold raw CFO cell values, so the directory must sit under the project's
-    gitignored ``reports/output/`` or entirely outside the project directory (the directory
-    holding ``config.toml``). One structural invariant decides it:
+    The location must sit under the project's gitignored ``reports/output/`` or entirely
+    outside the project directory (the directory holding ``config.toml``). One structural
+    invariant decides it:
 
     * ``real_candidate`` is the path resolved like every config path (:func:`_resolve_path`)
       and then FULLY (``Path.resolve`` follows existing symlinks/junctions and keeps the
@@ -510,28 +527,39 @@ def _private_output_path(raw: str, base_dir: Path) -> Path:
     real_project = base_dir.resolve()
     real_candidate = _resolve_path(raw, base_dir).resolve()
     if not real_candidate.is_absolute():  # e.g. a drive-relative "a:b" resolves to "a:b"
-        raise ConfigError(_OUTPUT_DIR_FIELD, f"{_OUTPUT_DIR_FIELD} must be an absolute location")
+        raise ConfigError(dotted, f"{dotted} must be an absolute location")
     message = (
-        f"{_OUTPUT_DIR_FIELD} must be under reports/output/ (gitignored) or outside "
-        "the project directory"
+        f"{dotted} must be under reports/output/ (gitignored) or outside the project directory"
     )
     if _lexically_within(real_project, real_candidate) or (
         real_candidate.exists()
-        and any(_same_file(real_candidate, item) for item in (real_project, *real_project.parents))
+        and any(
+            _same_file(real_candidate, item, dotted)
+            for item in (real_project, *real_project.parents)
+        )
     ):
-        raise ConfigError(_OUTPUT_DIR_FIELD, message)  # the project root or one of its ancestors
+        raise ConfigError(dotted, message)  # the project root or one of its ancestors
     by_identity = any(
-        _same_file(item, real_project) for item in _existing_ancestors(real_candidate)
+        _same_file(item, real_project, dotted) for item in _existing_ancestors(real_candidate)
     )
     by_resolved_form = _lexically_within(real_candidate, real_project)
     if by_identity != by_resolved_form:
-        raise ConfigError(_OUTPUT_DIR_FIELD, f"{_OUTPUT_DIR_FIELD} location could not be verified")
+        raise ConfigError(dotted, f"{dotted} location could not be verified")
     if not by_identity:
         return real_candidate
     tail = _normcased_parts(real_candidate)[len(real_project.parts) :]
     if tail[:2] != (os.path.normcase("reports"), os.path.normcase("output")):
-        raise ConfigError(_OUTPUT_DIR_FIELD, message)
+        raise ConfigError(dotted, message)
     return real_candidate
+
+
+def _private_output_path(raw: str, base_dir: Path) -> Path:
+    """Resolve ``main_reports.output_dir`` through :func:`_private_path`.
+
+    Captures hold raw CFO cell values, so the runs folder (and the publication folder above
+    it) must pass the private-location rule.
+    """
+    return _private_path(raw, base_dir, _OUTPUT_DIR_FIELD)
 
 
 def _config_date(value: Any, dotted: str) -> date:
@@ -683,6 +711,22 @@ def _load_crosswalk(raw: Any) -> CategoryCrosswalk | None:
     return CategoryCrosswalk(version=version, entries=tuple(entries))
 
 
+def _load_board_planning(raw: Any, base_dir: Path) -> BoardPlanning | None:
+    if raw is None:
+        return None
+    dotted = "main_reports.board_planning"
+    if not isinstance(raw, dict):
+        raise ConfigError(dotted, f"expected a [{dotted}] table")
+    unknown = set(raw) - {"input_file"}
+    if unknown:
+        raise ConfigError(dotted, f"{dotted} has unsupported keys: {sorted(unknown)}")
+    input_file = _require_str(raw, "input_file", f"{dotted}.input_file")
+    return BoardPlanning(
+        input_file=input_file,
+        input_path=_private_path(input_file, base_dir, f"{dotted}.input_file"),
+    )
+
+
 def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
     """Parse the OPTIONAL ``[main_reports]`` section; ``None`` when absent.
 
@@ -720,4 +764,5 @@ def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
         assumptions_tab=assumptions_tab,
         sources=sources,
         crosswalk=_load_crosswalk(raw.get("crosswalk")),
+        board_planning=_load_board_planning(raw.get("board_planning"), base_dir),
     )

@@ -1539,7 +1539,7 @@ Calculation and display contract:
 ### Build Steps
 
 ### Step 65: Capture the planning inputs through the normal command
-- **Status:** PENDING
+- **Status:** DONE (2026-11-09)
 - **Problem:** The ordinary run cannot capture the roster and school-year planning sources needed to substantiate either new page.
 - **Type:** code
 - **Issue:** #109

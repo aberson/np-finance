@@ -1095,9 +1095,20 @@ def _print_facts(out: Callable[[str], None], report: ReportFacts, ledger: Adjust
     )
 
 
+def _print_capture(out: Callable[[str], None], capture_set: CaptureSet) -> None:
+    """Value-free capture counts; the planning line appears only when one is configured."""
+    out(f"  captured      : {len(capture_set.captures)} source tab(s), budget and Assumptions")
+    planning = capture_set.planning
+    if planning is not None:
+        out(
+            f"  planning      : input schema {planning.schema_version} validated, "
+            f"{len(planning.references)} supplemental tab(s) captured read-only"
+        )
+
+
 def _dry_run(options: RunOptions, config: Config, out: Callable[[str], None]) -> RunResult:
     capture_set, reconciliation = _capture(config, None)
-    out(f"  captured      : {len(capture_set.captures)} source tab(s), budget and Assumptions")
+    _print_capture(out, capture_set)
     ledger = _project(capture_set, reconciliation, options.as_of)
     kwargs = _refresh_kwargs(options, config)
     planned, summary = _attempt(
@@ -1164,7 +1175,7 @@ def _build_run(
     run_id = progress.manifest.run_id
     progress.enter(_CAPTURE)
     capture_set, reconciliation = _capture(config, clock)
-    out(f"  captured      : {len(capture_set.captures)} source tab(s), budget and Assumptions")
+    _print_capture(out, capture_set)
     if options.mail_window is not None:
         progress.enter(_MAIL)
         _fetch_mail(options.mail_window, config, options.source, mail_service, out)
@@ -1190,6 +1201,7 @@ def _build_run(
         capture_hashes=tuple(sorted((c.alias, c.sha256) for c in capture_set.captures)),
         adopted_budget_sha256=capture_set.adopted_budget.sha256,
         assumptions_sha256=capture_set.assumptions.sha256,
+        planning_sha256=capture_set.planning.sha256 if capture_set.planning is not None else None,
         crosswalk_sha256=reconciliation.crosswalk_sha256,
     )
     progress.enter(_ADJUSTMENTS)

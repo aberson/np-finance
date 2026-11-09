@@ -25,6 +25,12 @@ Boundaries (``docs/plan-reference/cfo-main-report-set.md`` sections 5, 6 and 10)
   :class:`~np_finance.main_reports.models.Transaction` records with stable ``record_key``
   identities, original values retained, subtotal rows excluded explicitly and malformed rows
   reported (never guessed). Annual synthetic budget rows are never transaction evidence.
+* An optional ``[main_reports.board_planning]`` private JSON document (roster, explicit
+  mappings and policies, supplemental tab bindings) is validated before any workbook read, then
+  captured verbatim with the tabs it binds under the same verification and retry. It is
+  deliberately NOT a :data:`SOURCE_KINDS` entry: existing configurations stay valid without
+  it, and its rows are never normalized into transactions or routed into the bank P&L
+  reconciliation.
 * Error and issue text names aliases, rows, columns, fields and codes — NEVER a cell value.
 * Bank statement PDF extraction is retired from this path: this module reads the CFO workbook
   only. Historical PDFs, the legacy parser, and receipt processing are untouched.
@@ -65,6 +71,8 @@ from np_finance.main_reports.models import (
     ExcludedRow,
     FormulaCell,
     NormalizationResult,
+    PlanningCapture,
+    PlanningReferenceCapture,
     RowIssue,
     SourceCapture,
     SourceChange,
@@ -72,8 +80,11 @@ from np_finance.main_reports.models import (
     Transaction,
     canonical_json_bytes,
     content_hash,
+    is_valid_record_key,
+    is_valid_source_alias,
     make_record_key,
     money_str,
+    sha256_hex,
 )
 from np_finance.models import parse_optional_amount
 from np_finance.sheets import SheetsClient
@@ -88,6 +99,8 @@ __all__ = [
     "ASSUMPTIONS_ALIAS",
     "UNALLOCATED_SPLIT_CATEGORY",
     "ADAPTERS",
+    "PLANNING_SCHEMA_VERSION",
+    "PLANNING_ROLES",
     # functions
     "resolve_binding",
     "require_bindings",
@@ -109,6 +122,8 @@ __all__ = [
     "coverage_status",
     "compare_transactions",
     "compare_captures",
+    "planning_capture_from_dict",
+    "stored_planning",
     "store_capture_set",
     # types
     "Clock",
@@ -903,6 +918,615 @@ def classify_paypal_type(raw_type: str) -> tuple[str, bool]:
 
 
 # --------------------------------------------------------------------------------------
+# Board-planning input (optional private JSON; never a source kind or a bank feed)
+# --------------------------------------------------------------------------------------
+
+PLANNING_SCHEMA_VERSION = 1
+# The supplemental source roles a planning input may bind (at most one binding per role).
+PLANNING_ROLES: tuple[str, ...] = ("academic_ledger", "prior_year_budget", "balances")
+# Top-level document fields: the required ones plus the optional ones are all it may contain.
+_PLANNING_REQUIRED_FIELDS = frozenset(
+    {
+        "schema_version",
+        "fiscal_year",
+        "roster_complete",
+        "roster_as_of",
+        "roster_evidence",
+        "classes",
+        "payee_aliases",
+        "payment_allocations",
+        "category_roles",
+        "classroom_categories",
+        "bindings",
+        "period_allocations",
+    }
+)
+_PLANNING_OPTIONAL_FIELDS = frozenset(
+    {
+        "prior_fiscal_year",
+        "reserve_basis",
+        "specialist_contract_categories",
+        "specialist_contract_evidence",
+        "central_case",
+    }
+)
+# Logical columns per supplemental role: the required ones plus the optional ones (an explicit
+# payment reference and payee on the ledger) are all a binding may name.
+_PLANNING_REQUIRED_COLUMNS: Mapping[str, frozenset[str]] = {
+    "academic_ledger": frozenset(
+        {"payment_date", "description", "amount", "category", "fiscal_year"}
+    ),
+    "prior_year_budget": frozenset({"fiscal_year", "category", "type", "proposed", "actual"}),
+    "balances": frozenset({"date", "checking", "savings", "cd", "credit_card_liability", "total"}),
+}
+_PLANNING_OPTIONAL_COLUMNS: Mapping[str, frozenset[str]] = {
+    "academic_ledger": frozenset({"payment_reference", "payee"}),
+    "prior_year_budget": frozenset(),
+    "balances": frozenset(),
+}
+# The one ``<role>.<logical column>`` bound as a fiscal-year constant instead of a header
+# label, and the one that declares its liability sign beside its label.
+_CONSTANT_COLUMN = "prior_year_budget.fiscal_year"
+_LIABILITY_COLUMN = "balances.credit_card_liability"
+_LIABILITY_SIGNS = ("negative", "positive")
+# The workbook a binding reads: the CFO source workbook or our own (both read-only).
+_CFO_WORKBOOK, _OWN_WORKBOOK = "cfo", "own"
+_PLANNING_WORKBOOKS = (_CFO_WORKBOOK, _OWN_WORKBOOK)
+# The category-role vocabulary of ``category_roles``. A category without a role stays
+# unresolved: income or expense is never inferred from the sign of an amount.
+_FUNDRAISING, _EXPENSE = "fundraising", "expense"
+_CATEGORY_ROLES = frozenset({_FUNDRAISING, "other_income", _EXPENSE, "transfer"})
+# The one role every category of a future event's income or expense list is mapped to.
+_EVENT_CATEGORY_ROLES: Mapping[str, str] = {
+    "income_categories": _FUNDRAISING,
+    "expense_categories": _EXPENSE,
+}
+# The one supported reserve basis: the CD component of the captured balances tab, never
+# total cash or a stored estimate (``reserve_basis`` also carries the operator's evidence).
+_RESERVE_BASIS: Mapping[str, str] = {
+    "kind": "source_account_balance",
+    "binding_role": "balances",
+    "component": "cd",
+}
+# The one supported central-case fundraising benchmark: prior-year actual dollars.
+_CENTRAL_FUNDRAISING_BASIS = "prior_actual_dollars"
+# A plain decimal string: no exponent, sign other than a leading minus, or whitespace.
+_PLANNING_DECIMAL = re.compile(r"-?[0-9]+(?:\.[0-9]+)?")
+
+
+def _planning_error(dotted: str, message: str) -> SourceConfigError:
+    """The one value-free planning validation error.
+
+    ``dotted`` is a fixed schema path (fixed names plus list indices) and ``message`` a fixed
+    rule, optionally with a count or schema-defined names. Neither ever carries a key, value
+    or excerpt read from the private planning file: the runner prints this text.
+    """
+    return SourceConfigError("planning_input_invalid", f"{dotted}: {message}")
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    # The standard decoder silently keeps the last of repeated keys; the error never names it.
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _planning_error("board_planning", "contains a duplicate object key")
+        result[key] = value
+    return result
+
+
+def _planning_str(value: Any, dotted: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise _planning_error(dotted, "must be a non-empty string")
+    return value
+
+
+def _planning_list(value: Any, dotted: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise _planning_error(dotted, "must be a list")
+    return value
+
+
+def _planning_object(value: Any, dotted: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise _planning_error(dotted, "must be an object")
+    return value
+
+
+def _planning_date(value: Any, dotted: str) -> date:
+    parsed: date | None = None
+    if isinstance(value, str):
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError:
+            parsed = None
+    # Raised outside the handler so no exception context is chained.
+    if parsed is None or parsed.isoformat() != value:
+        raise _planning_error(dotted, "must be an ISO date")
+    return parsed
+
+
+def _planning_decimal(value: Any, dotted: str, *, nonnegative: bool = False) -> Decimal:
+    if not isinstance(value, str) or _PLANNING_DECIMAL.fullmatch(value) is None:
+        raise _planning_error(dotted, "must be a decimal string")
+    parsed = Decimal(value)
+    if nonnegative and parsed < 0:
+        raise _planning_error(dotted, "must be a finite nonnegative decimal string")
+    return parsed
+
+
+def _planning_categories(value: Any, dotted: str) -> frozenset[str]:
+    """A list of distinct category keys."""
+    categories = [
+        _planning_str(item, f"{dotted}[{index}]")
+        for index, item in enumerate(_planning_list(value, dotted))
+    ]
+    if len(set(categories)) != len(categories):
+        raise _planning_error(dotted, "must not contain duplicates")
+    return frozenset(categories)
+
+
+def _planning_source_row(item: Mapping[str, Any], item_dotted: str) -> tuple[str, str]:
+    """The exact ``(source_record_key, source_revision_hash)`` a planning record names."""
+    key = _planning_str(item["source_record_key"], f"{item_dotted}.source_record_key")
+    if not is_valid_record_key(key):
+        raise _planning_error(f"{item_dotted}.source_record_key", "must be a version-1 record key")
+    revision = _planning_str(item["source_revision_hash"], f"{item_dotted}.source_revision_hash")
+    if HEX_DIGEST_PATTERN.fullmatch(revision) is None:
+        raise _planning_error(f"{item_dotted}.source_revision_hash", "must be a sha256 digest")
+    return key, revision
+
+
+def _require_mapped_role(
+    categories: Iterable[str], role: str, roles_by_category: Mapping[str, set[str]], dotted: str
+) -> None:
+    """Every selected category is mapped to ``role`` and to no other role."""
+    if any(roles_by_category.get(category) != {role} for category in categories):
+        raise _planning_error(dotted, f"must identify categories mapped only as {role}")
+
+
+@dataclass(frozen=True)
+class _PlanningColumn:
+    """One validated logical column: an exact header ``label`` or a fiscal-year ``constant``.
+
+    Exactly one of ``label`` and ``constant`` is set; ``liability_sign`` is set only for the
+    balances credit-card liability.
+    """
+
+    logical: str
+    label: str | None
+    liability_sign: str | None = None
+    constant: int | None = None
+
+
+@dataclass(frozen=True)
+class _PlanningBinding:
+    """One validated supplemental-tab binding (typed view of ``bindings[i]``)."""
+
+    role: str
+    workbook: str
+    tab: str
+    header_signature: tuple[tuple[str, ...], ...]
+    columns: tuple[_PlanningColumn, ...]  # sorted by logical field name
+    coverage_start: date
+    coverage_end: date
+    coverage_evidence: str
+
+
+@dataclass(frozen=True)
+class _PlanningInput:
+    """The typed view of a validated planning document that the capture path consumes.
+
+    Built once by :func:`_validate_planning_input`. The private file itself is retained and
+    hashed verbatim (``PlanningCapture.input_json``), so this view never changes stored bytes.
+    """
+
+    schema_version: int
+    fiscal_year: int
+    bindings: tuple[_PlanningBinding, ...]
+
+
+def _validate_classes(raw: Any) -> frozenset[str]:
+    """Validate the roster; return its unique class ids. No student identity is collected."""
+    expected = {
+        "class_id",
+        "teacher_label",
+        "student_count",
+        "per_student_amount",
+        "effective_start",
+        "effective_end",
+        "eligible",
+    }
+    class_ids: set[str] = set()
+    for index, item_raw in enumerate(_planning_list(raw, "classes")):
+        item_dotted = f"classes[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        class_id = _planning_str(item["class_id"], f"{item_dotted}.class_id")
+        if not is_valid_source_alias(class_id) or class_id in class_ids:
+            raise _planning_error(f"{item_dotted}.class_id", "must be a unique lowercase slug")
+        class_ids.add(class_id)
+        _planning_str(item["teacher_label"], f"{item_dotted}.teacher_label")
+        count = item["student_count"]
+        if count is not None and (
+            isinstance(count, bool) or not isinstance(count, int) or count < 0
+        ):
+            raise _planning_error(f"{item_dotted}.student_count", "must be null or nonnegative")
+        amount = item["per_student_amount"]
+        if amount is not None:
+            _planning_decimal(amount, f"{item_dotted}.per_student_amount", nonnegative=True)
+        start = _planning_date(item["effective_start"], f"{item_dotted}.effective_start")
+        end = _planning_date(item["effective_end"], f"{item_dotted}.effective_end")
+        if end < start:
+            raise _planning_error(item_dotted, "effective_end precedes effective_start")
+        if not isinstance(item["eligible"], bool):
+            raise _planning_error(f"{item_dotted}.eligible", "must be boolean")
+    return frozenset(class_ids)
+
+
+def _validate_payee_aliases(raw: Any, class_ids: frozenset[str]) -> None:
+    """Exact source payee to class id: explicit only, never a normalized spelling."""
+    expected = {"source_payee", "class_id"}
+    payees: set[str] = set()
+    for index, item_raw in enumerate(_planning_list(raw, "payee_aliases")):
+        item_dotted = f"payee_aliases[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        payee = _planning_str(item["source_payee"], f"{item_dotted}.source_payee")
+        if payee in payees:
+            raise _planning_error(f"{item_dotted}.source_payee", "must be unique")
+        payees.add(payee)
+        class_id = _planning_str(item["class_id"], f"{item_dotted}.class_id")
+        if class_id not in class_ids:
+            raise _planning_error(f"{item_dotted}.class_id", "does not name a class")
+
+
+def _validate_payment_allocations(raw: Any, class_ids: frozenset[str]) -> None:
+    """Evidence-backed reporting assignments of exact source rows to classes."""
+    expected = {"source_record_key", "source_revision_hash", "class_id", "amount", "evidence"}
+    allocations: set[tuple[str, str, str]] = set()
+    for index, item_raw in enumerate(_planning_list(raw, "payment_allocations")):
+        item_dotted = f"payment_allocations[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        key, revision = _planning_source_row(item, item_dotted)
+        class_id = _planning_str(item["class_id"], f"{item_dotted}.class_id")
+        if class_id not in class_ids:
+            raise _planning_error(f"{item_dotted}.class_id", "does not name a class")
+        if (key, revision, class_id) in allocations:
+            raise _planning_error(item_dotted, "duplicates an allocation")
+        allocations.add((key, revision, class_id))
+        _planning_decimal(item["amount"], f"{item_dotted}.amount")
+        _planning_str(item["evidence"], f"{item_dotted}.evidence")
+
+
+def _validate_category_roles(raw: Any) -> dict[str, set[str]]:
+    """Map every budget category to the roles its source categories declare."""
+    expected = {"source_category", "role", "budget_category"}
+    source_categories: set[str] = set()
+    roles_by_category: dict[str, set[str]] = {}
+    for index, item_raw in enumerate(_planning_list(raw, "category_roles")):
+        item_dotted = f"category_roles[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        source_category = _planning_str(item["source_category"], f"{item_dotted}.source_category")
+        if source_category in source_categories:
+            raise _planning_error(f"{item_dotted}.source_category", "must be unique")
+        source_categories.add(source_category)
+        role = _planning_str(item["role"], f"{item_dotted}.role")
+        if role not in _CATEGORY_ROLES:
+            raise _planning_error(f"{item_dotted}.role", "has an unsupported role")
+        budget_category = _planning_str(item["budget_category"], f"{item_dotted}.budget_category")
+        roles_by_category.setdefault(budget_category, set()).add(role)
+    return roles_by_category
+
+
+def _validate_supplemental_column(
+    role: str, logical: str, raw: Any, dotted: str, fiscal_year: int
+) -> _PlanningColumn:
+    """One logical column: an exact label, a signed liability label or a fiscal-year constant."""
+    qualified = f"{role}.{logical}"
+    if isinstance(raw, str):
+        label = _planning_str(raw, dotted)
+        if qualified == _LIABILITY_COLUMN:
+            raise _planning_error(dotted, "must declare a label and liability_sign")
+        return _PlanningColumn(logical=logical, label=label)
+    column = _planning_object(raw, dotted)
+    if set(column) == {"constant"}:
+        if qualified != _CONSTANT_COLUMN:
+            raise _planning_error(dotted, f"a constant is only valid for {_CONSTANT_COLUMN}")
+        constant = column["constant"]
+        if (
+            isinstance(constant, bool)
+            or not isinstance(constant, int)
+            or constant != fiscal_year - 1
+        ):
+            raise _planning_error(dotted, "constant fiscal year must equal fiscal_year minus one")
+        return _PlanningColumn(logical=logical, label=None, constant=constant)
+    if set(column) not in ({"label"}, {"label", "liability_sign"}):
+        raise _planning_error(dotted, "must bind an exact label or fiscal-year constant")
+    label = _planning_str(column["label"], f"{dotted}.label")
+    liability_sign = None
+    if "liability_sign" in column:
+        liability_sign = _planning_str(column["liability_sign"], f"{dotted}.liability_sign")
+    if qualified == _LIABILITY_COLUMN:
+        if liability_sign not in _LIABILITY_SIGNS:
+            raise _planning_error(
+                f"{dotted}.liability_sign", f"must be {' or '.join(_LIABILITY_SIGNS)}"
+            )
+    elif liability_sign is not None:
+        raise _planning_error(f"{dotted}.liability_sign", f"is only valid for {_LIABILITY_COLUMN}")
+    return _PlanningColumn(logical=logical, label=label, liability_sign=liability_sign)
+
+
+def _validate_supplemental_bindings(raw: Any, fiscal_year: int) -> tuple[_PlanningBinding, ...]:
+    """At most one read-only tab binding per role, through the existing workbook clients."""
+    expected = {
+        "role",
+        "workbook",
+        "tab",
+        "header_signature",
+        "columns",
+        "coverage_start",
+        "coverage_end",
+        "coverage_evidence",
+    }
+    bindings: list[_PlanningBinding] = []
+    for index, item_raw in enumerate(_planning_list(raw, "bindings")):
+        item_dotted = f"bindings[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        role = _planning_str(item["role"], f"{item_dotted}.role")
+        if role not in PLANNING_ROLES or any(binding.role == role for binding in bindings):
+            raise _planning_error(f"{item_dotted}.role", "must be a unique supported role")
+        workbook = _planning_str(item["workbook"], f"{item_dotted}.workbook")
+        if workbook not in _PLANNING_WORKBOOKS:
+            raise _planning_error(
+                f"{item_dotted}.workbook", f"must be {' or '.join(_PLANNING_WORKBOOKS)}"
+            )
+        tab = _planning_str(item["tab"], f"{item_dotted}.tab")
+        signature = _planning_list(item["header_signature"], f"{item_dotted}.header_signature")
+        if not signature or not all(
+            isinstance(row, list) and all(isinstance(cell, str) for cell in row)
+            for row in signature
+        ):
+            raise _planning_error(
+                f"{item_dotted}.header_signature", "must be non-empty header rows"
+            )
+        columns_raw = _planning_object(item["columns"], f"{item_dotted}.columns")
+        missing = _PLANNING_REQUIRED_COLUMNS[role] - set(columns_raw)
+        if missing:
+            raise _planning_error(
+                f"{item_dotted}.columns", f"missing logical fields: {sorted(missing)}"
+            )
+        unsupported = (
+            set(columns_raw) - _PLANNING_REQUIRED_COLUMNS[role] - _PLANNING_OPTIONAL_COLUMNS[role]
+        )
+        if unsupported:
+            # A count only: an unknown key is input text, which a message never echoes.
+            raise _planning_error(
+                f"{item_dotted}.columns", f"has {len(unsupported)} unsupported logical field(s)"
+            )
+        # Every key is now a schema-defined logical field, so it may name the path.
+        columns = tuple(
+            sorted(
+                (
+                    _validate_supplemental_column(
+                        role, logical, value, f"{item_dotted}.columns.{logical}", fiscal_year
+                    )
+                    for logical, value in columns_raw.items()
+                ),
+                key=lambda column: column.logical,
+            )
+        )
+        start = _planning_date(item["coverage_start"], f"{item_dotted}.coverage_start")
+        end = _planning_date(item["coverage_end"], f"{item_dotted}.coverage_end")
+        if end < start:
+            raise _planning_error(item_dotted, "coverage_end precedes coverage_start")
+        evidence = _planning_str(item["coverage_evidence"], f"{item_dotted}.coverage_evidence")
+        bindings.append(
+            _PlanningBinding(
+                role=role,
+                workbook=workbook,
+                tab=tab,
+                header_signature=tuple(tuple(row) for row in signature),
+                columns=columns,
+                coverage_start=start,
+                coverage_end=end,
+                coverage_evidence=evidence,
+            )
+        )
+    return tuple(bindings)
+
+
+def _validate_reserve_basis(raw: Any, bindings: Sequence[_PlanningBinding]) -> None:
+    """An absent basis makes only the reserve comparisons unavailable."""
+    if raw is None:
+        return
+    reserve = _planning_object(raw, "reserve_basis")
+    expected = {*_RESERVE_BASIS, "evidence"}
+    if set(reserve) != expected:
+        raise _planning_error("reserve_basis", f"must contain exactly {sorted(expected)}")
+    if any(reserve[key] != value for key, value in _RESERVE_BASIS.items()):
+        raise _planning_error("reserve_basis", "must select the captured balances CD component")
+    _planning_str(reserve["evidence"], "reserve_basis.evidence")
+    if not any(binding.role == _RESERVE_BASIS["binding_role"] for binding in bindings):
+        raise _planning_error("reserve_basis.binding_role", "requires a balances binding")
+
+
+def _validate_future_events(raw: Any, roles_by_category: Mapping[str, set[str]]) -> frozenset[str]:
+    """Validate the central case's future events; return every category they bind."""
+    expected = {
+        "event_id",
+        "label",
+        "income_categories",
+        "expense_categories",
+        "event_date",
+        "confirmed",
+        "evidence",
+    }
+    event_ids: set[str] = set()
+    event_categories: set[str] = set()
+    for index, item_raw in enumerate(_planning_list(raw, "central_case.future_events")):
+        item_dotted = f"central_case.future_events[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        event_id = _planning_str(item["event_id"], f"{item_dotted}.event_id")
+        if not is_valid_source_alias(event_id) or event_id in event_ids:
+            raise _planning_error(f"{item_dotted}.event_id", "must be a unique lowercase slug")
+        event_ids.add(event_id)
+        _planning_str(item["label"], f"{item_dotted}.label")
+        # Each income/expense category belongs to at most one event.
+        for name, role in _EVENT_CATEGORY_ROLES.items():
+            categories = _planning_categories(item[name], f"{item_dotted}.{name}")
+            _require_mapped_role(categories, role, roles_by_category, f"{item_dotted}.{name}")
+            if categories & event_categories:
+                raise _planning_error(f"{item_dotted}.{name}", "overlaps another event")
+            event_categories.update(categories)
+        _planning_date(item["event_date"], f"{item_dotted}.event_date")
+        if not isinstance(item["confirmed"], bool):
+            raise _planning_error(f"{item_dotted}.confirmed", "must be boolean")
+        _planning_str(item["evidence"], f"{item_dotted}.evidence")
+    return frozenset(event_categories)
+
+
+def _validate_central_case(
+    raw: Any, roles_by_category: Mapping[str, set[str]], specialist: frozenset[str]
+) -> None:
+    """An absent central policy makes only the central scenario unavailable."""
+    if raw is None:
+        return
+    central = _planning_object(raw, "central_case")
+    expected = {
+        "fundraising_basis",
+        "classroom_budget_categories",
+        "prior_classroom_categories",
+        "future_events",
+    }
+    if set(central) != expected:
+        raise _planning_error("central_case", f"must contain exactly {sorted(expected)}")
+    if central["fundraising_basis"] != _CENTRAL_FUNDRAISING_BASIS:
+        raise _planning_error(
+            "central_case.fundraising_basis", f"must be {_CENTRAL_FUNDRAISING_BASIS}"
+        )
+    current = _planning_categories(
+        central["classroom_budget_categories"], "central_case.classroom_budget_categories"
+    )
+    prior = _planning_categories(
+        central["prior_classroom_categories"], "central_case.prior_classroom_categories"
+    )
+    _require_mapped_role(
+        current, _EXPENSE, roles_by_category, "central_case.classroom_budget_categories"
+    )
+    _require_mapped_role(
+        prior, _EXPENSE, roles_by_category, "central_case.prior_classroom_categories"
+    )
+    event_categories = _validate_future_events(central["future_events"], roles_by_category)
+    if current & (event_categories | specialist):
+        raise _planning_error(
+            "central_case", "classroom categories overlap event or specialist categories"
+        )
+
+
+def _validate_period_allocations(raw: Any) -> None:
+    """Operator-verified academic-year attributions of exact source rows."""
+    expected = {"source_record_key", "source_revision_hash", "fiscal_year", "evidence"}
+    source_rows: set[tuple[str, str]] = set()
+    for index, item_raw in enumerate(_planning_list(raw, "period_allocations")):
+        item_dotted = f"period_allocations[{index}]"
+        item = _planning_object(item_raw, item_dotted)
+        if set(item) != expected:
+            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        source_row = _planning_source_row(item, item_dotted)
+        if source_row in source_rows:
+            raise _planning_error(item_dotted, "duplicates a period allocation")
+        source_rows.add(source_row)
+        fiscal_year = item["fiscal_year"]
+        if isinstance(fiscal_year, bool) or not isinstance(fiscal_year, int):
+            raise _planning_error(f"{item_dotted}.fiscal_year", "must be an integer")
+        _planning_str(item["evidence"], f"{item_dotted}.evidence")
+
+
+def _validate_planning_input(raw: Any) -> _PlanningInput:
+    """Validate a whole planning document; only then is its typed view released."""
+    data = _planning_object(raw, "board_planning")
+    unknown = set(data) - _PLANNING_REQUIRED_FIELDS - _PLANNING_OPTIONAL_FIELDS
+    if unknown:
+        # A count only: an unknown key is input text, which a message never echoes.
+        raise _planning_error("board_planning", f"has {len(unknown)} unsupported key(s)")
+    missing = sorted(_PLANNING_REQUIRED_FIELDS - set(data))
+    if missing:
+        raise _planning_error("board_planning", f"missing fields: {missing}")
+    version = data["schema_version"]
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version != PLANNING_SCHEMA_VERSION
+    ):
+        raise _planning_error("schema_version", f"must be {PLANNING_SCHEMA_VERSION}")
+    fiscal_year = data["fiscal_year"]
+    if (
+        isinstance(fiscal_year, bool)
+        or not isinstance(fiscal_year, int)
+        or fiscal_year < _MIN_SOURCE_DATE.year
+    ):
+        raise _planning_error("fiscal_year", "must be an ending-year integer")
+    prior = data.get("prior_fiscal_year", fiscal_year - 1)
+    if isinstance(prior, bool) or not isinstance(prior, int) or prior != fiscal_year - 1:
+        raise _planning_error("prior_fiscal_year", "must equal fiscal_year minus one")
+    if not isinstance(data["roster_complete"], bool):
+        raise _planning_error("roster_complete", "must be boolean")
+    _planning_date(data["roster_as_of"], "roster_as_of")
+    _planning_str(data["roster_evidence"], "roster_evidence")
+    class_ids = _validate_classes(data["classes"])
+    _validate_payee_aliases(data["payee_aliases"], class_ids)
+    _validate_payment_allocations(data["payment_allocations"], class_ids)
+    roles_by_category = _validate_category_roles(data["category_roles"])
+    classroom = _planning_categories(data["classroom_categories"], "classroom_categories")
+    specialist = _planning_categories(
+        data.get("specialist_contract_categories", []), "specialist_contract_categories"
+    )
+    if specialist:
+        _planning_str(data.get("specialist_contract_evidence"), "specialist_contract_evidence")
+    _require_mapped_role(classroom, _EXPENSE, roles_by_category, "classroom_categories")
+    _require_mapped_role(specialist, _EXPENSE, roles_by_category, "specialist_contract_categories")
+    bindings = _validate_supplemental_bindings(data["bindings"], fiscal_year)
+    _validate_reserve_basis(data.get("reserve_basis"), bindings)
+    _validate_central_case(data.get("central_case"), roles_by_category, specialist)
+    _validate_period_allocations(data["period_allocations"])
+    return _PlanningInput(schema_version=version, fiscal_year=fiscal_year, bindings=bindings)
+
+
+def _read_planning_input(path: Path) -> tuple[bytes, _PlanningInput]:
+    """The exact file bytes (hashed and retained verbatim) and the validated typed view.
+
+    A leading UTF-8 byte-order mark (as some Windows editors write) is tolerated for parsing
+    only; the retained bytes and their hash still include it. A repeated object key is a
+    ``planning_input_invalid`` error, never silently resolved.
+    """
+    payload: bytes | None
+    try:
+        payload = path.read_bytes()
+        text = payload.decode("utf-8").removeprefix("\ufeff")
+        raw = json.loads(text, object_pairs_hook=_unique_object)
+    except (OSError, UnicodeError, ValueError, RecursionError):
+        # RecursionError: a pathologically deep JSON nesting exhausts the decoder's stack.
+        payload = None
+    # Raised outside the handler so no exception context is chained (decoder errors quote
+    # the file's text).
+    if payload is None:
+        raise SourceConfigError(
+            "planning_input_unreadable", "main_reports.board_planning.input_file is unreadable"
+        )
+    return payload, _validate_planning_input(raw)
+
+
+# --------------------------------------------------------------------------------------
 # Capture
 # --------------------------------------------------------------------------------------
 
@@ -1165,6 +1789,164 @@ def _capture_budget(client: SheetsClient, clock: Clock) -> AdoptedBudget:
     )
 
 
+def _planning_reference_hash(
+    role: str,
+    workbook: str,
+    tab_title: str,
+    tab_id: int | None,
+    header_signature: Sequence[Sequence[str]],
+    columns: Sequence[tuple[str, int]],
+    values: Sequence[Sequence[str]],
+    formulas: Sequence[FormulaCell],
+    entered_numbers: Sequence[EnteredNumber],
+    coverage_start: date,
+    coverage_end: date,
+    coverage_evidence: str,
+) -> str:
+    return content_hash(
+        {
+            "role": role,
+            "workbook": workbook,
+            "tab_title": tab_title,
+            "tab_id": tab_id,
+            "header_signature": [list(row) for row in header_signature],
+            "columns": sorted([name, position] for name, position in columns),
+            "values": [list(row) for row in values],
+            "formulas": [cell.to_dict() for cell in formulas],
+            "entered_numbers": [cell.to_dict() for cell in entered_numbers],
+            "coverage_start": coverage_start.isoformat(),
+            "coverage_end": coverage_end.isoformat(),
+            "coverage_evidence": coverage_evidence,
+        }
+    )
+
+
+def _planning_workbook(
+    name: str, source: ReadOnlyWorkbook, own: ReadOnlyWorkbook
+) -> ReadOnlyWorkbook:
+    return source if name == _CFO_WORKBOOK else own
+
+
+def _capture_planning_reference(
+    binding: _PlanningBinding, source: ReadOnlyWorkbook, own: ReadOnlyWorkbook, clock: Clock
+) -> PlanningReferenceCapture:
+    workbook = _planning_workbook(binding.workbook, source, own)
+    tab_id = workbook.tab_id(binding.tab)
+    captured_at = clock()
+    values = _rectangular(workbook.read_values(binding.tab))
+    formulas, entered_numbers = workbook.read_entered_cells(binding.tab)
+
+    expected = tuple(_trim(row) for row in binding.header_signature)
+    actual = tuple(
+        _trim(values[index]) if index < len(values) else () for index in range(len(expected))
+    )
+    if actual != expected:
+        positions = _header_differences(expected, actual)
+        shown = positions[:10]
+        raise SourceSchemaError(
+            "planning_header_signature_mismatch",
+            f"planning {binding.role}: {len(positions)} header cell(s) differ from the "
+            f"configured signature at (row, column) {shown}",
+            positions,
+        )
+    labels = binding.header_signature[-1]
+    columns: list[tuple[str, int]] = []
+    for column in binding.columns:
+        if column.label is None:
+            continue  # a fiscal-year constant binds no header column
+        matches = [index for index, label in enumerate(labels) if label == column.label]
+        if len(matches) != 1:
+            raise SourceConfigError(
+                "planning_column_unresolved",
+                f"planning {binding.role}.{column.logical}: exact header label must occur once",
+            )
+        columns.append((column.logical, matches[0]))
+
+    return PlanningReferenceCapture(
+        role=binding.role,
+        workbook=binding.workbook,
+        tab_title=binding.tab,
+        tab_id=tab_id,
+        captured_at=captured_at,
+        header_signature=binding.header_signature,
+        columns=tuple(columns),
+        values=values,
+        formulas=formulas,
+        entered_numbers=entered_numbers,
+        coverage_start=binding.coverage_start,
+        coverage_end=binding.coverage_end,
+        coverage_evidence=binding.coverage_evidence,
+        sha256=_planning_reference_hash(
+            binding.role,
+            binding.workbook,
+            binding.tab,
+            tab_id,
+            binding.header_signature,
+            columns,
+            values,
+            formulas,
+            entered_numbers,
+            binding.coverage_start,
+            binding.coverage_end,
+            binding.coverage_evidence,
+        ),
+    )
+
+
+def _planning_hash(
+    schema_version: int,
+    fiscal_year: int,
+    input_sha256: str,
+    references: Sequence[PlanningReferenceCapture],
+    quality_findings: Sequence[str],
+) -> str:
+    return content_hash(
+        {
+            "schema_version": schema_version,
+            "fiscal_year": fiscal_year,
+            "input_sha256": input_sha256,
+            "references": {item.role: item.sha256 for item in references},
+            "quality_findings": list(quality_findings),
+        }
+    )
+
+
+def _capture_planning(
+    payload: bytes,
+    planning_input: _PlanningInput,
+    source: ReadOnlyWorkbook,
+    own: ReadOnlyWorkbook,
+    clock: Clock,
+) -> PlanningCapture:
+    captured_at = clock()
+    references = tuple(
+        sorted(
+            (
+                _capture_planning_reference(binding, source, own, clock)
+                for binding in planning_input.bindings
+            ),
+            key=lambda item: item.role,
+        )
+    )
+    input_sha256 = sha256_hex(payload)
+    return PlanningCapture(
+        schema_version=planning_input.schema_version,
+        fiscal_year=planning_input.fiscal_year,
+        captured_at=captured_at,
+        input_json=payload.decode("utf-8"),
+        input_sha256=input_sha256,
+        references=references,
+        quality_findings=(),
+        sha256=_planning_hash(
+            planning_input.schema_version,
+            planning_input.fiscal_year,
+            input_sha256,
+            references,
+            (),
+        ),
+    )
+
+
 def _changed_aliases(
     source: ReadOnlyWorkbook,
     own: ReadOnlyWorkbook,
@@ -1197,20 +1979,44 @@ def _changed_aliases(
     return tuple(changed)
 
 
+def _planning_changed(
+    planning: PlanningCapture, path: Path, source: ReadOnlyWorkbook, own: ReadOnlyWorkbook
+) -> tuple[str, ...]:
+    """Re-read the private input and every bound tab (values, entered cells and tab id)."""
+    try:
+        if path.read_bytes().decode("utf-8") != planning.input_json:
+            return ("planning_input",)
+    except (OSError, UnicodeError):
+        return ("planning_input",)
+    changed: list[str] = []
+    for item in planning.references:
+        workbook = _planning_workbook(item.workbook, source, own)
+        if (
+            _rectangular(workbook.read_values(item.tab_title)) != item.values
+            or workbook.read_entered_cells(item.tab_title) != (item.formulas, item.entered_numbers)
+            or workbook.tab_id(item.tab_title) != item.tab_id
+        ):
+            changed.append(f"planning:{item.role}")
+    return tuple(changed)
+
+
 def _aggregate_hash(
     source_spreadsheet_id: str,
     capture_hashes: Mapping[str, str],
     adopted_budget_sha256: str,
     assumptions_sha256: str,
+    planning_sha256: str | None = None,
 ) -> str:
-    return content_hash(
-        {
-            "source_spreadsheet_id": source_spreadsheet_id,
-            "captures": dict(capture_hashes),
-            "adopted_budget": adopted_budget_sha256,
-            "assumptions": assumptions_sha256,
-        }
-    )
+    components: dict[str, Any] = {
+        "source_spreadsheet_id": source_spreadsheet_id,
+        "captures": dict(capture_hashes),
+        "adopted_budget": adopted_budget_sha256,
+        "assumptions": assumptions_sha256,
+    }
+    # Absence deliberately retains the historical aggregate identity.
+    if planning_sha256 is not None:
+        components["planning"] = planning_sha256
+    return content_hash(components)
 
 
 def connect_own_read_client(
@@ -1251,16 +2057,30 @@ def capture(
     Bindings are validated before any read. Google multi-tab reads are not transactional, so
     each capture is followed by a verification read; if anything changed, the WHOLE capture is
     retried once and then fails with ``capture_inconsistent``. Reads only — nothing is written.
+
+    An optional ``[main_reports.board_planning]`` input is read and validated before any
+    workbook read (``planning_input_invalid`` / ``planning_input_unreadable``); its bound
+    supplemental tabs are captured verbatim under the same verification and retry, and the
+    private JSON file is re-read too, so a change anywhere retries the whole set. Its digest
+    joins the aggregate hash only when present (absent planning keeps the historical
+    aggregate). Planning rows are never normalized into transactions.
     """
     resolved = require_bindings(config)
     main_reports = _main_reports(config)
     now = clock or _utc_now
+    board_planning = main_reports.board_planning
+    # The private planning input is validated before any workbook is opened or read.
+    planning_input = (
+        _read_planning_input(board_planning.input_path) if board_planning is not None else None
+    )
     source = source_workbook if source_workbook is not None else connect_source_client(config)
     own_sheets = own_client if own_client is not None else connect_own_read_client(config)
     own = ReadOnlyWorkbook(own_sheets)
 
     previously_changed: tuple[str, ...] = ()
     for attempt in range(1, MAX_CAPTURE_ATTEMPTS + 1):
+        if attempt > 1 and board_planning is not None:
+            planning_input = _read_planning_input(board_planning.input_path)
         captures = tuple(
             sorted(
                 (_capture_tab(source, item, now) for item in resolved),
@@ -1269,13 +2089,20 @@ def capture(
         )
         assumptions = capture_assumptions(own, main_reports.assumptions_tab, now)
         budget = _capture_budget(own_sheets, now)
+        planning: PlanningCapture | None = None
+        if planning_input is not None:
+            payload, validated = planning_input
+            planning = _capture_planning(payload, validated, source, own, now)
         changed = _changed_aliases(source, own, own_sheets, captures, assumptions, budget)
+        if board_planning is not None and planning is not None:
+            changed += _planning_changed(planning, board_planning.input_path, source, own)
         if not changed:
             aggregate = _aggregate_hash(
                 main_reports.source_spreadsheet_id,
                 {c.alias: c.sha256 for c in captures},
                 budget.sha256,
                 assumptions.sha256,
+                planning.sha256 if planning is not None else None,
             )
             return CaptureSet(
                 source_spreadsheet_id=main_reports.source_spreadsheet_id,
@@ -1286,6 +2113,7 @@ def capture(
                     attempts=attempt, consistent=True, changed_aliases=previously_changed
                 ),
                 aggregate_sha256=aggregate,
+                planning=planning,
             )
         previously_changed = changed
     raise SourceCaptureError(
@@ -1964,6 +2792,10 @@ def compare_captures(previous: CaptureSet, current: CaptureSet) -> tuple[str, ..
         changed.append("adopted_budget")
     if previous.assumptions.sha256 != current.assumptions.sha256:
         changed.append(ASSUMPTIONS_ALIAS)
+    previous_planning = previous.planning.sha256 if previous.planning is not None else None
+    current_planning = current.planning.sha256 if current.planning is not None else None
+    if previous_planning != current_planning:
+        changed.append("planning")
     return tuple(changed)
 
 
@@ -2015,6 +2847,195 @@ def _stored_capture_hash(entry: Mapping[str, Any]) -> str:
     )
 
 
+# Type-strict readers for a stored planning capture. A stored value is never coerced: a
+# coercion (``int(2030.0)``, ``str(2030)``, a basic-format date) would recompute the same hash
+# from a tampered file. Every failure is a ValueError with a fixed, value-free message naming
+# only a schema field; :func:`store_capture_set` reports it as ``stored_capture_conflict``.
+
+
+def _stored_planning_error(dotted: str) -> ValueError:
+    return ValueError(f"stored planning {dotted} is malformed")
+
+
+def _stored_str(value: Any, dotted: str) -> str:
+    if not isinstance(value, str):
+        raise _stored_planning_error(dotted)
+    return value
+
+
+def _stored_int(value: Any, dotted: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise _stored_planning_error(dotted)
+    return value
+
+
+def _stored_list(value: Any, dotted: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise _stored_planning_error(dotted)
+    return value
+
+
+def _stored_object(value: Any, dotted: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise _stored_planning_error(dotted)
+    return value
+
+
+def _stored_rows(value: Any, dotted: str) -> tuple[tuple[str, ...], ...]:
+    return tuple(
+        tuple(_stored_str(cell, dotted) for cell in _stored_list(row, dotted))
+        for row in _stored_list(value, dotted)
+    )
+
+
+def _stored_date(value: Any, dotted: str) -> date:
+    text = _stored_str(value, dotted)
+    parsed: date | None
+    try:
+        parsed = date.fromisoformat(text)
+    except ValueError:
+        parsed = None
+    # Raised outside the handler so no exception context is chained.
+    if parsed is None or parsed.isoformat() != text:
+        raise _stored_planning_error(dotted)
+    return parsed
+
+
+def _stored_timestamp(value: Any, dotted: str) -> datetime:
+    text = _stored_str(value, dotted)
+    parsed: datetime | None
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        parsed = None
+    # Raised outside the handler so no exception context is chained.
+    if parsed is None or parsed.tzinfo is None:
+        raise _stored_planning_error(dotted)
+    return parsed
+
+
+def _stored_cells(value: Any, dotted: str, text_key: str) -> list[tuple[int, int, str]]:
+    cells: list[tuple[int, int, str]] = []
+    for item_raw in _stored_list(value, dotted):
+        item = _stored_object(item_raw, dotted)
+        cells.append(
+            (
+                _stored_int(item["row"], dotted),
+                _stored_int(item["column"], dotted),
+                _stored_str(item[text_key], dotted),
+            )
+        )
+    return cells
+
+
+def _planning_reference_from_dict(raw: Any) -> PlanningReferenceCapture:
+    entry = _stored_object(raw, "reference")
+    tab_id = entry["tab_id"]
+    reference = PlanningReferenceCapture(
+        role=_stored_str(entry["role"], "reference.role"),
+        workbook=_stored_str(entry["workbook"], "reference.workbook"),
+        tab_title=_stored_str(entry["tab_title"], "reference.tab_title"),
+        tab_id=None if tab_id is None else _stored_int(tab_id, "reference.tab_id"),
+        captured_at=_stored_timestamp(entry["captured_at"], "reference.captured_at"),
+        header_signature=_stored_rows(entry["header_signature"], "reference.header_signature"),
+        columns=tuple(
+            sorted(
+                (name, _stored_int(position, "reference.columns"))
+                for name, position in _stored_object(entry["columns"], "reference.columns").items()
+            )
+        ),
+        values=_stored_rows(entry["values"], "reference.values"),
+        formulas=tuple(
+            FormulaCell(row, column, formula)
+            for row, column, formula in _stored_cells(
+                entry["formulas"], "reference.formulas", "formula"
+            )
+        ),
+        entered_numbers=tuple(
+            EnteredNumber(row, column, value)
+            for row, column, value in _stored_cells(
+                entry["entered_numbers"], "reference.entered_numbers", "value"
+            )
+        ),
+        coverage_start=_stored_date(entry["coverage_start"], "reference.coverage_start"),
+        coverage_end=_stored_date(entry["coverage_end"], "reference.coverage_end"),
+        coverage_evidence=_stored_str(entry["coverage_evidence"], "reference.coverage_evidence"),
+        sha256=_stored_str(entry["sha256"], "reference.sha256"),
+    )
+    recomputed = _planning_reference_hash(
+        reference.role,
+        reference.workbook,
+        reference.tab_title,
+        reference.tab_id,
+        reference.header_signature,
+        reference.columns,
+        reference.values,
+        reference.formulas,
+        reference.entered_numbers,
+        reference.coverage_start,
+        reference.coverage_end,
+        reference.coverage_evidence,
+    )
+    if recomputed != reference.sha256:
+        raise ValueError("planning reference hash mismatch")
+    return reference
+
+
+def planning_capture_from_dict(raw: Any) -> PlanningCapture:
+    """Reconstruct and verify a stored version-1 planning capture.
+
+    Type-strict: every stored field must already have its exact JSON type (and a date its
+    exact ISO text), so a type-changed field never coerces back to the hashed value. Any
+    failure is a ``ValueError`` with a fixed, value-free message.
+    """
+    entry = _stored_object(raw, "capture")
+    references: list[PlanningReferenceCapture] = []
+    for role, item in _stored_object(entry["references"], "references").items():
+        reference = _planning_reference_from_dict(item)
+        if role != reference.role:
+            raise ValueError("planning reference role mismatch")
+        references.append(reference)
+    references.sort(key=lambda item: item.role)
+    input_json = _stored_str(entry["input_json"], "input_json")
+    input_sha256 = sha256_hex(input_json.encode("utf-8"))
+    if input_sha256 != _stored_str(entry["input_sha256"], "input_sha256"):
+        raise ValueError("planning input hash mismatch")
+    schema_version = _stored_int(entry["schema_version"], "schema_version")
+    if schema_version != PLANNING_SCHEMA_VERSION:
+        raise ValueError("unsupported planning schema version")
+    fiscal_year = _stored_int(entry["fiscal_year"], "fiscal_year")
+    quality_findings = tuple(
+        _stored_str(item, "quality_findings")
+        for item in _stored_list(entry["quality_findings"], "quality_findings")
+    )
+    digest = _planning_hash(schema_version, fiscal_year, input_sha256, references, quality_findings)
+    if digest != _stored_str(entry["sha256"], "sha256"):
+        raise ValueError("planning capture hash mismatch")
+    return PlanningCapture(
+        schema_version=schema_version,
+        fiscal_year=fiscal_year,
+        captured_at=_stored_timestamp(entry["captured_at"], "captured_at"),
+        input_json=input_json,
+        input_sha256=input_sha256,
+        references=tuple(references),
+        quality_findings=quality_findings,
+        sha256=digest,
+    )
+
+
+def stored_planning(envelope: Mapping[str, Any]) -> PlanningCapture | None:
+    """The verified planning capture of a stored envelope, or ``None`` when it has none.
+
+    Envelopes written before the optional board-planning input existed (and runs without
+    one) carry no ``planning`` key: they reconstruct as unavailable, and their historical
+    aggregate hash is unchanged. A present key must verify completely (an explicit ``null``
+    does not).
+    """
+    if "planning" not in envelope:
+        return None
+    return planning_capture_from_dict(envelope["planning"])
+
+
 def _verify_stored(stored: Any, digest: str) -> bool:
     """Recompute every content hash from the stored file; never trust declared hashes."""
     try:
@@ -2031,8 +3052,14 @@ def _verify_stored(stored: Any, digest: str) -> bool:
         budget_hash = _budget_rows_hash(budget["rows"])
         if assumptions_hash != assumptions["sha256"] or budget_hash != budget["sha256"]:
             return False
+        planning = stored_planning(stored)
+        planning_hash = planning.sha256 if planning is not None else None
         aggregate = _aggregate_hash(
-            stored["source_spreadsheet_id"], hashes, budget_hash, assumptions_hash
+            stored["source_spreadsheet_id"],
+            hashes,
+            budget_hash,
+            assumptions_hash,
+            planning_hash,
         )
     except (KeyError, TypeError, ValueError, AttributeError):
         return False

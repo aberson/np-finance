@@ -56,6 +56,12 @@ from tests.conftest import (
     _FULL_CONFIG,
     AS_OF,
     CFO_ID,
+    PLANNING_BALANCES_ROWS,
+    PLANNING_CANARY,
+    PLANNING_INPUT,
+    PLANNING_LEDGER_ROWS,
+    PLANNING_PRIOR_ROWS,
+    PLANNING_TOML,
     VENDOR_JUNE,
     CfoHarness,
     RecordingSleep,
@@ -63,6 +69,9 @@ from tests.conftest import (
     _config,
     _harness,
     make_api_error,
+    planning_binding,
+    planning_binding_index,
+    planning_document,
     require_chromium,
 )
 
@@ -523,6 +532,325 @@ def test_dry_run_validates_everything_and_writes_nothing(
     stdout = capsys.readouterr().out
     assert "1 new, 0 unchanged" in stdout  # the refresh was planned, not written
     assert "[dry-run]: inputs validated" in stdout
+
+
+# --------------------------------------------------------------------------------------
+# Optional board-planning capture through the production CLI
+# --------------------------------------------------------------------------------------
+
+_CLASSROOM = "Classroom Supplies"
+_PLANNING_LINE = (
+    f"  planning      : input schema {sources.PLANNING_SCHEMA_VERSION} validated, "
+    f"{len(sources.PLANNING_ROLES)} supplemental tab(s) captured read-only"
+)
+
+
+def _enable_planning(world: World, document: dict[str, Any] | None = None) -> Path:
+    """Configure ``[main_reports.board_planning]`` with fictional input and bound tabs."""
+    path = world.root / PLANNING_INPUT
+    planning = document or planning_document(classroom_category=_CLASSROOM)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(planning), encoding="utf-8")
+    world.config_path.write_text(
+        world.config_path.read_text("utf-8") + PLANNING_TOML, encoding="utf-8"
+    )
+    world.harness.add_tab("Example Balances", PLANNING_BALANCES_ROWS, sheet_id=3001)
+    world.harness.add_tab("Example Prior Budget", PLANNING_PRIOR_ROWS, sheet_id=3002)
+    world.harness.add_tab("Example Academic Ledger", PLANNING_LEDGER_ROWS, sheet_id=3003, own=True)
+    return path
+
+
+def test_cli_dry_run_validates_planning_without_writing(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _enable_planning(world)
+    before = _tree(world.root)
+    assert world.main("--dry-run") == runner.EXIT_OK
+    assert _tree(world.root) == before
+    stdout = capsys.readouterr().out
+    assert _PLANNING_LINE in stdout.splitlines()
+    assert "[dry-run]: inputs validated" in stdout
+    world.harness.assert_no_writes()
+    assert set(world.scopes) == {(sources.READONLY_SCOPE,)}
+
+
+@pytest.mark.parametrize("dry_run", [True, False], ids=["dry-run", "normal"])
+def test_cli_refuses_a_committable_planning_input_before_any_capture(
+    world: World, capsys: pytest.CaptureFixture[str], dry_run: bool
+) -> None:
+    """A planning input inside the project but outside ``reports/output/`` is refused when
+    the config loads: no workbook client is requested and nothing is written."""
+    committable = world.root / "planning.json"
+    planning_path = _enable_planning(world)
+    planning_path.replace(committable)
+    world.config_path.write_text(
+        world.config_path.read_text("utf-8").replace(PLANNING_INPUT.as_posix(), committable.name),
+        encoding="utf-8",
+    )
+    before = _tree(world.root)
+    assert world.main(*(("--dry-run",) if dry_run else ())) == runner.EXIT_INVALID
+    assert _tree(world.root) == before
+    assert world.scopes == []
+    stdout = capsys.readouterr().out
+    assert "config_invalid" in stdout
+    assert (
+        "main_reports.board_planning.input_file must be under reports/output/ (gitignored) "
+        "or outside the project directory"
+    ) in stdout
+
+
+def test_cli_dry_run_rejects_invalid_planning_without_writing(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    document = planning_document(classroom_category=_CLASSROOM)
+    document["classes"][0]["per_student_amount"] = "1e3"
+    _enable_planning(world, document)
+    before = _tree(world.root)
+    assert world.main("--dry-run") == runner.EXIT_FAILED
+    assert _tree(world.root) == before
+    stdout = capsys.readouterr().out
+    assert "planning_input_invalid: classes[0].per_student_amount" in stdout
+    assert "nothing was written" in stdout
+
+
+def test_normal_cli_run_retains_a_hashed_planning_capture(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    planning_path = _enable_planning(world)
+    assert world.main() == runner.EXIT_OK
+    assert _PLANNING_LINE in capsys.readouterr().out.splitlines()
+    (run_dir,) = world.run_dirs()
+    manifest = _manifest(run_dir)
+    stored = json.loads((world.runs / manifest["capture_ref"]).read_text("utf-8"))
+    planning = stored["planning"]
+    # The private input is retained verbatim with its own hash, plus every bound tab.
+    assert planning["input_sha256"] == _sha(planning_path.read_bytes())
+    assert planning["input_json"] == planning_path.read_text("utf-8")
+    assert set(planning["references"]) == set(sources.PLANNING_ROLES)
+    assert planning["references"]["academic_ledger"]["workbook"] == "own"
+    assert planning["references"]["academic_ledger"]["values"] == PLANNING_LEDGER_ROWS
+    assert planning["references"]["balances"]["values"] == PLANNING_BALANCES_ROWS
+    assert planning["references"]["prior_year_budget"]["values"] == PLANNING_PRIOR_ROWS
+    # The stored envelope verifies, and its digest is the one the run identifies.
+    reconstructed = sources.stored_planning(stored)
+    assert reconstructed is not None
+    assert reconstructed.sha256 == planning["sha256"] == manifest["planning_sha256"]
+    assert stored["aggregate_sha256"] == manifest["capture_aggregate_sha256"]
+    assert manifest["input_components"]["capture_aggregate_sha256"] == stored["aggregate_sha256"]
+    # The value-free capture manifest names the planning digests without any cell values.
+    capture_manifest = json.loads(
+        (world.runs / manifest["capture_ref"]).with_suffix(".manifest.json").read_text("utf-8")
+    )
+    assert capture_manifest["planning"]["sha256"] == planning["sha256"]
+    assert "input_json" not in capture_manifest["planning"]
+    assert "values" not in capture_manifest["planning"]["references"]["balances"]
+    world.harness.assert_no_writes()
+
+
+def test_each_planning_input_change_changes_the_run_input_hash(world: World) -> None:
+    planning_path = _enable_planning(world)
+    assert world.main() == runner.EXIT_OK
+    seen = {_manifest(world.run_dirs()[0])["input_sha256"]}
+
+    def changed_document(change: str) -> dict[str, Any]:
+        document: dict[str, Any] = json.loads(planning_path.read_text("utf-8"))
+        if change == "roster":
+            document["classes"][0]["student_count"] = 21
+        elif change == "alias":
+            document["payee_aliases"][0]["source_payee"] = "Example Revised Payee"
+        else:
+            document["reserve_basis"]["evidence"] = "fictional revised board policy"
+        return document
+
+    for change in ("roster", "alias", "policy", "source_row"):
+        before = set(world.run_dirs())
+        if change == "source_row":
+            rows = [list(row) for row in PLANNING_LEDGER_ROWS]
+            rows[1][2] = "-26.00"
+            world.harness.own_sheets["Example Academic Ledger"].grid = rows
+        else:
+            planning_path.write_text(json.dumps(changed_document(change)), encoding="utf-8")
+        assert world.main() == runner.EXIT_OK, change
+        (run_dir,) = set(world.run_dirs()) - before
+        manifest = _manifest(run_dir)
+        assert manifest["input_sha256"] not in seen, change
+        assert runner.input_set_sha256(manifest["input_components"]) == manifest["input_sha256"]
+        seen.add(manifest["input_sha256"])
+
+
+def test_old_config_keeps_its_input_identity_and_planning_never_enters_reconciliation(
+    world: World,
+) -> None:
+    old_config = world.config_path.read_text("utf-8")
+    assert world.main() == runner.EXIT_OK
+    (old_run,) = world.run_dirs()
+    old_manifest = _manifest(old_run)
+    old_capture = world.runs / old_manifest["capture_ref"]
+    old_capture_bytes = old_capture.read_bytes()
+    # An old-shape run: no planning digest, and its stored capture has no planning key.
+    assert old_manifest["planning_sha256"] is None
+    assert "planning" not in json.loads(old_capture_bytes)
+    assert sources.stored_planning(json.loads(old_capture_bytes)) is None
+
+    _enable_planning(world)
+    assert world.main() == runner.EXIT_OK
+    (new_run,) = set(world.run_dirs()) - {old_run}
+    new_manifest = _manifest(new_run)
+    assert new_manifest["planning_sha256"] is not None
+    assert new_manifest["input_sha256"] != old_manifest["input_sha256"]
+    # The bound sources, journal and bank-basis reconciliation are byte-identical: the
+    # supplemental ledger/budget/balance rows never become a second bank feed.
+    assert new_manifest["capture_hashes"] == old_manifest["capture_hashes"]
+    for record in ("reconciliation.json", "adjusted-ledger.json", "journal.json"):
+        assert (new_run / runner.RECORDS_DIR / record).read_bytes() == (
+            old_run / runner.RECORDS_DIR / record
+        ).read_bytes(), record
+    assert old_capture.read_bytes() == old_capture_bytes  # immutable prior evidence
+
+    # Removing the optional block restores the historical input identity and reuses the
+    # original stored capture (no rehash, no rewrite).
+    world.config_path.write_text(old_config, encoding="utf-8")
+    assert world.main() == runner.EXIT_OK
+    (again,) = set(world.run_dirs()) - {old_run, new_run}
+    again_manifest = _manifest(again)
+    assert again_manifest["input_sha256"] == old_manifest["input_sha256"]
+    assert again_manifest["capture_ref"] == old_manifest["capture_ref"]
+    assert again_manifest["planning_sha256"] is None
+    assert old_capture.read_bytes() == old_capture_bytes
+    assert len(list((world.runs / "captures").glob("*.manifest.json"))) == 2
+
+
+@pytest.mark.parametrize(
+    ("case", "code"),
+    [
+        ("contract", "planning_input_invalid"),
+        ("unreadable", "planning_input_unreadable"),
+        ("missing", "planning_input_unreadable"),
+        ("header", "planning_header_signature_mismatch"),
+    ],
+)
+def test_cli_invalid_planning_input_keeps_the_publication_pointer(
+    world: World, capsys: pytest.CaptureFixture[str], case: str, code: str
+) -> None:
+    assert world.main() == runner.EXIT_OK
+    published = world.published()
+    runs_before = set(world.run_dirs())
+    captures_before = sorted((world.runs / "captures").iterdir())
+    capsys.readouterr()
+
+    planning_path = _enable_planning(world)
+    if case == "contract":
+        invalid = planning_document(classroom_category=_CLASSROOM)
+        planning_binding(invalid, "balances")["columns"]["credit_card_liability"] = "Card Liability"
+        planning_path.write_text(json.dumps(invalid), encoding="utf-8")
+    elif case == "unreadable":
+        truncated = f'{{"schema_version": {sources.PLANNING_SCHEMA_VERSION},'
+        planning_path.write_text(truncated, encoding="utf-8")
+    elif case == "missing":
+        planning_path.unlink()
+    else:
+        rows = [list(row) for row in PLANNING_BALANCES_ROWS]
+        rows[0][3] = "Certificates"
+        world.harness.cfo_sheets["Example Balances"].grid = rows
+
+    assert world.main() == runner.EXIT_FAILED
+    stdout = capsys.readouterr().out
+    assert "capture_failed" in stdout
+    assert code in stdout
+    assert "previous publication is unchanged" in stdout
+    assert world.published() == published
+    # The failed run stopped at capture: no stored capture, no artifacts, no planning digest.
+    assert sorted((world.runs / "captures").iterdir()) == captures_before
+    (failed,) = set(world.run_dirs()) - runs_before
+    record = _manifest(failed)
+    assert record["status"] == "failed" and record["stage"] == "capture"
+    assert record["artifacts"] is None and record["planning_sha256"] is None
+    world.harness.assert_no_writes()
+
+
+@pytest.mark.parametrize("dry_run", [True, False], ids=["dry-run", "normal"])
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        ("unsupported_key", "planning_input_invalid: board_planning: has 1 unsupported key(s)"),
+        (
+            "duplicate_key",
+            "planning_input_invalid: board_planning: contains a duplicate object key",
+        ),
+        (
+            "unsupported_column",
+            "planning_input_invalid: bindings[{balances}].columns: "
+            "has 1 unsupported logical field(s)",
+        ),
+    ],
+)
+def test_cli_planning_failure_never_echoes_input_keys_or_values(
+    world: World,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+    expected: str,
+    dry_run: bool,
+) -> None:
+    """A malformed private input (here a canary key standing in for a person's name) is
+    reported by fixed schema path and count only: the console and records never echo it."""
+    assert world.main() == runner.EXIT_OK
+    published = world.published()
+    runs_before = set(world.run_dirs())
+    capsys.readouterr()
+
+    planning_path = _enable_planning(world)
+    invalid = planning_document(classroom_category=_CLASSROOM)
+    expected = expected.format(balances=planning_binding_index(invalid, "balances"))
+    if case == "unsupported_key":
+        invalid[PLANNING_CANARY] = "fictional"
+    elif case == "unsupported_column":
+        planning_binding(invalid, "balances")["columns"][PLANNING_CANARY] = "Date"
+    document = json.dumps(invalid)
+    if case == "duplicate_key":
+        duplicated = f'"{PLANNING_CANARY}": 1, "{PLANNING_CANARY}": 2, '
+        document = document.replace("{", "{" + duplicated, 1)
+    assert PLANNING_CANARY in document
+    planning_path.write_text(document, encoding="utf-8")
+    before = _tree(world.root)
+
+    assert world.main(*(("--dry-run",) if dry_run else ())) == runner.EXIT_FAILED
+    output = capsys.readouterr()
+    assert expected in output.out
+    assert PLANNING_CANARY not in output.out and PLANNING_CANARY not in output.err
+    assert world.published() == published
+    if dry_run:
+        assert _tree(world.root) == before
+        return
+    # The normal run's value-free records name the stage and code, never the input text.
+    (failed,) = set(world.run_dirs()) - runs_before
+    written = {
+        path: content
+        for path, content in _tree(world.root).items()
+        if content is not None and before.get(path) != content
+    }
+    assert written, "the failed normal run records its failure"
+    for path, content in written.items():
+        assert PLANNING_CANARY.encode("utf-8") not in content, path
+    assert _manifest(failed)["stage"] == "capture"
+
+
+def test_cli_detects_a_mutated_stored_planning_capture(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _enable_planning(world)
+    assert world.main() == runner.EXIT_OK
+    published = world.published()
+    capture_path = world.runs / _manifest(world.run_dirs()[0])["capture_ref"]
+    envelope = json.loads(capture_path.read_text("utf-8"))
+    envelope["planning"]["references"]["balances"]["values"][1][3] = "999.00"
+    capture_path.write_text(json.dumps(envelope), encoding="utf-8")
+    capsys.readouterr()
+
+    assert world.main() == runner.EXIT_FAILED
+    stdout = capsys.readouterr().out
+    assert "capture_store_failed" in stdout
+    assert "stored_capture_conflict" in stdout
+    assert world.published() == published
 
 
 def test_dry_run_reports_a_failed_validation_without_writing(
