@@ -1634,6 +1634,152 @@ Compatibility/backout: absent configuration yields both new documents with unava
 
 Planning handoff order for this phase only: `/plan-review --autofix docs/plans/master_plan.md`, `/plan-redline --plan docs/plans/master_plan.md`, `/plan-wrap --autofix docs/plans/master_plan.md`, then `/repo-sync --plan docs/plans/master_plan.md` scoped to CORE-BRIEFS. After issue fields are populated, build only Steps 65-68 with `/build-phase --plan docs/plans/master_plan.md --phase CORE-BRIEFS --steps 65,66,67,68`; Step 69 remains attended. The operator has now authorized plan-expedite, including scoped issue synchronization and its durable handoff. Implementation and live acceptance remain later work; do not run the build as part of this preparation.
 
+## Phase QUEUE-ARCHIVE: Working queue and paid archives by submission month
+
+**Objective:** The ordinary `uv run np-finance end-to-end-run` completes with receipt preparation enabled again: open requests keep their receipts in a small working queue, and every paid request stays findable, with its receipts, on an archive page for the month it was submitted.
+**Planning state:** REVIEW-READY for this phase only. No implementation or acceptance is claimed.
+**Status:** Steps 70-73 PENDING. Numeric IDs 70-73 are newly reserved; no existing step is renumbered.
+**Scope of dispatch and review:** QUEUE-ARCHIVE only, Steps 70-73. Never dispatch the entire master. CORE-BRIEFS Steps 66-68 are being built concurrently; see the sequencing rule under Risks.
+**Parent relationship:** Extends the shipped receipt viewer and configured receipt preparation (2026-10-21) and the Main Report Set publication (CFO Steps 57-62, 64). It does not change payment authorization, receipt fingerprints, item-location boxes, the bundle schema or the copy text.
+**Planning baseline:** `00177f369a82907da96d7c02a6dcbad744ec103e`, branch `main`, 2026-11-09, plus uncommitted operator-requested queue changes (clarification grouped by recorded next step; recent payments in the copy text) in `np_finance/reimbursement_report.py`, `np_finance/reports/templates/reimbursement_queue.html.j2`, `tests/test_reimbursement_report.py`, `tests/test_reimbursement_pipeline.py`, `README.md`, `docs/loading-receipts.md` and `docs/main-report-set.md`. Those changes must be committed before Step 70 is dispatched. Untracked `.build-step/` is unrelated and must be preserved.
+
+### What This Feature Does
+
+The treasurer gets an end-to-end run that no longer stops at `receipts_failed`. The reimbursement queue page currently embeds every receipt image, and the shared 100 MiB embedded-image budget is full: on 2026-11-09 the sidecar held 296 pages totaling 100.0 MiB, of which 94.1 MiB belonged to paid requests, 4.5 MiB to open requests and 1.4 MiB to email follow-ups. The working queue will embed only open requests and follow-ups. Paid requests move to one archive page per submission month, because whoever asks about a past request usually knows when it was submitted, not when it was paid. Each page has its own budget; the busiest submission month so far (August 2026) is about 32 MiB.
+
+### Existing Context
+
+- `np_finance/receipt_viewer.py`: `MAX_PAGE_BYTES` (20 MiB) and `MAX_TOTAL_BYTES` (100 MiB) are the single budget owners. `load_receipts(path, report)` validates the whole sidecar against the total; `headroom_bytes(sidecar)` returns the remaining total and doubles as the runner's staging page guard.
+- `np_finance/reimbursement_report.py`: `render_html(report, *, receipts=...)` renders one page; active cards come first and `report.closed_tickets` render in the closed-cases appendix of `reimbursement_queue.html.j2`, with their receipt data embedded. `build_report(data_path, output_path)` writes the HTML and `<stem>.copy.txt` atomically and returns `BuildResult`. Every ticket has a required `submitted` date, including legacy `P-` records.
+- `np_finance/receipt_refresh.py`: `refresh_receipts(...)` admits new pages against `headroom_bytes(sidecar)`; when unlinked items are joinable but none can attach it raises "no unlinked receipt item could be attached" (the 2026-11-09 failure).
+- `np_finance/main_reports/render.py`: `_write_set` calls `build_report(staged_bundle, staging / QUEUE_HTML)`; `OUTPUT_NAMES` is a fixed tuple and only those names are moved into the run folder and hashed into artifacts. `np_finance/main_reports/runner.py` compares artifacts with `OUTPUT_NAMES` (line 884), refreshes `COMPATIBILITY_FILES`, and calls `headroom_bytes` while staging the sidecar (line 836).
+- CORE-BRIEFS Steps 66-68 change `render.py`, `runner.py`, `models.py`, the main-report templates, `tests/conftest.py`, the main-report tests and (Step 68) `np_finance/cli.py`.
+
+### Scope
+
+In scope: the split render (working queue plus paid archives by submission month), per-output budget validation, per-output admission during receipt preparation, publication of the archives in the Main Report Set, and the operator's live acceptance.
+
+Out of scope: re-encoding or downscaling receipt images (measured at only 2.4x smaller, so deferred); disk growth from immutable run folders (18 runs used 7.8 GB on 2026-11-09; existing pruning guidance applies); any change to the bundle or sidecar schema, copy text, payment recording, fingerprints or item-location boxes; splitting one month across several pages.
+
+### Impact Analysis
+
+Search root: `np_finance`, `scripts`, `tests` (excluding `__pycache__`), plus `docs/*.md`, `README.md` and `CLAUDE.md` for budget wording.
+
+| File or interface | Change | Reason | Verified evidence |
+|---|---|---|---|
+| `receipt_viewer.MAX_TOTAL_BYTES` | Becomes the per-output-file budget (rename allowed only with every consumer) | Budget applies per rendered page | receipt_viewer.py:32; tests/test_receipt_viewer.py:187-276; tests/test_receipt_pages.py:647-648 |
+| `receipt_viewer.load_receipts` | Validates each output's page set rather than the whole sidecar total | Sidecar total may exceed one file's budget | Consumers: reimbursement_report.py:1801, receipt_refresh.py:385 and 601, tests |
+| `receipt_viewer.headroom_bytes` | Replaced in the refresh by per-output headroom; runner staging guard switches in Step 72 | Whole-sidecar headroom causes the failure | Consumers: receipt_refresh.py:427, main_reports/runner.py:836, tests/test_receipt_refresh.py:216 and 299, tests/test_main_report_runner.py:1198 |
+| `reimbursement_report.build_report` | Split mode writes the working queue plus `<queue-stem>.paid-YYYY-MM.html`; `BuildResult` lists archive paths | New outputs | Callers: cli.py:1076 (report-reimbursements), cli.py:1218 (update-reimbursements), main_reports/render.py:2337, scripts/capture_readme.py:252 |
+| `render_html` and `reimbursement_queue.html.j2` | Working queue omits paid cards and receipt data and adds a text index; new archive template renders paid cards | Split | reimbursement_report.py:1640; template closed-cases section |
+| `receipt_refresh.refresh_receipts` | Per-output admission mode | Unblocks receipt preparation | Callers: cli.py:1198, main_reports/runner.py:715 and 1120 |
+| `render.OUTPUT_NAMES`, `_write_set`, pointer/index links; `runner` artifact check, `COMPATIBILITY_FILES` | Variable archive artifacts are staged, hashed, linked and copied | Archives are part of the set | render.py:117-135, 2265-2266, 2290-2380; runner.py:251-259, 884 |
+| Docs | Budget and output wording | Accuracy | `docs/receipt-viewer.md`, `docs/main-report-set.md`, `CLAUDE.md` mention 100 MiB; `docs/loading-receipts.md`, `README.md` describe outputs |
+
+`render_html` and `closed_tickets` have no consumers outside `reimbursement_report.py`, its template and tests.
+
+### New Components
+
+- `np_finance/reports/templates/reimbursement_paid_archive.html.j2`: one submission month's paid requests, reusing the queue's card macro and receipt viewer.
+- Per-output page-set accounting in `receipt_viewer.py` (functions, not a new module).
+
+### Design Decisions
+
+| Choice | Decision | Provenance | Rationale | Alternatives or unresolved state |
+|---|---|---|---|---|
+| Split basis | Working queue embeds only active requests and email follow-ups; paid requests move to archives | Operator, 2026-11-09 | 94.1 of 100.0 MiB is paid-request receipts | Calendar split of the whole queue (scatters open work); a higher limit (the 140 MB page is already slow); separate image files (breaks the self-contained private page and the immutable run copy) |
+| Archive grouping | Submission month (`Ticket.submitted`) | Operator, 2026-11-09 | Requesters know when they submitted | Payment month (rejected by the operator) |
+| Archive granularity | One page per month | Operator, 2026-11-09 | Busiest month about 32 MiB (about 3x headroom); July-September together about 56 MiB | Quarter |
+| Budget | 100 MiB of embedded page bytes per output file; 20 MiB per page unchanged | Agent default | Keeps tested bounds and browser load | A larger cap |
+| Archive updates | Every run re-renders archives deterministically; a month's page changes only when a request submitted that month is paid or corrected | Agent default (consequence of submission-month grouping) | Late payments land in older months; immutable run folders keep history | Freezing months (would hide late payments) |
+| Finding a paid request | Working queue lists every paid request as one text row (reference, requester, submitted date, amount, payment date) linking to its archive anchor; no images | Agent default | Browser search on the working queue finds any request, then one click opens its month | Month links only |
+| Follow-ups | All email follow-ups stay in the working queue | Operator ("plus email follow-ups") | Small (1.4 MiB) and actionable | Archive resolved follow-ups (future) |
+| File naming | `<queue-stem>.paid-YYYY-MM.html` beside the queue, relative links | Agent default | Works for CLI outputs, run folders and compatibility copies | A subfolder |
+| Over-budget month | Validate every output before replacing any file; fail closed naming the month | Agent default | Receipts are never silently dropped | Automatic month splitting (future) |
+| Refresh admission | A new page is admitted only if both the working-queue set and the request's submission-month set stay within budget | Agent default | Prevents a later archive overflow | Working-queue check only |
+| Transition | Steps 70-71 add explicit split/per-output modes that the two reimbursement commands select; the Main Report Set keeps today's single-file behavior until Step 72 switches it and removes the old modes | Agent default | Avoids editing CORE-BRIEFS files while Steps 66-68 are in flight; `update-reimbursements` gains the fix sooner | Build everything after Step 68 |
+| Copy text | Unchanged | Agent default | Derived from the bundle, not the HTML | none |
+
+### Build Steps
+
+### Step 70: Render paid requests into submission-month archive pages
+- **Problem:** The queue page embeds every receipt, so paid requests exhaust the 100 MiB page budget.
+- **Type:** code
+- **Issue:** #
+- **Flags:** --reviewers deep
+- **Files:** `np_finance/reimbursement_report.py`, `np_finance/receipt_viewer.py`, `np_finance/reports/templates/reimbursement_queue.html.j2`, `np_finance/reports/templates/reimbursement_paid_archive.html.j2` (new), `np_finance/cli.py` (report-reimbursements and update-reimbursements handlers only), `tests/test_reimbursement_report.py`, `tests/test_receipt_viewer.py`, `tests/test_reimbursement_cli.py`, `tests/test_reimbursement_pipeline.py`, `docs/loading-receipts.md`, `docs/receipt-viewer.md`
+- **Produces:** A split mode of `build_report`, selected by both reimbursement commands: the working queue embeds receipts only for active requests and follow-ups and lists each paid request as a linked text row; one archive page per submission month holds that month's paid cards and receipts; every output is budget-validated before any file is replaced; `BuildResult` lists the archives and the CLI prints them. The Main Report Set caller keeps single-file mode.
+- **Done when:** A real `report-reimbursements` CLI fixture run whose fictional sidecar totals more than the per-file budget, while each split output stays under it, writes the working queue and one archive per submission month of settled requests; every settled request appears on exactly one archive (its submission month) and as one working-queue text row whose link resolves to its card; the working queue embeds no page referenced only by settled requests; receipt dialogs open in Chromium on the working queue and on an archive; an archive whose pages exceed the budget fails with an error naming its month and leaves every existing output unchanged; the copy text equals `render_copy_text` for the same bundle; the Main Report Set tests pass unchanged.
+- **Depends on:** none (dispatch only when no concurrent build is editing `np_finance/cli.py`; CORE-BRIEFS Step 68 lists it)
+
+### Step 71: Admit new receipt pages against the budget of the output that embeds them
+- **Problem:** Receipt preparation refuses new pages once the whole sidecar reaches 100 MiB, even when the output that would show them has room.
+- **Type:** code
+- **Issue:** #
+- **Flags:** --reviewers deep
+- **Files:** `np_finance/receipt_refresh.py`, `np_finance/receipt_viewer.py`, `np_finance/cli.py` (update-reimbursements handler only), `tests/test_receipt_refresh.py`, `tests/test_receipt_viewer.py`, `tests/test_reimbursement_pipeline.py`, `docs/receipt-viewer.md`
+- **Produces:** A per-output admission mode for `refresh_receipts`, selected by `update-reimbursements`: a page is admitted only if the working-queue set and the request's submission-month archive set both stay within budget; refusals name the request and the full output; existing links never move or drop. The runner keeps whole-sidecar admission until Step 72.
+- **Done when:** A real `update-reimbursements` CLI fixture run with `[receipt_refresh]` configured and a sidecar above the per-file budget in total, but with room in the working queue, attaches the unlinked active request's page and renders every output within budget; when the target month's archive would exceed the budget, that page is refused with a review-needed detail naming the request and month while another eligible page still attaches; when no page can attach, the existing `receipts_failed` rule still stops before any output changes; existing receipt-refresh and runner tests pass unchanged.
+- **Depends on:** 70
+
+### Step 72: Publish the working queue and paid archives in the Main Report Set
+- **Problem:** `end-to-end-run` still publishes one queue file and stops at `receipts_failed` whenever receipt preparation is configured.
+- **Type:** code
+- **Issue:** #
+- **Flags:** --reviewers deep
+- **Files:** `np_finance/main_reports/render.py`, `np_finance/main_reports/runner.py`, `np_finance/main_reports/models.py` (only if the manifest needs a variable artifact list), `np_finance/reports/templates/main_reports/` (pointer and index), `np_finance/reimbursement_report.py` and `np_finance/receipt_refresh.py` (remove the single-file and whole-sidecar modes), `np_finance/cli.py`, `scripts/capture_readme.py`, `tests/test_main_report_render.py`, `tests/test_main_report_runner.py`, `tests/test_reimbursement_report.py`, `tests/test_receipt_refresh.py`, `docs/main-report-set.md`, `docs/receipt-viewer.md`, `README.md`, `CLAUDE.md`
+- **Produces:** `end-to-end-run` renders, validates, hashes and publishes the working queue plus every paid archive; the pointer and index link archives by submission month; compatibility copies include them; staging uses the per-output guard and preparation uses per-output admission; the transitional modes are removed from every caller; the documented temporary-config workaround is retired.
+- **Done when:** The real-component Chromium smoke `test_chromium_end_to_end_run_publishes_real_exports_within_the_bound`, extended with settled requests in two submission months and a sidecar above the per-file budget in total, publishes the working queue and both archives with manifest hashes, pointer/index links and compatibility copies, each within budget; a failure staging or validating any archive leaves the previous pointer and every compatibility copy unchanged; `--dry-run` writes nothing; a repository search finds no caller of the removed modes; `scripts/capture_readme.py` still produces its fictional output.
+- **Depends on:** 70, 71, 68
+
+### Step 73: Accept the split queue on the actual private queue
+- **Problem:** Fixture evidence does not show the actual queue linking receipts again under the ordinary command.
+- **Type:** operator
+- **Issue:** #
+- **Files:** Private config, bundle, sidecar and published outputs only; no public source changes
+- **Produces:** Private live-run observations and explicit acceptance or a bounded discrepancy list.
+- **Done when:** With the unmodified private config (receipt preparation enabled), the operator observes one `end-to-end-run --dry-run` and one ordinary `end-to-end-run` complete without `receipts_failed`; opens the working queue from `reports/output/main-report-set.html` and an open request's receipt; finds a paid request through its submission month and opens its receipt; confirms from the run record that every queue and archive output is within budget; and confirms that requests unlinked on 2026-11-09 are now linked or listed as review-needed, not refused for budget.
+- **Depends on:** 72
+
+### Risks and Open Questions
+
+| Item | Consequence | Mitigation / owner | Blocking state |
+|---|---|---|---|
+| CORE-BRIEFS Steps 66-68 edit the same Main Report Set files and `cli.py` | Merge conflicts or a red gate | Step 72 depends on 68; Steps 70-71 change only the reimbursement CLI handlers and must not run concurrently with Step 68 | Sequencing only |
+| Uncommitted baseline changes in the reimbursement report files | Step 70 would build on a moving base | Operator commits them before dispatch | Blocks Step 70 dispatch |
+| One submission month exceeds 100 MiB | That archive fails closed | Busiest month is about 32 MiB; deferred options are month splitting or image re-encoding | Not blocking |
+| A late payment changes an older month's archive | Page content changes after its month | Expected and documented; immutable run folders keep history | Not blocking |
+| Older archive files left beside a CLI output after a rename | Possible confusion | Only the current set is linked; nothing is deleted automatically; documented | Not blocking |
+| Interim before Step 72 | `end-to-end-run` still needs the temporary config without `[receipt_refresh]` | `update-reimbursements` produces the split queue after Steps 70-71 | Not blocking |
+| Run-folder disk growth | Disk use keeps rising | Out of scope; existing pruning guidance | Not blocking |
+
+### Testing Strategy
+
+Triggered obligations: compatibility (no bundle or sidecar migration; existing private inputs must render under the new code and the copy text stays identical; backout is a code revert, and prior run folders stay immutable); producer/consumer chain (the CLI fixture runs in Steps 70-71 and the real-component Chromium smoke in Step 72 exercise sidecar to render to publication with real components); one-shot CLI, so no autonomous or scheduled observation applies; no deployment seam (local CLI only; private config unchanged).
+
+Narrow tests exercise page-set partitioning by status and submission month, per-output budget arithmetic at the boundary, a shared page referenced from two outputs, an empty month, legacy `P-` submissions, settled tickets with declined lines, follow-up pages, admission refusals, and atomic all-or-nothing replacement. Integration goes through the production callers named in each step's acceptance. Verified command surfaces (`pyproject.toml`, CLI parser, existing test files):
+
+```powershell
+uv run pytest tests/test_reimbursement_report.py tests/test_receipt_viewer.py tests/test_receipt_refresh.py tests/test_receipt_pages.py tests/test_reimbursement_cli.py tests/test_reimbursement_pipeline.py -q
+uv run pytest tests/test_main_report_render.py tests/test_main_report_runner.py -q
+uv run ruff check np_finance tests
+uv run ruff format --check np_finance tests
+uv run mypy --strict np_finance
+uv run python scripts/check_no_identity.py
+```
+
+The gate that marks each step DONE runs the full suite; with the `web` extra installed it needs the Firestore emulator, or the gate record must name the emulator modules it could not collect. Step 73 manual checks, run separately so each result can be read:
+
+```powershell
+uv run np-finance end-to-end-run --as-of <YYYY-MM-DD> --dry-run
+```
+
+```powershell
+uv run np-finance end-to-end-run --as-of <YYYY-MM-DD>
+```
+
+Planning handoff order for this phase only: `/plan-review --autofix docs/plans/master_plan.md`, `/plan-redline --plan docs/plans/master_plan.md`, `/plan-wrap --autofix docs/plans/master_plan.md`, then `/repo-sync --plan docs/plans/master_plan.md` scoped to QUEUE-ARCHIVE, then `/build-phase --plan docs/plans/master_plan.md --phase QUEUE-ARCHIVE`. Step 73 remains attended.
+
 ## 11. Compute target
 
 Python3.12+/uv on Windows. Native statement/PDF LPAC and Tesseract5 require supported Windows and actual boundaries; portable image child supports Windows/Linux only. Chromium export needs explicitly installed browser. Shared integration uses local Firestore emulator and actual installed wheel; live Google evidence is separate. No private financial data enters a model service.
