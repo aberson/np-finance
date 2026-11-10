@@ -333,12 +333,18 @@ offline: it does not load `config.toml`, Google credentials, Gmail, or Sheets.
 
 Both `report-reimbursements` and `update-reimbursements` also write
 `reports/output/reimbursement-queue-breakdown.copy.txt`. With a custom `--output`, the text
-file is beside the HTML as `<output-stem>.copy.txt`. It contains `# Clarification` and
-`# Approved` sections, with six lines per block: ID, Name, Payment Info, Verification #,
-Category, Amount. Blocks use active requests only and subtotal matching items by status and
-category; a mixed request can appear in both sections. Settled requests and declined,
-unreviewed, or informational item lines are omitted. The labels follow the HTML's item
-recommendations, including recommendations whose live decision is still UNREVIEWED.
+file is beside the HTML as `<output-stem>.copy.txt`. It contains a `# Paid` section, one
+`# Clarification - <next step>` section per distinct recorded next action, and an
+`# Approved` section, with six lines per block: ID, Name, Payment Info, Verification #,
+Category, Amount. Paid lists settled requests whose recorded payment date falls in the 30 days
+ending on the as-of date, with their payment references; settled requests without a payment
+date, or paid earlier, are omitted. Clarification and Approved blocks use active requests and
+subtotal matching items by status and category; a mixed request can appear in both. An operator
+review's `action` text therefore names its clarification bucket (for example, a requester email
+already sent versus a question held for a board meeting); requests with the same action share a
+section, and the HTML shows the same grouping above the action index. Declined, unreviewed, or
+informational item lines are omitted. The labels follow the HTML's item recommendations,
+including recommendations whose live decision is still UNREVIEWED.
 
 Payment information and confirmation references come from the validated bundle. Missing
 values remain angle-bracket placeholders; check numbers are never invented. If any amount

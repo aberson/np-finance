@@ -6,6 +6,7 @@ import html
 import json
 import re
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -472,16 +473,21 @@ def test_build_report_writes_atomically_and_returns_result(tmp_path: Path) -> No
     ) == reimbursement_report.render_copy_text(reimbursement_report.load_bundle(data_path))
 
 
-def test_copy_text_splits_mixed_status_and_category_without_exporting_closed_cases(
+def test_copy_text_splits_mixed_status_and_category_and_lists_recent_payments(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "bundle.json"
     _write_bundle(path, _bundle())
     report = reimbursement_report.load_bundle(path)
     text = reimbursement_report.render_copy_text(report)
-    clarification, approved = text.split("# Approved\n\n")
-    assert "not payment authorization" in text
-    assert "NEW-02\nFictional Person 2\nCheck\n<Verification #>\nEquipment\n7.00" in clarification
+    head, rest = text.split("# Paid - payments dated 2026-07-06 to 2026-08-04\n\n")
+    paid, rest = rest.split("# Clarification - Complete the fictional next step\n\n")
+    clarification, approved = rest.split("# Approved\n\n")
+    assert "not payment authorization" in head
+    assert paid == "P-001\nFictional Person 4\nZelle\nFICTIONAL-CONFIRMATION\n<Category>\n20.00\n\n"
+    assert clarification == (
+        "NEW-02\nFictional Person 2\nCheck\n<Verification #>\nEquipment\n7.00\n\n"
+    )
     assert (
         "NEW-02\nFictional Person 2\nCheck\n<Verification #>\nClassroom Supplies\n5.00" in approved
     )
@@ -489,7 +495,95 @@ def test_copy_text_splits_mixed_status_and_category_without_exporting_closed_cas
         "NEW-01\nFictional Person 1\nZelle\n<Verification #>\nClassroom Supplies\n10.00" in approved
     )
     assert "NEW-03" not in text
-    assert "P-001" not in text
+
+
+def test_clarification_groups_follow_recorded_next_action_in_copy_text_and_html(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "bundle.json"
+    _write_bundle(path, _bundle())
+    report = reimbursement_report.load_bundle(path)
+    held = next(ticket for ticket in report.tickets if ticket.ref == "NEW-02")
+    item = held.items[1]
+    requester = replace(
+        held, review=replace(held.review, action="Email sent  to confirm\nthe amount")
+    )
+    board = replace(
+        held,
+        review_key="submission:v1:" + "e" * 64,
+        ref="NEW-05",
+        display_order=5,
+        requestor_name="Fictional Person 5",
+        items=(replace(item, item_key="e-1", source_amount=Decimal("4.25")),),
+        review=replace(held.review, action="Question for the board"),
+    )
+    second_requester = replace(
+        requester,
+        review_key="submission:v1:" + "f" * 64,
+        ref="NEW-06",
+        display_order=6,
+        requestor_name="Fictional Person 6",
+        items=(replace(item, item_key="f-1", source_amount=Decimal("1.50")),),
+    )
+    approved_only = next(ticket for ticket in report.tickets if ticket.ref == "NEW-01")
+    report = replace(report, tickets=(approved_only, requester, board, second_requester))
+
+    groups = report.clarification_groups
+    assert [(group.action, [ticket.ref for ticket in group.tickets]) for group in groups] == [
+        ("Email sent to confirm the amount", ["NEW-02", "NEW-06"]),
+        ("Question for the board", ["NEW-05"]),
+    ]
+    assert [group.total for group in groups] == [Decimal("8.50"), Decimal("4.25")]
+
+    text = reimbursement_report.render_copy_text(report)
+    requester_section = text.split("# Clarification - Email sent to confirm the amount\n\n")[1]
+    requester_section, board_section = requester_section.split(
+        "# Clarification - Question for the board\n\n"
+    )
+    assert "NEW-02\n" in requester_section and "NEW-06\n" in requester_section
+    assert board_section.split("# Approved")[0] == (
+        "NEW-05\nFictional Person 5\nCheck\n<Verification #>\nEquipment\n4.25\n\n"
+    )
+    assert text.count("# Clarification") == 2
+
+    rendered = reimbursement_report.render_html(report)
+    panel = rendered.split('id="clarification-groups"')[1].split("</section>")[0]
+    assert "2 groups" in panel
+    assert panel.index("Email sent to confirm the amount") < panel.index("Question for the board")
+    assert '<a href="#new-05">NEW-05</a>' in panel
+
+
+def test_copy_text_paid_window_is_thirty_days_and_lists_only_paid_lines(tmp_path: Path) -> None:
+    path = tmp_path / "bundle.json"
+    _write_bundle(path, _bundle())
+    report = reimbursement_report.load_bundle(path)
+    closed = next(ticket for ticket in report.tickets if ticket.ref == "P-001")
+    as_of = report.settings.as_of_date
+
+    def paid(ref: str, days_before: int | None) -> reimbursement_report.Ticket:
+        paid_on = None if days_before is None else as_of - timedelta(days=days_before)
+        return replace(
+            closed,
+            review_key=f"legacy:v1:{ref.lower()}",
+            ref=ref,
+            live=replace(closed.live, payment_date=paid_on),
+            items=(
+                closed.items[0],
+                replace(closed.items[0], item_key=f"{ref}-d", status="D"),
+            ),
+        )
+
+    window = (paid("P-010", 0), paid("P-011", 29), paid("P-012", 30), paid("P-013", None))
+    report = replace(report, tickets=window)
+    assert [ticket.ref for ticket in report.recently_paid] == ["P-010", "P-011"]
+    assert report.recently_paid_start == as_of - timedelta(days=29)
+
+    text = reimbursement_report.render_copy_text(report)
+    paid_section = text.split("# Paid - payments dated 2026-07-06 to 2026-08-04\n\n")[1]
+    paid_section = paid_section.split("# Clarification")[0]
+    assert paid_section.count("\n20.00") == 2
+    assert "P-012" not in text and "P-013" not in text
+    assert "# Clarification\n\n# Approved\n" in text
 
 
 def test_copy_text_totals_categories_preserves_unknowns_and_keeps_fields_on_one_line(

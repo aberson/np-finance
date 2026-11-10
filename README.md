@@ -147,7 +147,8 @@ Sheets or send email. Add `--fetch-since` to `update-reimbursements` to fetch ma
 Configure `[receipt_refresh]` to attach future receipt images and suggested red outlines during
 updates; uncertain matches remain visibly review-needed. See [receipt setup](docs/receipt-viewer.md).
 Both report commands also write `reports/output/reimbursement-queue-breakdown.copy.txt`,
-with copyable six-line blocks for active Approved and Clarification item subtotals.
+with copyable six-line blocks for payments recorded in the last 30 days and active Approved and
+Clarification item subtotals (Clarification is grouped by each request's recorded next step).
 These labels follow the report recommendations; they do not record a payment approval.
 
 </details>

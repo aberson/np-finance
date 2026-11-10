@@ -21,7 +21,7 @@ import re
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, NoReturn
@@ -51,6 +51,10 @@ STATUS_META: Mapping[str, tuple[str, str]] = {
     "Q": ("UNREVIEWED", "v-q"),
     "-": ("—", "v-n"),
 }
+
+# Settled tickets whose payment date falls in this many days ending on the as-of date are
+# listed under the copy text's Paid section (roughly one monthly board cycle).
+RECENTLY_PAID_WINDOW_DAYS = 30
 
 
 class ReimbursementReportError(ValueError):
@@ -332,6 +336,18 @@ class Appendix:
 
 
 @dataclass(frozen=True)
+class ClarificationGroup:
+    """Active tickets with clarification items that share one recorded next action."""
+
+    action: str
+    tickets: tuple[Ticket, ...]
+
+    @property
+    def total(self) -> Decimal:
+        return sum((ticket.amount_for("C") for ticket in self.tickets), Decimal("0.00"))
+
+
+@dataclass(frozen=True)
 class ReportSummary:
     review_rows: int
     active: int
@@ -374,6 +390,41 @@ class ReimbursementReport:
     @property
     def closed_tickets(self) -> tuple[Ticket, ...]:
         return tuple(ticket for ticket in self.tickets if ticket.is_closed)
+
+    @property
+    def clarification_groups(self) -> tuple[ClarificationGroup, ...]:
+        """Active tickets holding clarification items, grouped by their recorded next action.
+
+        Groups and their tickets keep display order, so an operator review's action text
+        (for example, a question awaiting a board decision) becomes a distinct bucket.
+        """
+
+        groups: dict[str, list[Ticket]] = {}
+        for ticket in self.active_tickets:
+            if any(item.status == "C" for item in ticket.items):
+                groups.setdefault(" ".join(ticket.review.action.split()), []).append(ticket)
+        return tuple(
+            ClarificationGroup(action=action, tickets=tuple(tickets))
+            for action, tickets in groups.items()
+        )
+
+    @property
+    def recently_paid_start(self) -> date:
+        """First payment date (inclusive) of the recently-paid window ending on the as-of date."""
+
+        return self.settings.as_of_date - timedelta(days=RECENTLY_PAID_WINDOW_DAYS - 1)
+
+    @property
+    def recently_paid(self) -> tuple[Ticket, ...]:
+        """Settled tickets with a recorded payment date inside the recently-paid window."""
+
+        start = self.recently_paid_start
+        return tuple(
+            ticket
+            for ticket in self.closed_tickets
+            if ticket.live.payment_date is not None
+            and start <= ticket.live.payment_date <= self.settings.as_of_date
+        )
 
     def events_for(self, review_key: str) -> tuple[TicketEvent, ...]:
         """Return the deterministic event history for one stable ticket key."""
@@ -1645,20 +1696,18 @@ def render_html(report: ReimbursementReport, *, receipts: Mapping[str, Any] | No
 
 
 def render_copy_text(report: ReimbursementReport) -> str:
-    """Six-line blocks of active A/C item subtotals, using the report's recommendations."""
+    """Six-line blocks of recent payments plus active C/A item subtotals.
+
+    Paid lists settled tickets paid inside the recently-paid window; Clarification is split
+    into one section per recorded next action; Approved follows the report recommendations.
+    """
 
     def line(value: str) -> str:
         return " ".join(value.split())
 
-    sections = [
-        f"As of {report.settings.as_of_date.isoformat()}. Active requests only.\n"
-        "Approved/Clarification are report recommendations, not payment authorization.\n"
-        "Each block: ID, Name, Payment Info, Verification #, Category, Amount.\n"
-        "Angle brackets mark missing information; amounts are subtotals by status/category."
-    ]
-    for status, heading in (("C", "Clarification"), ("A", "Approved")):
-        blocks = [f"# {heading}"]
-        for ticket in report.active_tickets:
+    def blocks(tickets: Sequence[Ticket], status: str) -> list[str]:
+        rendered: list[str] = []
+        for ticket in tickets:
             groups: dict[str, list[Decimal | None]] = {}
             for item in ticket.items:
                 if item.status == status:
@@ -1672,7 +1721,7 @@ def render_copy_text(report: ReimbursementReport) -> str:
                 reference = ticket.ref
                 if ticket.form_label:
                     reference += f" ({ticket.form_label})"
-                blocks.append(
+                rendered.append(
                     "\n".join(
                         (
                             line(reference),
@@ -1684,7 +1733,28 @@ def render_copy_text(report: ReimbursementReport) -> str:
                         )
                     )
                 )
-        sections.append("\n\n".join(blocks))
+        return rendered
+
+    as_of = report.settings.as_of_date.isoformat()
+    paid_start = report.recently_paid_start.isoformat()
+    sections = [
+        f"As of {as_of}. Active requests, plus payments dated {paid_start} to {as_of}.\n"
+        "Approved/Clarification are report recommendations, not payment authorization.\n"
+        "Clarification is grouped by each request's recorded next step.\n"
+        "Each block: ID, Name, Payment Info, Verification #, Category, Amount.\n"
+        "Angle brackets mark missing information; amounts are subtotals by status/category.",
+        "\n\n".join(
+            [f"# Paid - payments dated {paid_start} to {as_of}"] + blocks(report.recently_paid, "A")
+        ),
+    ]
+    clarification_groups = report.clarification_groups
+    if not clarification_groups:
+        sections.append("# Clarification")
+    for group in clarification_groups:
+        sections.append(
+            "\n\n".join([f"# Clarification - {line(group.action)}"] + blocks(group.tickets, "C"))
+        )
+    sections.append("\n\n".join(["# Approved"] + blocks(report.active_tickets, "A")))
     return "\n\n".join(sections) + "\n"
 
 

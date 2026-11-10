@@ -353,7 +353,11 @@ def test_end_to_end_refresh_writes_copy_text_from_real_mail(
     assert cli.main(args) == 0
     text = output.with_name("queue.copy.txt").read_text(encoding="utf-8")
     assert "Morgan Example\nCheck\n<Verification #>\nProgram Supplies\n12.50" in text
-    assert "Quinn Example" not in text
+    # The settled legacy fixture (paid 2030-09-02) is listed only under recent payments.
+    paid, active = text.split("# Clarification", 1)
+    assert "# Paid - payments dated 2030-08-12 to 2030-09-10" in paid
+    assert "Quinn Example" in paid
+    assert "Quinn Example" not in active
     before = (bundle.read_bytes(), output.read_bytes(), text)
     assert cli.main(args) == 0
     assert (

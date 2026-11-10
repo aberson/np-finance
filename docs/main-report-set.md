@@ -390,3 +390,26 @@ Validation covered 223 focused tests across the pipeline, report, receipt viewer
 refresh, and runner suites (including the added render test and updated browser/replay tests),
 strict package mypy, changed-file Ruff/format, identity, and whitespace checks. This is a
 focused correction, not a full-suite or financial-acceptance completion gate.
+
+### Operator payment batch and split clarification (2026-11-09)
+
+An operator-reported Zelle batch was recorded as audited `operator_payments` dated on the
+report date (actual transfer dates were not supplied, and the transfers were not yet on the
+bank tab). One request paid by two transfers was settled through the audited bundle correction
+used on 2026-10-28, keeping both references; three earlier operator reviews were superseded with
+their evidence and events retained in the private audit. The candidate replayed identically and
+left every unrelated ticket unchanged.
+
+Clarification now has distinct buckets named by each operator review's `action`: one for a
+requester email already sent and one for a question held for the board meeting. The copy text
+also lists payments dated in the 30 days ending on the as-of date (see
+[the copy-text contract](loading-receipts.md)).
+
+The ordinary run stopped at `receipts_failed`: the receipt sidecar's 100 MiB page budget is
+exhausted, so no still-unlinked item could attach new pages. Nothing published changed. The
+set was then published with receipt preparation disabled through a temporary private config
+that omitted only `[receipt_refresh]`; existing receipt links were kept and the still-unlinked
+items show "Receipt not linked". **Every later run with receipt preparation enabled will stop
+the same way until page budget is reclaimed or the budget policy changes.** All five reports
+published (15 artifacts validated, 16 compatibility copies refreshed); discrepancy/issue/coverage
+counts are 5,641 / 8 / 18. Financial acceptance remains open.
