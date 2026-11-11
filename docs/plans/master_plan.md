@@ -1619,7 +1619,7 @@ Calculation and display contract:
 - **Status:** PENDING
 - **Problem:** The treasurer's board-meeting notes are assembled by hand from several private files for each meeting, so their figures can drift from the published reports.
 - **Type:** code
-- **Issue:**
+- **Issue:** #125
 - **Flags:** --reviewers deep
 - **Files:** `np_finance/main_reports/planning.py`, `models.py`, `facts.py`, `render.py`, `runner.py`, `sources.py` (planning schema version 2 `treasurer_notes` block); `np_finance/reports/templates/main_reports/treasurer-notes.html.j2` (new); `config.example.toml`; `tests/test_main_report_planning.py`, `test_main_report_sources.py`, `test_main_report_facts.py`, `test_main_report_render.py`, `test_main_report_runner.py`, `tests/conftest.py`
 - **Produces:** The Treasurer Notes triplet in every run, placeholder and group validation, the month-end balance table and the reimbursement-queue table, with treasurer-notes audit facts.
