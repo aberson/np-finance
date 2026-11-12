@@ -4,7 +4,7 @@
 
 Reusable private finance reporting and reimbursement evidence, with independently scoped delivery tracks.
 
-Proposal: docs/plan-reference/cfo-main-report-set-proposal.html (current CORE-BRIEFS extension; earlier CFO proposal retained as history).
+Proposal: docs/plan-reference/cfo-main-report-set-proposal.html (Publication 8 covers QUEUE-ARCHIVE and APPROVED-LIST; the CORE-BRIEFS Publication 7 block and the earlier CFO proposal are retained below it).
 
 ## Source
 
@@ -1698,7 +1698,7 @@ Planning handoff order for this revision only: `/plan-review --autofix docs/plan
 **Status:** Steps 70-73 PENDING. Numeric IDs 70-73 are newly reserved; no existing step is renumbered.
 **Scope of dispatch and review:** QUEUE-ARCHIVE only, Steps 70-73. Never dispatch the entire master. CORE-BRIEFS Steps 66-68 are being built concurrently; see the sequencing rule under Risks.
 **Parent relationship:** Extends the shipped receipt viewer and configured receipt preparation (2026-10-21) and the Main Report Set publication (CFO Steps 57-62, 64). It does not change payment authorization, receipt fingerprints, item-location boxes, the bundle schema or the copy text.
-**Planning baseline:** `00177f369a82907da96d7c02a6dcbad744ec103e`, branch `main`, 2026-11-09, plus uncommitted operator-requested queue changes (clarification grouped by recorded next step; recent payments in the copy text) in `np_finance/reimbursement_report.py`, `np_finance/reports/templates/reimbursement_queue.html.j2`, `tests/test_reimbursement_report.py`, `tests/test_reimbursement_pipeline.py`, `README.md`, `docs/loading-receipts.md` and `docs/main-report-set.md`. Those changes must be committed before Step 70 is dispatched. Untracked `.build-step/` is unrelated and must be preserved.
+**Planning baseline:** `00177f369a82907da96d7c02a6dcbad744ec103e`, branch `main`, 2026-11-09, plus operator-requested queue changes (clarification grouped by recorded next step; recent payments in the copy text) in `np_finance/reimbursement_report.py`, `np_finance/reports/templates/reimbursement_queue.html.j2`, `tests/test_reimbursement_report.py`, `tests/test_reimbursement_pipeline.py`, `README.md`, `docs/loading-receipts.md` and `docs/main-report-set.md`. Those changes were committed in `973f7b5` (2026-11-09), so Step 70 builds on that commit or a later `main`. Untracked `.build-step/` is unrelated and must be preserved.
 
 ### What This Feature Does
 
@@ -1762,17 +1762,17 @@ Search root: `np_finance`, `scripts`, `tests` (excluding `__pycache__`), plus `d
 ### Step 70: Render paid requests into submission-month archive pages
 - **Problem:** The queue page embeds every receipt, so paid requests exhaust the 100 MiB page budget.
 - **Type:** code
-- **Issue:** #
+- **Issue:** #116
 - **Flags:** --reviewers deep
 - **Files:** `np_finance/reimbursement_report.py`, `np_finance/receipt_viewer.py`, `np_finance/reports/templates/reimbursement_queue.html.j2`, `np_finance/reports/templates/reimbursement_paid_archive.html.j2` (new), `np_finance/cli.py` (report-reimbursements and update-reimbursements handlers only), `tests/test_reimbursement_report.py`, `tests/test_receipt_viewer.py`, `tests/test_reimbursement_cli.py`, `tests/test_reimbursement_pipeline.py`, `docs/loading-receipts.md`, `docs/receipt-viewer.md`
 - **Produces:** A split mode of `build_report`, selected by both reimbursement commands: the working queue embeds receipts only for active requests and follow-ups and lists each paid request as a linked text row; one archive page per submission month holds that month's paid cards and receipts; every output is budget-validated before any file is replaced; `BuildResult` lists the archives and the CLI prints them. The Main Report Set caller keeps single-file mode.
 - **Done when:** A real `report-reimbursements` CLI fixture run whose fictional sidecar totals more than the per-file budget, while each split output stays under it, writes the working queue and one archive per submission month of settled requests; every settled request appears on exactly one archive (its submission month) and as one working-queue text row whose link resolves to its card; the working queue embeds no page referenced only by settled requests; receipt dialogs open in Chromium on the working queue and on an archive; an archive whose pages exceed the budget fails with an error naming its month and leaves every existing output unchanged; the copy text equals `render_copy_text` for the same bundle; the Main Report Set tests pass unchanged.
-- **Depends on:** none (dispatch only when no concurrent build is editing `np_finance/cli.py`; CORE-BRIEFS Step 68 lists it)
+- **Depends on:** none (dispatch only when no concurrent build is editing `np_finance/cli.py`; CORE-BRIEFS Step 68 lists it; never dispatch concurrently with APPROVED-LIST Steps 76-77, which also edit `np_finance/reimbursement_report.py` and `reimbursement_queue.html.j2`; D47 builds Steps 75-77 first)
 
 ### Step 71: Admit new receipt pages against the budget of the output that embeds them
 - **Problem:** Receipt preparation refuses new pages once the whole sidecar reaches 100 MiB, even when the output that would show them has room.
 - **Type:** code
-- **Issue:** #
+- **Issue:** #117
 - **Flags:** --reviewers deep
 - **Files:** `np_finance/receipt_refresh.py`, `np_finance/receipt_viewer.py`, `np_finance/cli.py` (update-reimbursements handler only), `tests/test_receipt_refresh.py`, `tests/test_receipt_viewer.py`, `tests/test_reimbursement_pipeline.py`, `docs/receipt-viewer.md`
 - **Produces:** A per-output admission mode for `refresh_receipts`, selected by `update-reimbursements`: a page is admitted only if the working-queue set and the request's submission-month archive set both stay within budget; refusals name the request and the full output; existing links never move or drop. The runner keeps whole-sidecar admission until Step 72.
@@ -1782,7 +1782,7 @@ Search root: `np_finance`, `scripts`, `tests` (excluding `__pycache__`), plus `d
 ### Step 72: Publish the working queue and paid archives in the Main Report Set
 - **Problem:** `end-to-end-run` still publishes one queue file and stops at `receipts_failed` whenever receipt preparation is configured.
 - **Type:** code
-- **Issue:** #
+- **Issue:** #118
 - **Flags:** --reviewers deep
 - **Files:** `np_finance/main_reports/render.py`, `np_finance/main_reports/runner.py`, `np_finance/main_reports/models.py` (only if the manifest needs a variable artifact list), `np_finance/reports/templates/main_reports/` (pointer and index), `np_finance/reimbursement_report.py` and `np_finance/receipt_refresh.py` (remove the single-file and whole-sidecar modes), `np_finance/cli.py`, `scripts/capture_readme.py`, `tests/test_main_report_render.py`, `tests/test_main_report_runner.py`, `tests/test_reimbursement_report.py`, `tests/test_receipt_refresh.py`, `docs/main-report-set.md`, `docs/receipt-viewer.md`, `README.md`, `CLAUDE.md`
 - **Produces:** `end-to-end-run` renders, validates, hashes and publishes the working queue plus every paid archive; the pointer and index link archives by submission month; compatibility copies include them; staging uses the per-output guard and preparation uses per-output admission; the transitional modes are removed from every caller; the documented temporary-config workaround is retired.
@@ -1792,7 +1792,7 @@ Search root: `np_finance`, `scripts`, `tests` (excluding `__pycache__`), plus `d
 ### Step 73: Accept the split queue on the actual private queue
 - **Problem:** Fixture evidence does not show the actual queue linking receipts again under the ordinary command.
 - **Type:** operator
-- **Issue:** #
+- **Issue:** #119
 - **Files:** Private config, bundle, sidecar and published outputs only; no public source changes
 - **Produces:** Private live-run observations and explicit acceptance or a bounded discrepancy list.
 - **Done when:** With the unmodified private config (receipt preparation enabled), the operator observes one `end-to-end-run --dry-run` and one ordinary `end-to-end-run` complete without `receipts_failed`; opens the working queue from `reports/output/main-report-set.html` and an open request's receipt; finds a paid request through its submission month and opens its receipt; confirms from the run record that every queue and archive output is within budget; and confirms that requests unlinked on 2026-11-09 are now linked or listed as review-needed, not refused for budget.
@@ -1803,7 +1803,8 @@ Search root: `np_finance`, `scripts`, `tests` (excluding `__pycache__`), plus `d
 | Item | Consequence | Mitigation / owner | Blocking state |
 |---|---|---|---|
 | CORE-BRIEFS Steps 66-68 edit the same Main Report Set files and `cli.py` | Merge conflicts or a red gate | Step 72 depends on 68; Steps 70-71 change only the reimbursement CLI handlers and must not run concurrently with Step 68 | Sequencing only |
-| Uncommitted baseline changes in the reimbursement report files | Step 70 would build on a moving base | Operator commits them before dispatch | Blocks Step 70 dispatch |
+| APPROVED-LIST Steps 76-77 edit `reimbursement_report.py` and the queue template, as do Steps 70 and 72 | Merge conflicts or a red gate | D47: Steps 75-77 build first; Steps 70 and 72 never run concurrently with Steps 76-77 | Sequencing only |
+| Uncommitted baseline changes in the reimbursement report files | Step 70 would build on a moving base | Committed in `973f7b5` (2026-11-09) | Resolved |
 | One submission month exceeds 100 MiB | That archive fails closed | Busiest month is about 32 MiB; deferred options are month splitting or image re-encoding | Not blocking |
 | A late payment changes an older month's archive | Page content changes after its month | Expected and documented; immutable run folders keep history | Not blocking |
 | Older archive files left beside a CLI output after a rename | Possible confusion | Only the current set is linked; nothing is deleted automatically; documented | Not blocking |
@@ -1836,6 +1837,176 @@ uv run np-finance end-to-end-run --as-of <YYYY-MM-DD>
 ```
 
 Planning handoff order for this phase only: `/plan-review --autofix docs/plans/master_plan.md`, `/plan-redline --plan docs/plans/master_plan.md`, `/plan-wrap --autofix docs/plans/master_plan.md`, then `/repo-sync --plan docs/plans/master_plan.md` scoped to QUEUE-ARCHIVE, then `/build-phase --plan docs/plans/master_plan.md --phase QUEUE-ARCHIVE`. Step 73 remains attended.
+
+## Phase APPROVED-LIST: Approved-list gate for reimbursement recommendations
+
+**Objective:** The ordinary `uv run np-finance update-reimbursements` and `end-to-end-run` read the operator-maintained approved list and hold every unreviewed request from a requester who is not on it for board review, so only listed requesters keep an automatic Approved recommendation.
+**Planning state:** REVIEW-READY for this phase only. No implementation or acceptance is claimed.
+**Status:** Steps 75-79 PENDING. Numeric IDs 75-79 are newly reserved; no existing step is renumbered.
+**Scope of dispatch and review:** APPROVED-LIST only, Steps 75-79. Never dispatch the entire master. QUEUE-ARCHIVE (Steps 70-73) and CORE-BRIEFS (Steps 65-69, 74) are planned or built concurrently; see the sequencing rows under Risks.
+**Parent relationship:** Extends the reimbursement refresh (`docs/plan-reference/reimbursement-refresh-contracts.md`; closeout #24) and the Main Report Set runner (CFO Steps 57-62). It amends one refresh non-goal, "A third Google Sheet tab", to allow one read-only list read (operator direction, 2026-11-11). It does not change payment authorization, operator reviews, secondary approval, payment lanes, receipt fingerprints or the copy-text format.
+**Planning baseline:** `52cf396`, branch `main`, 2026-11-11. The working tree also holds uncommitted CORE-BRIEFS plan edits owned by another session; they are not part of this phase. Untracked `.build-step/` is unrelated and must be preserved.
+
+### What This Feature Does
+
+The board wants oversight of who is reimbursed. The operator keeps an approved ("white") list in the main toolkit spreadsheet. A requester on the list may receive the Approved recommendation without further question; a requester who is not on it goes to Clarification for board review even when every purchase looks fine (operator, 2026-11-09 and 2026-11-11: "that's why we are doing this"). Today the rule is applied by hand: the automatic advice never consults the list, so an unreviewed request from an unlisted requester can show as Approved and count toward "Pay now".
+
+### Existing Context
+
+- The list: tab "Approved Reimbursees" in the toolkit's own spreadsheet (`[sheets] spreadsheet_id`, never the CFO workbook), created 2026-11-09 and operator-maintained since. Header: Name, Email, Role, Class, Grade, School Year, Status, Source, Added, Notes; one email per row (blank allowed); one person may have several rows. On 2026-11-11 it had 58 rows (36 room-parent rows from the school-year room-parent list and 22 teacher rows from the class roster; 8 teachers have no email yet). Its content is private and never committed.
+- Item status codes (`reimbursement_report.STATUS_META`, lines 47-52; item statuses are validated against `{A, C, D, Q}` at line 782): `A` Approved, `C` Clarification, `D` Decline, `Q` Unreviewed; `-` marks an informational row. "An A item" below means an item whose status is `A`.
+- Automatic advice: `reimbursement_pipeline._item_recommendation` (lines 405-451) emits only A or C; `_recommended_review` (454-497) sets the ticket review (automatic clarification action "Resolve specific evidence questions"); `_unreviewed_ticket` (500-531) runs only when a ticket is created, so existing tickets are never re-advised. Operator reviews from the private anchors file are re-applied on every refresh by `_build_supplemental_and_reduce` (1452-1466) through `_apply_operator_review` (1002-1037). `live.decision` leaves UNREVIEWED only through an operator review with `record_decision`, a secondary approval (971-999) or a payment.
+- Why automatic A matters: `Ticket.pay_now` (`reimbursement_report.py:266-270`) counts the approved items of any unpaid ticket regardless of `live.decision`; the copy text's `# Approved` section and the Main Report Set queue (`main_reports/facts.py:739`) use the same statuses.
+- Requester identity: the form's "Email:" field is `receipt_ingest.Submission.requestor_email` (`receipt_ingest.py:142`, parsed at 883). It is self-reported, may be blank, and is not carried into `EvidenceTicket` or the bundle; it already feeds `source_evidence_sha256` (pipeline 318, 351). Privacy-canary tests keep emails out of errors and summaries (`tests/test_reimbursement_pipeline.py:649, 879, 926`; `tests/test_reimbursement_cli.py:187`). Legacy `P-` tickets have no form email.
+- Bundle: strict schema-v2 loader in which every object is an exact key set (`reimbursement_report._object`, 493-511); the only optional-key precedent is `appendix.follow_ups` (1264-1266). The six packaged shared-workflow fixtures (`np_finance/shared_workflow/example-request*.json`) load through the same validator, and one is byte-pinned (`tests/test_shared_workflow_queue.py:91-95`).
+- Grouping: `ReimbursementReport.clarification_groups` (395-410) groups active tickets that have a C item by whitespace-normalized `review.action`. CORE-BRIEFS Step 74 consumes it and matches a group by its exact action text.
+- Sheets access: the pipeline is credential-free. `update-reimbursements` (`cli.py:1091-1223`) loads config but never builds a Sheets client, and its tests ban `cli.SheetsClient` (`tests/test_reimbursement_cli.py:153-157`). `report-reimbursements` is offline (`cli.py:1068-1081`; test at `tests/test_reimbursement_cli.py:160-192`). `main_reports.sources.connect_own_read_client` (2022-2045) already opens the toolkit's own spreadsheet with `READONLY_SCOPE` and the capture retry policy; runner tests assert that the scope set is exactly `{(READONLY_SCOPE,)}` (`tests/test_main_report_runner.py:389, 531, 574, 991`). The runner captures before it refreshes the bundle (`runner.py` `_build_run` 1176-1183; `_refresh_reimbursements` 700-728; `_dry_run` 1109-1137).
+
+### Scope
+
+In scope: one optional config key naming the list tab; a read-only read and strict parse of the list; deterministic matching; a persisted per-request list result; the hold on automatic Approved advice for unlisted requesters; queue display of each request's list status; the same behavior in `end-to-end-run`; operator live acceptance.
+
+Out of scope: writing any Sheet (the list stays operator-maintained); verifying a requester's identity beyond the self-reported form email and name; changing operator reviews, secondary approval, payments, closed requests or receipt data; emailing the board or requesters; Treasurer Notes question mapping (CORE-BRIEFS Step 74, another session); fuzzy or near-name matching.
+
+### Impact Analysis
+
+Search root: `np_finance`, `tests`, `scripts`, `deployment` and `docs` (excluding `__pycache__`).
+
+| File or interface | Change | Reason | Verified evidence |
+|---|---|---|---|
+| `config.Sheets` | Optional `approved_list_tab: str \| None = None` | Opt-in gate; absent means today's behavior | config.py:86-92, 342-358 (unknown `[sheets]` keys are currently ignored) |
+| `np_finance/approved_list.py` (new) | Parse, validate, digest and match the list; read it through `connect_own_read_client` | One owner for the list rules | sources.py:2022-2045 |
+| `reimbursement_pipeline.plan_bundle_refresh`, `refresh_bundle`, `merge_evidence_into_bundle` | New optional keyword `approved_list` (default `None`); records a per-ticket result and a provenance digest; `None` removes any earlier records | The pipeline stays credential-free | pipeline.py:1757-1888, 1931-1967. Callers: cli.py:1167, 1169; runner.py:711, 1115; tests through the shared `_refresh_kwargs` (test_reimbursement_pipeline.py:370-380) and monkeypatches (test_reimbursement_cli.py:219, 309, 408, 459, 523) |
+| `build_evidence_snapshot` / `EvidenceTicket` | Carries a digest of the normalized form email for every recognized original, taken before the received cutoff is applied | Identity key for matching | pipeline.py:62-78, 179-392 |
+| Bundle ticket and `provenance` objects | Optional `approved_list` keys with exact inner key sets; no schema-version bump | Fixtures and older bundles stay valid | report.py:653-676, 1190-1259, 1264-1266 |
+| `reimbursement_report` loader | Applies a recorded hold when it builds `Ticket` objects, so every consumer sees the same statuses | `pay_now`, copy text, groups, facts and render all read `Ticket` | report.py:266-270, 395-410, 1403-1418. Consumers: facts.py:645-670, 727-746; render.py:2221, 2337; receipt_refresh.py:377; shared_workflow/models.py:252 |
+| `cli._cmd_update_reimbursements` | Reads the list when configured; fails closed | Production caller | cli.py:1091-1223 |
+| `main_reports/runner.py` | Reads the list with the read-only client and passes it to the refresh and the dry run | Same rule in the ordinary run | runner.py:625-635, 700-728, 1109-1137 |
+| `reimbursement_queue.html.j2` | Per-request list status line and footer digest | Explains the hold | template 63-68 (ticket header), 120-125 (groups), 165 (provenance footer) |
+| Docs | Contract amendment, config example, operator guides | Accuracy | reimbursement-refresh-contracts.md:39-43; config.example.toml:23-29; docs/loading-receipts.md; docs/main-report-set.md; README.md; CLAUDE.md |
+
+`receipt_viewer.item_fingerprint` (receipt_viewer.py:39-54) excludes status and why, so held requests keep their receipt links. The runner's input hash already covers the bundle digest (runner.py:509-529), so `INPUT_COMPONENTS` and `KNOWN_INPUT_SET_SHA256` need no change.
+
+### New Components
+
+- `np_finance/approved_list.py`: `ApprovedList` (normalized approved rows plus a SHA-256 digest of the normalized content), `parse_approved_list(header, rows)`, `read_approved_list(config, *, gspread_client=None)`, `match_requester(...)` and a typed `ApprovedListError` with value-free messages.
+- `tests/test_approved_list.py`: fictional rows only.
+
+### Design Decisions
+
+| Choice | Decision | Provenance | Rationale | Alternatives or unresolved state |
+|---|---|---|---|---|
+| Rule | An unreviewed, active request whose requester is not on the list is held for board review; listed requesters keep their ordinary evidence advice | Operator, 2026-11-09 and 2026-11-11 | The board's oversight rule | none |
+| Source | The "Approved Reimbursees" tab in the toolkit's own spreadsheet, read read-only | Operator (tab); agent default (read-only) | The operator maintains it in Sheets; the toolkit never writes it | A private JSON file (a second copy to maintain) |
+| Opt-in | `[sheets] approved_list_tab`; absent means no gate and no records | Agent default | Generic toolkit; existing installs and tests unchanged | Always on |
+| Where it is read | `update-reimbursements` and `end-to-end-run` read it and pass a pure `ApprovedList` to the pipeline; `report-reimbursements` stays offline and renders the recorded results | Agent default | The pipeline stays credential-free and offline re-render stays deterministic | Reading inside the pipeline |
+| Failure | Configured but unreadable, a missing required column (Name, Email, Status), duplicate headers, a malformed email on an Approved row (a non-blank normalized Email that does not match `reimbursement_events._EMAIL_RE`, events.py:250), an Approved row whose School Year is neither blank nor `YYYY-YYYY` with consecutive years, or no Approved rows: the command fails before writing anything, with a value-free error. The list is read and validated before the optional `--fetch-since` mail fetch, so a list error writes no `.eml` either | Agent default | Never approve silently; never flood the queue because of a typo | Treat every requester as unlisted |
+| Rows that count | `Status` equal to `Approved` (trimmed, case-insensitive); `School Year` blank or equal (as `YYYY-YYYY`) to the request's school year from its submitted date and `[fiscal_year] start_month`; unknown columns ignored; an optional `Other Names` column (semicolon-separated) | Agent default | The operator can retire a row or a past year without deleting history | Ignore the school year |
+| Matching | (1) The casefolded form email equals an Approved row's email: on list, by email. (2) Otherwise the normalized full name (Unicode-folded, case-insensitive, punctuation and spacing collapsed) equals a row's Name or Other Name, and either the form has no email or that row has none: on list, by name. (3) A name match whose row email differs from a present form email: not on list ("name matches, email differs"). (4) Otherwise: not on list | Operator (near matches never approve, 2026-11-11); agent default (rules 2-3) | Email is the stronger key; name-only covers rows and legacy requests without an email | Name match regardless of email |
+| Identity record | Each request records only a SHA-256 of its normalized form email, taken from every recognized original in the source before the received cutoff; when an original is absent from a later source, the recorded digest is kept. Normalized means surrounding whitespace stripped, then casefolded; the digest is the lowercase hex SHA-256 of its UTF-8 bytes, and it is `null` when the form email is blank or the request has no recognized original (legacy `P-` requests). List emails are normalized the same way | Agent default | Matching survives cutoffs without putting raw emails in the bundle | Raw email in the bundle |
+| Persistence | Optional per-ticket `approved_list` = `{requester_email_sha256, status (ON_LIST or NOT_ON_LIST), basis (email, name, name_email_differs or none), entry, effect (HOLD or NONE)}` and optional provenance `approved_list` = `{list_sha256, approved_rows}`; every ticket carries the record exactly when the provenance key is present. `entry` is `<Role>, <Class> (<Grade>)` from the first matching row in sheet order, with blank parts and their punctuation omitted, and is empty when the status is NOT_ON_LIST. `list_sha256` is the lowercase hex SHA-256 of the UTF-8 canonical JSON (`sort_keys=True`, `separators=(",", ":")`, `ensure_ascii=False`) of the Approved rows in sheet order, each an object of its trimmed Name, Other Names, Email (normalized), Role, Class, Grade and School Year cells under the keys `name`, `other_names`, `email`, `role`, `class`, `grade` and `school_year`. `approved_rows` counts rows whose Status is Approved, before school-year scoping | Agent default | Optional keys keep fixtures and older bundles valid; all-or-nothing is checkable | Schema version 3 with a migration |
+| When the hold applies | The pipeline sets `effect` to HOLD only for NOT_ON_LIST requests that are ACTIVE, have `live.decision` UNREVIEWED and have no current operator review (`has_current_operator_override`, pipeline.py:1167-1172); it is recomputed on every refresh | Operator (operator reviews stay authoritative); agent default | Adding someone to the list releases the hold on the next refresh; closed requests are never reopened | Hold even after an operator review |
+| How the hold appears | Raw review and items keep the base advice. The loader turns each A item of a HOLD request into C (its why prefixed "Not on the approved list; held for board review."), sets the action to the fixed text `Board review: requester not on the approved list`, keeps the evidence asks and adds a board ask. D, Q and informational items are unchanged; a request without an A item is not regrouped | Agent default | One deterministic place; reversible without storing a second copy of the advice | Rewrite review and items in the pipeline and keep the base advice in the record |
+| Group text | The fixed action text above is one constant, shared with CORE-BRIEFS Step 74 | Agent default, coordinated with the CORE-BRIEFS session | Step 74 matches a group by exact action text | none |
+| Secondary approval | Approval proposals keep evaluating the base advice; a valid secondary approval sets the decision and ends the hold | Agent default | No change to the approval contract | Make proposals enumerate held items |
+| Record ownership | `reimbursement_report.py` defines the record key sets, the status, basis and effect values and the fixed action text once; `reimbursement_pipeline.py` and `approved_list.py` import them. `reimbursement_report.py` never imports `approved_list.py` or the pipeline, and `approved_list.read_approved_list` imports the Sheets client only inside the function | Agent default (plan review, 2026-11-11) | The shared-workflow image copies `reimbursement_report.py` with only `receipt_ingest.py` and `reimbursement_events.py` (`deployment/shared-workflow/source-manifest.txt`); one owner keeps the writer and the validator from drifting | Constants in `approved_list.py` (would break the image) |
+| Build order | Steps 75-77 build before QUEUE-ARCHIVE Step 70, which restructures `reimbursement_report.py` and the queue template (or strictly after it merges, never concurrently); Step 78 dispatches only when no other build is editing `runner.py` | Agent default (plan review, 2026-11-11) | The gate is the smaller change and the operator's stated purpose; one editor per shared file avoids conflicts | QUEUE-ARCHIVE Steps 70-72 first |
+
+### Build Steps
+
+### Step 75: Read and validate the configured approved list
+- **Problem:** `update-reimbursements` cannot see the approved list.
+- **Type:** code
+- **Issue:** #120
+- **Flags:** `--reviewers deep`
+- **Files:** `np_finance/approved_list.py` (new), `np_finance/config.py`, `np_finance/cli.py` (update-reimbursements handler only), `config.example.toml`, `tests/test_approved_list.py` (new), `tests/test_config.py`, `tests/test_reimbursement_cli.py`, `docs/plan-reference/reimbursement-refresh-contracts.md`
+- **Produces:** The optional `[sheets] approved_list_tab` key; `ApprovedList` parsing, validation and digest; a read through `connect_own_read_client`. `update-reimbursements` (including `--dry-run`) reads the configured list before the optional mail fetch and the refresh, prints only the approved-row count, and fails closed on any list error. The refresh contract records the read-only list read as an operator-authorized amendment.
+- **Done when:** A real `update-reimbursements` CLI fixture run with the key configured and a fake gspread client reads the fictional tab with scopes exactly `[READONLY_SCOPE]`, prints the approved-row count, never prints a list name or email, and produces the same bundle and HTML as a run without the key. Each list error (missing tab, missing required column, duplicate header, malformed email on an Approved row, no Approved rows) exits 1 with a value-free message and writes nothing, including no `.eml` when `--fetch-since` is given. With the key absent, the existing tests that ban `cli.SheetsClient` pass unchanged, and `report-reimbursements` still loads no config.
+- **Depends on:** none (dispatch only when no concurrent build is editing `np_finance/cli.py`)
+
+### Step 76: Hold unlisted requesters' requests for board review
+- **Problem:** Unreviewed requests from requesters who are not on the list still receive the automatic Approved recommendation.
+- **Type:** code
+- **Issue:** #121
+- **Flags:** `--reviewers deep`
+- **Files:** `np_finance/reimbursement_pipeline.py`, `np_finance/reimbursement_report.py`, `np_finance/approved_list.py`, `np_finance/cli.py` (update-reimbursements handler only), `tests/test_reimbursement_pipeline.py`, `tests/test_reimbursement_report.py`, `tests/test_reimbursement_cli.py`, `tests/test_approved_list.py`, `docs/loading-receipts.md`
+- **Produces:** The optional `approved_list` keyword on `plan_bundle_refresh` and `refresh_bundle`; email digests from every recognized original; per-ticket and provenance records with strict optional-key validation; the loader hold with the fixed action text; removal of every record when the keyword is `None`. The record key sets, the status, basis and effect values and the fixed action text are defined once in `reimbursement_report.py` and imported by `reimbursement_pipeline.py` and `approved_list.py`; a regression test asserts identity with `is`.
+- **Done when:** A real `update-reimbursements` CLI fixture run with a fictional list puts an unlisted requester's unreviewed request under `# Clarification - Board review: requester not on the approved list`, out of Pay now and out of `# Approved`. A listed requester's request keeps its evidence advice, and an exact-name, different-email request is held with basis `name_email_differs`. Requests with a current operator review or a non-UNREVIEWED decision, and every settled request, keep their statuses. Adding the requester to the list and refreshing again releases the hold, and refreshing with the key removed strips every record. A `plan_bundle_refresh` replay is identical, and `report-reimbursements` re-renders the same holds offline. The six packaged shared-workflow fixtures and an existing bundle without records load byte-identically with unchanged statuses. No email or name appears in any error or summary. `reimbursement_report.py` gains no new `np_finance` import, so `deployment/shared-workflow/source-manifest.txt` is unchanged.
+- **Depends on:** 75 (dispatch before QUEUE-ARCHIVE Step 70 or after it merges, never concurrently: both edit `np_finance/reimbursement_report.py`)
+
+<!-- autofix-applied: 2026-11-11 -->
+### Step 77: Show each request's approved-list status in the queue
+- **Problem:** The queue does not say why a request is held or which list entry covers a requester.
+- **Type:** code
+- **Issue:** #122
+- **Flags:** `--reviewers deep`
+- **Files:** `np_finance/reimbursement_report.py`, `np_finance/reports/templates/reimbursement_queue.html.j2`, `tests/test_reimbursement_report.py`, `docs/loading-receipts.md`, `README.md`
+- **Produces:** A line in each ticket header ("On approved list" with role, class and basis; "Not on approved list"; or "Not on approved list: name matches, email differs"), plus the list digest and approved-row count in the provenance footer; nothing is shown for bundles without records.
+- **Done when:** `report-reimbursements` on a fixture bundle with records renders each status line on the matching card and the footer digest, renders a bundle without records exactly as before, and leaves the copy text unchanged from Step 76.
+- **Depends on:** 76 (same rule for QUEUE-ARCHIVE Step 70, which also restructures `reimbursement_queue.html.j2`)
+
+### Step 78: Apply the approved list in the Main Report Set run
+- **Problem:** `end-to-end-run` refreshes the bundle without the approved list, so its queue would drop the holds.
+- **Type:** code
+- **Issue:** #123
+- **Flags:** `--reviewers deep`
+- **Files:** `np_finance/main_reports/runner.py`, `tests/test_main_report_runner.py`, `docs/main-report-set.md`, `CLAUDE.md`
+- **Produces:** The runner reads the configured list with the read-only client before its mail stage and passes it to `refresh_bundle` and to the dry run's `plan_bundle_refresh`; a list error stops the run before publication with the new value-free failure code `approved_list_failed` (added to `RUN_ERROR_CODES`, runner.py:144-167, with its unpacked constant beside `_REIMBURSEMENT_FAILED`) in `failed-runs/<run-id>.json`.
+- **Done when:** The runner's real CLI smoke with the key configured publishes a queue in which a fictional unlisted requester's request is held, while the recorded scope set stays exactly `{(READONLY_SCOPE,)}`. `--dry-run` reports the same holds and writes nothing. A malformed list leaves the pointer, every compatibility copy and the bundle unchanged and records the failure. With the key absent, every existing runner test passes unchanged.
+- **Depends on:** 76 (dispatch only when no concurrent build is editing `np_finance/main_reports/runner.py`; CORE-BRIEFS Step 68 and QUEUE-ARCHIVE Step 72 list it)
+
+### Step 79: Accept the approved-list gate on the actual queue
+- **Problem:** Fixture evidence does not show the actual list holding the right requests.
+- **Type:** operator
+- **Issue:** #124
+- **Files:** Private config, bundle and published outputs only; no public source changes
+- **Produces:** Private observations and explicit acceptance or a bounded discrepancy list.
+- **Done when:** With `approved_list_tab` added to the private config, the operator observes one `update-reimbursements --dry-run` (its approved-row count matches the tab) and one ordinary `update-reimbursements`. The operator compares every request's recorded list status with a re-run of the private, gitignored cross-check helper (`reports/output/.work/approved-reimbursees-20261109/whitelist.py`, `crosscheck` mode) and explains each difference, confirms that requests with operator reviews (including those approved on 2026-11-11) keep their statuses, and confirms that no listed requester is held and that every remaining hold is expected. The operator then observes one `end-to-end-run` showing the same holds, using the temporary receipt-preparation workaround recorded in `docs/main-report-set.md` § "Operator payment batch and split clarification (2026-11-09)" until QUEUE-ARCHIVE Step 72 lands.
+- **Depends on:** 77, 78
+
+### Risks and Open Questions
+
+| Item | Consequence | Mitigation / owner | Blocking state |
+|---|---|---|---|
+| The form email and name are self-reported | Someone could type a listed person's details | The gate is a board-oversight policy, not identity proof; payment still needs explicit approval through the existing lanes | Not blocking |
+| Requesters whose list row has no email match by name only | A spelling variant is held | The operator adds the email or an `Other Names` value; holds are visible and release on the next refresh | Not blocking |
+| CORE-BRIEFS Step 74 matches clarification groups by exact action text | A drifted action text would hide the hold group from Treasurer Notes | The fixed text is defined once in `reimbursement_report.py` (Step 76) and shared with the CORE-BRIEFS session; under D48 an absent group renders "No requests outstanding" plus a value-free `coverage_warnings` entry instead of failing the run | Coordination; not blocking this phase |
+| `np_finance/cli.py` and `np_finance/main_reports/runner.py` are also edited by QUEUE-ARCHIVE Steps 70-72 and CORE-BRIEFS Step 68; `np_finance/reimbursement_report.py` and `reimbursement_queue.html.j2` by QUEUE-ARCHIVE Step 70; CORE-BRIEFS Step 74 consumes `clarification_groups` | Merge conflicts, a red gate, or a Treasurer Notes group mismatch | Build Steps 75-77 before QUEUE-ARCHIVE Step 70 (or strictly after it merges); dispatch one editor of each file at a time; bring the branch up to date with `main` before each gate; keep the `clarification_groups` interface shape | Sequencing only |
+| Backout after records exist | A reverted strict loader rejects the optional keys | Remove `approved_list_tab` and run one refresh (which strips the records) before reverting code, or restore the pre-gate bundle backup | Not blocking |
+| Older bundles and packaged fixtures | Strict-loader regressions | Optional keys only; the fixtures stay byte-identical (Step 76 acceptance) | Not blocking |
+| Approval proposals evaluate the base advice | A proposal may not list held items as held | Documented; the hold is board-facing, and a valid secondary approval ends it | Not blocking |
+
+### Testing Strategy
+
+Triggered obligations: compatibility (optional keys and no schema-version bump; fixtures byte-identical; backout recorded under Risks); producer/consumer chain (real CLI fixture runs from the fake Sheet read through the pipeline, loader, HTML and copy text in Steps 75-77, and the runner's real CLI smoke in Step 78); one-shot CLI, so no autonomous or scheduled observation applies; a deployment seam (a new runtime-read config key and a live service-account read), observed in Step 79 against the live tab.
+
+Narrow tests, using fictional names and `example.org` emails only, cover header validation, the Status and School Year rules, normalization, each matching rule, digest stability, record strictness and the all-or-nothing invariant, the hold on mixed A/C/D/Q tickets, the fixed action text, release after a list change, and privacy canaries on every error path. Integration goes through the production callers named in each step's acceptance. Verified command surfaces (`pyproject.toml`, the CLI parser and existing test files; `tests/test_approved_list.py` becomes runnable in Step 75; the shared-workflow module needs the Firestore emulator when the `web` extra is installed; browser tests need `uv run playwright install chromium`; there is no build or packaging change):
+
+```powershell
+uv sync --extra dev --extra slides --extra receipts --extra reports --extra web
+uv run pytest tests/test_approved_list.py tests/test_config.py tests/test_reimbursement_cli.py tests/test_reimbursement_pipeline.py tests/test_reimbursement_report.py -q
+uv run pytest tests/test_main_report_runner.py tests/test_shared_workflow_queue.py -q
+uv run ruff check np_finance tests
+uv run ruff format --check np_finance tests
+uv run mypy --strict np_finance
+uv run python scripts/check_no_identity.py
+```
+
+The gate that marks each step DONE runs the full suite; with the `web` extra installed it needs the Firestore emulator, or the gate record must name the emulator modules it could not collect. Step 79 manual checks, run separately so each result can be read:
+
+```powershell
+uv run np-finance update-reimbursements --dry-run
+```
+
+```powershell
+uv run np-finance update-reimbursements
+```
+
+```powershell
+uv run np-finance end-to-end-run --as-of <YYYY-MM-DD>
+```
+
+Planning handoff order for this phase only: `/plan-review --autofix docs/plans/master_plan.md`, `/plan-redline --plan docs/plans/master_plan.md`, `/plan-wrap --autofix docs/plans/master_plan.md`, then `/repo-sync --plan docs/plans/master_plan.md` scoped to APPROVED-LIST, then `/build-phase --plan docs/plans/master_plan.md --phase APPROVED-LIST`. Step 79 remains attended.
 
 ## 11. Compute target
 
@@ -1920,6 +2091,38 @@ Approval: 2026-10-21. P entries preserve explicit user choices. D entries accept
 | D22 | D | Displayed parts tie to displayed totals through largest-remainder rounding; cents unchanged in facts. | stands |
 | D23 | D | Planning schema version 2 is additive: budget_snapshot.checking_floor and treasurer_notes.questions; version 1 stays valid. | stands |
 | D24 | D | Five code slices (65, 66, 67, 74, 68) then one attended acceptance (69); Treasurer Notes is Step 74 because QUEUE-ARCHIVE reserves 70-73; Step 74 builds on that phase's reimbursement_report.py commit (`973f7b5`). | stands |
+| P28 | P | Working queue embeds only active requests and email follow-ups; paid requests move to archive pages. | stands |
+| P29 | P | Archive pages group paid requests by submission month, not payment month. | stands |
+| P30 | P | One archive page per submission month. | stands |
+| P31 | P | Every email follow-up stays in the working queue. | stands |
+| D25 | D | 100 MiB of embedded receipt bytes per output file; 20 MiB per page unchanged. | stands |
+| D26 | D | Every run re-renders the archives deterministically; a month's page changes only when one of its requests is paid or corrected. | stands |
+| D27 | D | The working queue lists every paid request as one text row linking to its archive anchor, with no images. | stands |
+| D28 | D | Archive files are named `<queue-stem>.paid-YYYY-MM.html` beside the queue, with relative links. | stands |
+| D29 | D | Validate every output before replacing any file; an over-budget month fails closed and is named. | stands |
+| D30 | D | Receipt preparation admits a page only when the working queue and the request's month both stay within budget. | stands |
+| D31 | D | Steps 70-71 add explicit split modes for the reimbursement commands; Step 72 switches the Main Report Set and removes the old modes. | stands |
+| D32 | D | Copy text unchanged. | stands |
+| P32 | P | Unreviewed active requests from requesters not on the approved list go to Clarification for board review; listed requesters keep their ordinary advice. | stands |
+| P33 | P | The approved list is the operator-maintained "Approved Reimbursees" tab in the toolkit's own spreadsheet. | stands |
+| P34 | P | Near matches never approve. | stands |
+| P35 | P | After board review the operator can still approve an off-list requester; operator reviews stay authoritative. | stands |
+| P36 | P | The rule is enforced automatically during the ordinary refresh, not applied by hand. | stands |
+| D33 | D | The list is read with read-only access; the toolkit never writes it. | stands |
+| D34 | D | Opt-in through `[sheets] approved_list_tab`; absent means no gate and no records. | stands |
+| D35 | D | `update-reimbursements` and `end-to-end-run` read the list; `report-reimbursements` re-renders the recorded results offline. | stands |
+| D36 | D | Any list problem stops the command before it writes anything, including before the optional mail fetch. | stands |
+| D37 | D | Only Status Approved rows count; School Year blank or a matching `YYYY-YYYY`; optional Other Names column. | stands |
+| D38 | D | Name matching applies only when the form or the row has no email; the same name with a different email is held. | stands |
+| D39 | D | Requests store only a SHA-256 of the normalized form email, never the email. | stands |
+| D40 | D | Optional `approved_list` record keys with exact inner key sets; no schema-version bump. | stands |
+| D41 | D | `reimbursement_report.py` owns the record shape and the fixed action text; the shared-workflow image's source list is unchanged. | stands |
+| D42 | D | The hold is recomputed on every refresh and applies only to active, unreviewed requests without an operator review. | stands |
+| D43 | D | The loader shows a hold as Clarification with the fixed action text, keeping the base advice underneath. | stands |
+| D44 | D | The action text `Board review: requester not on the approved list` is one constant shared with CORE-BRIEFS Step 74. | stands |
+| D45 | D | Secondary approval keeps evaluating the base advice, and a valid approval ends the hold. | stands |
+| D46 | D | The queue shows each request's list status and the list's digest and approved-row count. | stands |
+| D47 | D | Build Steps 75-77 before QUEUE-ARCHIVE Step 70; one editor per shared file at a time. | stands |
 | D48 | D | CORE-BRIEFS: a Treasurer Notes question whose reimbursement group is absent from the staged bundle renders "No requests outstanding" plus a value-free run warning naming the question; it never fails the run (operator-approved 2026-11-11). | stands |
 
 ## Project naming migration
