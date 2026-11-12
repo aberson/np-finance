@@ -229,12 +229,25 @@ scripts/            identity guard, README screenshot capture and PowerPoint exp
   [docs/plan-reference/main-report-design.md](docs/plan-reference/main-report-design.md), is
   enforced by Chromium page-count tests. Audit detail appears as counts plus pointers to
   `records/*.json`. Source bindings match CFO tabs by NAME, so a CFO rename needs a config update.
+  An optional private `[main_reports.board_planning]` input (a versioned planning JSON plus
+  academic-ledger, prior-year-budget and balances bindings) is captured read-only, validated and
+  hashed into the run identity (CORE-BRIEFS Step 65); the outputs that consume it are still planned.
 - **Access:** Sheet/Drive access uses a Google **service account** (the Sheet + Drive folder are
   shared with its email); its JSON key is gitignored locally and supplied as a base64 GitHub
   Actions secret in CI. Optional Gmail fetching uses a separate OAuth Desktop-app client plus a
   user refresh token. Those Gmail credentials are also gitignored and deliberately never enter CI.
 
 ## 6. Current state
+
+**CORE-BRIEFS (2026-11-12):** Step 65 (planning-input capture) is DONE and committed. Step 66
+(Classroom Budgets) is BLOCKED: the operator stopped it after nine review rounds with one rule-9
+finding (the Issued tile on a missing or partial ledger) and four minor findings open. Nothing
+landed; the candidate is preserved unmerged in its build-step worktree, and decisions D49-D51 are
+recorded in the plan. Steps 67 (Budget Snapshot redesign), 74 (Treasurer Notes) and 68 remain
+pending; resume with a raised Step 66 round budget. The QUEUE-ARCHIVE and APPROVED-LIST phases are
+planned with issues #114-#124 and not started. One host-timing test
+(`tests/test_receipt_decode_budget.py`, jpeg-80mp anchor) fails on a busy host and was deferred to
+the phase-end gate by operator decision.
 
 **Same-day follow-up supersedes the mail blocker below:** read-only Gmail consent succeeded;
 all 138 listed October 1-28 messages are archived, and the ordinary October 23-28 fetch passed.

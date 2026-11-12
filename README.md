@@ -233,6 +233,13 @@ acceptance and the category crosswalk are still pending.
 
 **Receipt autofill is partially built:** Steps38-40 delivered the browser gate repair, bounded image normalization and allowlisted fetcher. Step41 remains blocked on timing-risk disposition and a quiet-host full-suite gate; automatic end-to-end filling and attended acceptance remain pending. The [master plan](docs/plans/master_plan.md) records those boundaries. The Phase10 action queue is paused during Step51; its [resume handoff](docs/phase10-build-handoff.md) preserves the unfinished work.
 
+**In progress — core board briefs:** `end-to-end-run` can capture an optional private planning
+input (roster, school-year ledger, balances) into the run identity, read-only. Classroom Budgets,
+the redesigned Budget Snapshot and Treasurer Notes are planned as ordinary outputs of the same run;
+the first, Classroom Budgets, is paused in review. Separately planned: a working reimbursement
+queue with paid archives by submission month, and an approved-requester gate. The
+[master plan](docs/plans/master_plan.md) tracks all three.
+
 **In progress:** turning the treasurer snapshot prototype into an automatic slide workflow.
 The [slide plan](docs/plans/master_plan.md) tracks the remaining work.
 
