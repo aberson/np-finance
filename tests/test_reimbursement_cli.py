@@ -10,18 +10,22 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
+import gspread
 import pytest
 from PIL import Image
 
 from np_finance import cli, receipt_assets, reimbursement_pipeline, reimbursement_report
 from np_finance.config import Config, ReceiptRefresh
+from np_finance.main_reports.sources import READONLY_SCOPE
 from tests.conftest import _FULL_CONFIG
+from tests.test_approved_list import LIST_GRID, LIST_TAB, ListClient, assert_value_free, list_client
 
 
 def _bundle() -> dict[str, object]:
@@ -553,3 +557,171 @@ def test_reimbursement_commands_stay_independent_of_the_main_report_set(
     assert not (tmp_path / "reports").exists()
     assert not (tmp_path / "main-report-set.html").exists()
     assert "Fictional Requester" not in capsys.readouterr().out
+
+
+# --- approved list (APPROVED-LIST Step 75) -------------------------------------------------
+
+_LIST_SUBMISSION = """Example Reimbursement Form got a new submission
+Requestor First and Last Name:
+Fictional Requester
+Email:
+fictional.requester@example.org
+1. Date:
+2026-08-01
+1. Event or Budget Category:
+Supplies
+1. Description:
+Fictional classroom supplies
+1. Amount:
+12.34
+Total Amount $:
+12.34
+Choose Payment Type:
+Check
+"""
+
+
+def _list_install(root: Path, *, with_list: bool) -> list[str]:
+    """A fictional install (one settled legacy ticket plus one new mailed submission).
+
+    Returns the ``update-reimbursements`` argv. The config is a real file, so the optional
+    ``[sheets] approved_list_tab`` key is parsed by the production loader.
+    """
+    root.mkdir()
+    value = _bundle()
+    ticket = value["tickets"][0]  # type: ignore[index]
+    ticket.update(review_key="legacy:v1:fictional-p-001", ref="P-001", origin="legacy")
+    ticket["items"][0]["item_key"] = "legacy:v1:fictional-p-001:line:1"
+    value["provenance"]["accounted_review_keys"] = []  # type: ignore[index]
+    value["source_summary"].update(  # type: ignore[attr-defined]
+        mapped_rows=0, mapped_submissions=0, mapped_total="0.00"
+    )
+    (root / "bundle.json").write_text(json.dumps(value), encoding="utf-8")
+    source = root / "mail"
+    source.mkdir()
+    message = EmailMessage()
+    message["Subject"] = "Example Reimbursement Form got a new submission"
+    message["From"] = "forms@example.org"
+    message["To"] = "treasurer@example.org"
+    message["Date"] = "Wed, 05 Aug 2026 09:00:00 -0700"
+    message["Message-ID"] = "<fictional-list-run@example.org>"
+    message.set_content(_LIST_SUBMISSION)
+    (source / "submission.eml").write_bytes(message.as_bytes())
+    (root / "category-map.csv").write_text(
+        "raw_category,canonical_category\nSupplies,Classroom Supplies\n", encoding="utf-8"
+    )
+    text = _FULL_CONFIG
+    if with_list:
+        line = 'drive_reports_folder_id = "fake-reports-folder-id"\n'
+        text = text.replace(line, line + f'approved_list_tab = "{LIST_TAB}"\n')
+    (root / "config.toml").write_text(text, encoding="utf-8")
+    return [
+        "update-reimbursements",
+        "--config",
+        str(root / "config.toml"),
+        "--source",
+        str(source),
+        "--category-map",
+        str(root / "category-map.csv"),
+        "--data",
+        str(root / "bundle.json"),
+        "--output",
+        str(root / "queue.html"),
+        "--received-since",
+        "2026-06-01",
+        "--as-of",
+        "2026-08-10",
+    ]
+
+
+def _outputs(root: Path) -> tuple[bytes, ...]:
+    return tuple(
+        (root / name).read_bytes() for name in ("bundle.json", "queue.html", "queue.copy.txt")
+    )
+
+
+def _serve_list(
+    monkeypatch: pytest.MonkeyPatch, grid: list[list[str]] | None = None, *, tab: str = LIST_TAB
+) -> list[tuple[str, ...]]:
+    """Route ``gspread.service_account`` to a fake own-spreadsheet; return the scope log."""
+    recorded: list[tuple[str, ...]] = []
+
+    def service_account(*, filename: str, scopes: Sequence[str]) -> ListClient:
+        recorded.append(tuple(scopes))
+        return list_client(grid, tab=tab)
+
+    monkeypatch.setattr(gspread, "service_account", service_account)
+    return recorded
+
+
+def test_update_reimbursements_reads_the_configured_list_without_changing_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _ban_google(monkeypatch)
+    monkeypatch.setattr(gspread, "service_account", _forbidden)
+    plain = _list_install(tmp_path / "unkeyed", with_list=False)
+    assert cli.main(plain) == 0
+    assert "approved list" not in capsys.readouterr().out
+
+    recorded = _serve_list(monkeypatch)
+    listed = _list_install(tmp_path / "keyed", with_list=True)
+    prior_bundle = (tmp_path / "keyed" / "bundle.json").read_bytes()
+    assert cli.main([*listed, "--dry-run"]) == 0
+    dry_stdout = capsys.readouterr().out
+    assert (tmp_path / "keyed" / "bundle.json").read_bytes() == prior_bundle
+    assert not (tmp_path / "keyed" / "queue.html").exists()
+    assert cli.main(listed) == 0
+    stdout = capsys.readouterr().out
+
+    assert recorded == [(READONLY_SCOPE,), (READONLY_SCOPE,)]
+    for text in (dry_stdout, stdout):
+        assert "update-reimbursements: approved list -> 2 approved row(s)" in text
+        assert_value_free(text)
+    assert _outputs(tmp_path / "keyed") == _outputs(tmp_path / "unkeyed")
+
+
+def _list_grid(row: int, column: int, value: str) -> list[list[str]]:
+    grid = [list(cells) for cells in LIST_GRID]
+    grid[row][column] = value
+    return grid
+
+
+@pytest.mark.parametrize(
+    ("grid", "tab", "message"),
+    [
+        pytest.param(None, "Another Tab", "tab was not found", id="missing-tab"),
+        pytest.param(_list_grid(0, 6, "State"), LIST_TAB, "column(s): Status", id="no-status"),
+        pytest.param(_list_grid(0, 8, "Email"), LIST_TAB, "duplicate", id="duplicate-header"),
+        pytest.param(_list_grid(1, 1, "Avery Listed"), LIST_TAB, "row 2", id="bad-email"),
+        pytest.param([LIST_GRID[0], LIST_GRID[3]], LIST_TAB, "no Approved", id="none-approved"),
+    ],
+)
+def test_update_reimbursements_list_errors_write_nothing_and_fetch_no_mail(
+    grid: list[list[str]] | None,
+    tab: str,
+    message: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _ban_google(monkeypatch)  # a mail fetch reached after a list error would raise here
+    monkeypatch.setattr(cli.reimbursement_pipeline, "refresh_bundle", _forbidden)
+    monkeypatch.setattr(cli.reimbursement_pipeline, "plan_bundle_refresh", _forbidden)
+    recorded = _serve_list(monkeypatch, grid, tab=tab)
+    argv = _list_install(tmp_path / "install", with_list=True)
+    prior_bundle = (tmp_path / "install" / "bundle.json").read_bytes()
+
+    rc = cli.main([*argv, "--fetch-since", "2026-08-01"])
+
+    stdout = capsys.readouterr().out
+    assert rc == 1
+    assert recorded == [(READONLY_SCOPE,)]
+    assert "update-reimbursements: approved list check failed: " in stdout
+    assert message in stdout
+    assert_value_free(stdout)
+    assert (tmp_path / "install" / "bundle.json").read_bytes() == prior_bundle
+    assert sorted(path.name for path in (tmp_path / "install" / "mail").iterdir()) == [
+        "submission.eml"
+    ]
+    assert not (tmp_path / "install" / "queue.html").exists()
+    assert not (tmp_path / "install" / "queue.copy.txt").exists()

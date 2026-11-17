@@ -34,6 +34,7 @@ from typing import Any
 
 from np_finance import (
     analytics,
+    approved_list,
     backup,
     budget_import,
     budget_sync,
@@ -1093,7 +1094,10 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
 
     The convenience command deliberately stops at private local artifacts.  It never sends mail
     and never writes either Google Sheet tab; ``map-receipts --write-tab`` retains that separate,
-    explicit permission boundary.
+    explicit permission boundary.  When ``[sheets] approved_list_tab`` is configured, the list is
+    read once through the read-only client and validated BEFORE the optional mail fetch and the
+    refresh, so a list error writes nothing (no ``.eml``, bundle or HTML).  Only the approved-row
+    count is printed.
     """
     if args.fetch_since is None and any(
         value is not None for value in (args.fetch_until, args.fetch_query, args.fetch_limit)
@@ -1120,6 +1124,16 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
         if source.exists() and not source.is_dir():
             print("update-reimbursements: the combined fetch source must be a directory")
             return 1
+
+    try:
+        approved = approved_list.read_approved_list(config)
+    except approved_list.ApprovedListError as exc:
+        print(f"update-reimbursements: approved list check failed: {exc}")
+        return 1
+    if approved is not None:
+        print(f"update-reimbursements: approved list -> {approved.approved_rows} approved row(s)")
+
+    if args.fetch_since is not None:
         try:
             if service is None:
                 if gmail_source.needs_consent(config):

@@ -90,6 +90,9 @@ class Sheets:
     drive_receipts_folder_id: str
     drive_reports_folder_id: str
     budget_tab_template: str = "FY{fy} Budget"
+    # Optional: the approved-list tab in this spreadsheet (read-only; see ``approved_list``).
+    # ``None`` keeps every command unchanged and never opens a Sheets client for it.
+    approved_list_tab: str | None = None
 
 
 @dataclass(frozen=True)
@@ -355,6 +358,11 @@ def load_config(path: Path) -> Config:
             _require_str(sheets_s, "budget_tab_template", "sheets.budget_tab_template")
             if "budget_tab_template" in sheets_s
             else "FY{fy} Budget"
+        ),
+        approved_list_tab=(
+            _require_str(sheets_s, "approved_list_tab", "sheets.approved_list_tab")
+            if "approved_list_tab" in sheets_s
+            else None
         ),
     )
 

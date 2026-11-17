@@ -21,6 +21,7 @@ from typing import Any, NoReturn
 from np_finance import receipt_ingest
 
 __all__ = [
+    "EMAIL_RE",
     "AnchorConfig",
     "DirectLink",
     "OperatorReview",
@@ -247,7 +248,8 @@ _APPROVAL_MODIFIER_RE = re.compile(
     r"|\b(?:do[-\s]+not|subject[-\s]+to)\b|\bnot\b|\b[a-z]+n['’]t\b",
     re.IGNORECASE,
 )
-_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+$")
+# The mailbox-address shape (public: ``approved_list`` validates list emails with it).
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+$")
 
 
 def _fail(message: str) -> NoReturn:
@@ -308,7 +310,7 @@ def _message_id(value: Any, *, label: str) -> str:
 def _actor_addresses(value: Any, *, label: str) -> tuple[str, ...]:
     raw = _strings(value, label=label)
     normalized = tuple(address.casefold() for address in raw)
-    if any(not _EMAIL_RE.fullmatch(address) for address in normalized):
+    if any(not EMAIL_RE.fullmatch(address) for address in normalized):
         _fail(f"{label} must contain mailbox addresses")
     if tuple(sorted(normalized)) != normalized:
         _fail(f"{label} must contain unique sorted mailbox addresses")

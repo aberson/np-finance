@@ -23,6 +23,10 @@ labels = ["K", "1", "2", "3", "4", "5"]
 [sheets]
 # Optional editable source tab for sync-budget; {fy} is replaced with the fiscal year.
 # budget_tab_template = "FY{fy} - Editable Internal Budget"
+# Optional approved-list gate: a tab in this spreadsheet listing approved reimbursement
+# requesters (columns Name, Email, Status; optional Other Names, Role, Class, Grade, School
+# Year). update-reimbursements reads it read-only before any mail fetch; omit to disable.
+# approved_list_tab = "Approved Reimbursees"
 spreadsheet_id           = "<google-spreadsheet-id>"
 test_spreadsheet_id      = "<throwaway-test-sheet-id>"     # for `check`
 drive_receipts_folder_id = "<google-drive-folder-id>"

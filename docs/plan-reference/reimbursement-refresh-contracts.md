@@ -37,7 +37,8 @@ In scope:
 Out of scope:
 
 - Sending email, initiating payment, or making unscoped policy decisions automatically.
-- A third Google Sheet tab.
+- A third Google Sheet tab (amended 2026-11-11: one read-only approved-list read; see the
+  approved-list read amendment below).
 - Hidden or unattended Sheet writes.
 - Gmail credentials in CI or scheduled mailbox ingestion.
 - Automatic model calls. Any future semantic suggestion layer must be optional and operator-gated.
@@ -89,6 +90,24 @@ blanks the `email_context` the generated-single grammar is bound to, so a bundle
 live operator review cannot replay on the next refresh; the frozen v1 lane records against the
 source total while the loader validates the reviewed-effective total; and v1 non-Zelle or
 discrepancy histories cannot replay under v2 despite the reproducibility promise above.
+
+### 2026-11-11 approved-list read amendment (operator-authorized)
+
+Operator direction (2026-11-11) amends the out-of-scope item "A third Google Sheet tab" to allow
+exactly one read-only list read; every other non-goal, including hidden or unattended Sheet
+writes, stands. When the optional private `[sheets] approved_list_tab` key names a tab in the
+toolkit's own spreadsheet (never the CFO workbook), `update-reimbursements`, including
+`--dry-run`, reads that tab once through
+`np_finance.main_reports.sources.connect_own_read_client` (scope exactly
+`spreadsheets.readonly`) and validates it with `np_finance.approved_list` before the optional
+`--fetch-since` mail fetch and the refresh. It prints only the approved-row count. Any list
+error (unreadable or missing tab, a missing Name, Email or Status column, a duplicate header, a
+malformed email or School Year on an Approved row, or no Approved rows) exits 1 with a
+value-free message before any `.eml`, bundle or HTML is written. With the key absent nothing
+changes: no Sheets client is created, and `report-reimbursements` stays offline and loads no
+config. Nothing is ever written to the list. Using the list in the bundle (per-request records
+and the board-review hold) is APPROVED-LIST Steps 76-78 of the
+[master](../plans/master_plan.md), not this amendment.
 
 ## 4. Impact Analysis
 

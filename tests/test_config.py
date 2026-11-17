@@ -112,6 +112,20 @@ def test_absolute_sa_path_preserved(tmp_path: Path) -> None:
     assert cfg.google.service_account_path == abs_path
 
 
+def test_approved_list_tab_is_optional_and_must_be_nonblank_when_present(tmp_path: Path) -> None:
+    assert load_config(_write(tmp_path, _FULL_CONFIG)).sheets.approved_list_tab is None
+    sheets_line = 'drive_reports_folder_id = "fake-reports-folder-id"\n'
+    configured = _FULL_CONFIG.replace(
+        sheets_line, sheets_line + 'approved_list_tab = "Example Approved List"\n'
+    )
+    assert load_config(_write(tmp_path, configured)).sheets.approved_list_tab == (
+        "Example Approved List"
+    )
+    with pytest.raises(ConfigError) as exc_info:
+        load_config(_write(tmp_path, configured.replace('"Example Approved List"', '""')))
+    assert exc_info.value.field == "sheets.approved_list_tab"
+
+
 def test_optional_receipt_refresh_resolves_private_paths(tmp_path: Path) -> None:
     text = (
         _FULL_CONFIG
