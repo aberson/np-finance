@@ -1855,7 +1855,7 @@ Planning handoff order for this phase only: `/plan-review --autofix docs/plans/m
 
 **Objective:** The ordinary `uv run np-finance update-reimbursements` and `end-to-end-run` read the operator-maintained approved list and hold every unreviewed request from a requester who is not on it for board review, so only listed requesters keep an automatic Approved recommendation.
 **Planning state:** REVIEW-READY for this phase only. No implementation or acceptance is claimed.
-**Status:** Steps 75-79 PENDING. Numeric IDs 75-79 are newly reserved; no existing step is renumbered.
+**Status:** Step 75 DONE (2026-11-17, b45dac4; build-step PASS, deep review PASS). Steps 76-79 PENDING; order per D52. Numeric IDs 75-79 are newly reserved; no existing step is renumbered.
 **Scope of dispatch and review:** APPROVED-LIST only, Steps 75-79. Never dispatch the entire master. QUEUE-ARCHIVE (Steps 70-73) and CORE-BRIEFS (Steps 65-69, 74) are planned or built concurrently; see the sequencing rows under Risks.
 **Parent relationship:** Extends the reimbursement refresh (`docs/plan-reference/reimbursement-refresh-contracts.md`; closeout #24) and the Main Report Set runner (CFO Steps 57-62). It amends one refresh non-goal, "A third Google Sheet tab", to allow one read-only list read (operator direction, 2026-11-11). It does not change payment authorization, operator reviews, secondary approval, payment lanes, receipt fingerprints or the copy-text format.
 **Planning baseline:** `52cf396`, branch `main`, 2026-11-11. The working tree also holds uncommitted CORE-BRIEFS plan edits owned by another session; they are not part of this phase. Untracked `.build-step/` is unrelated and must be preserved.
