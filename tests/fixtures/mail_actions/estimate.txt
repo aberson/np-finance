@@ -1,0 +1,19 @@
+From: Planning Lead <planning@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Fri, 18 Sep 2026 09:00:00 -0700
+Message-ID: <estimate-1@example.test>
+Subject: Planning tracker estimate
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="sample-boundary"
+
+--sample-boundary
+Content-Type: text/plain; charset=utf-8
+
+Could you add this estimate to the budget planning tracker? The spreadsheet has the proposed estimates.
+--sample-boundary
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="fictional-estimate.xlsx"
+Content-Transfer-Encoding: base64
+
+ZmljdGlvbmFs
+--sample-boundary--

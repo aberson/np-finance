@@ -1,0 +1,8 @@
+From: A Volunteer <volunteer@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Tue, 15 Sep 2026 10:00:00 -0700
+Message-ID: <purchase-1@example.test>
+Subject: Equipment wish-list approval before purchase
+Content-Type: text/plain; charset=utf-8
+
+Could you approve the attached equipment wish-list before we buy the items? We need permission to purchase the listed supplies.

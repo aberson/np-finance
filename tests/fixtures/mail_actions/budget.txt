@@ -1,0 +1,8 @@
+From: Budget Lead <budget@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Thu, 17 Sep 2026 12:00:00 -0700
+Message-ID: <budget-1@example.test>
+Subject: Re: Board allocation
+Content-Type: text/plain; charset=utf-8
+
+Please record the board-adopted allocation and update the internal and public budget sheets to reflect it.

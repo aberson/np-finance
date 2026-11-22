@@ -1,0 +1,8 @@
+From: Volunteer <volunteer@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Sun, 20 Sep 2026 11:00:00 -0700
+Message-ID: <reimbursement-1@example.test>
+Subject: Reimbursement request
+Content-Type: text/plain; charset=utf-8
+
+Please reimburse the supplies I already bought. The receipt is attached to the reimbursement form.

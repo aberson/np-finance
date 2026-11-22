@@ -1,0 +1,8 @@
+From: Member <member@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Mon, 21 Sep 2026 11:00:00 -0700
+Message-ID: <ack-1@example.test>
+Subject: Re: Budget allocation
+Content-Type: text/plain; charset=utf-8
+
+Thanks for the update. The board voted on the budget allocation.

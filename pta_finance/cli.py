@@ -39,6 +39,7 @@ from pta_finance import (
     etl,
     gmail_source,
     ids,
+    mail_actions,
     models,
     receipt_ingest,
     receipt_map,
@@ -50,6 +51,23 @@ from pta_finance import (
 )
 from pta_finance.config import Config, load_config
 from pta_finance.sheets import SheetsClient
+
+
+def _cmd_update_actions(args: argparse.Namespace) -> int:
+    """Refresh the private local proposal inventory (the HTML stage follows in Step 53)."""
+    try:
+        summary = mail_actions.refresh_actions(
+            Path(args.source), Path(args.data), args.received_since, dry_run=args.dry_run
+        )
+    except (OSError, ValueError) as exc:
+        print(f"update-actions: refresh failed: {exc}")
+        return 1
+    print(
+        f"update-actions: {summary['new']} new, {summary['proposed']} proposed, "
+        f"{summary['uncategorized']} uncategorized, {summary['quarantined']} quarantined; "
+        f"data -> {args.data}" + (" [dry-run]" if args.dry_run else "")
+    )
+    return 0
 
 
 def _load(args: argparse.Namespace) -> Config:
@@ -1629,6 +1647,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="private HTML output (default: reports/output/reimbursement-queue-breakdown.html)",
     )
     p_reimbursement_report.set_defaults(func=_cmd_report_reimbursements)
+
+    p_actions = sub.add_parser(
+        "update-actions", help="scan a local mail archive into a private action proposal inventory"
+    )
+    p_actions.add_argument(
+        "--source", default="mail_samples", help="local .eml/.mbox archive (default: mail_samples)"
+    )
+    action_received = p_actions.add_mutually_exclusive_group()
+    action_received.add_argument(
+        "--received-since",
+        type=_received_since_arg,
+        metavar="YYYY-MM-DD",
+        help="inclusive email Date-header cutoff",
+    )
+    action_received.add_argument(
+        "--all-received", action="store_true", help="scan all received dates (the default)"
+    )
+    p_actions.add_argument(
+        "--data",
+        default="reports/output/mail-actions.json",
+        help="private generated inventory (default: reports/output/mail-actions.json)",
+    )
+    p_actions.add_argument(
+        "--decisions",
+        default="reports/output/mail-action-decisions.json",
+        help="reserved private operator decisions path for the next build step",
+    )
+    p_actions.add_argument(
+        "--output",
+        default="reports/output/mail-action-queue.html",
+        help="reserved private HTML report path for the report build step",
+    )
+    p_actions.add_argument(
+        "--reimbursements-data",
+        default="reports/output/reimbursement-report.json",
+        help="reserved private reimbursement bundle path for exact ticket relations",
+    )
+    p_actions.add_argument(
+        "--dry-run", action="store_true", help="validate and count without writing"
+    )
+    p_actions.set_defaults(func=_cmd_update_actions)
 
     p_reimbursement_update = sub.add_parser(
         "update-reimbursements",

@@ -1,0 +1,13 @@
+From: A Volunteer <volunteer@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Wed, 16 Sep 2026 10:00:00 -0700
+Message-ID: <purchase-reply@example.test>
+In-Reply-To: <purchase-1@example.test>
+References: <purchase-1@example.test>
+Subject: Re: Equipment wish-list approval before purchase
+Content-Type: text/plain; charset=utf-8
+
+Thanks, I will await a response.
+
+On Tue, Sep 15, 2026 at 10:00 AM Volunteer wrote:
+> Could you approve the equipment wish-list before we buy?

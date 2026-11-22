@@ -1,0 +1,8 @@
+From: Events Lead <events@example.test>
+To: Treasurer <treasurer@example.test>
+Date: Sat, 19 Sep 2026 11:00:00 -0700
+Message-ID: <unrelated-1@example.test>
+Subject: Meeting link
+Content-Type: text/plain; charset=utf-8
+
+Here is the link for the next committee meeting.
