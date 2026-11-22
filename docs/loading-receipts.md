@@ -342,7 +342,7 @@ date, or paid earlier, are omitted. Clarification and Approved blocks use active
 subtotal matching items by status and category; a mixed request can appear in both. An operator
 review's `action` text therefore names its clarification bucket (for example, a requester email
 already sent versus a question held for a board meeting); requests with the same action share a
-section, and the HTML shows the same grouping above the action index. Declined, unreviewed, or
+section. A request whose clarification items total $0.00 gets no section. Declined, unreviewed, or
 informational item lines are omitted. The labels follow the HTML's item recommendations,
 including recommendations whose live decision is still UNREVIEWED.
 

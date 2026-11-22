@@ -397,15 +397,30 @@ class ReimbursementReport:
 
         Groups and their tickets keep display order, so an operator review's action text
         (for example, a question awaiting a board decision) becomes a distinct bucket.
+        A ticket whose clarification items total $0.00 holds nothing and joins no group; a
+        clarification item with an unknown amount still counts, since its amount is the fact
+        that remains.
         """
 
         groups: dict[str, list[Ticket]] = {}
         for ticket in self.active_tickets:
-            if any(item.status == "C" for item in ticket.items):
+            unknown = any(
+                item.status == "C" and item.effective_amount is None for item in ticket.items
+            )
+            if unknown or ticket.amount_for("C") != Decimal("0.00"):
                 groups.setdefault(" ".join(ticket.review.action.split()), []).append(ticket)
         return tuple(
             ClarificationGroup(action=action, tickets=tuple(tickets))
             for action, tickets in groups.items()
+        )
+
+    @property
+    def ordered_follow_ups(self) -> tuple[FollowUpCase, ...]:
+        """Follow-up cases with OPEN ones first, keeping recorded order within each status."""
+
+        follow_ups = self.appendix.follow_ups
+        return tuple(case for case in follow_ups if case.status == "OPEN") + tuple(
+            case for case in follow_ups if case.status != "OPEN"
         )
 
     @property

@@ -525,8 +525,17 @@ def test_clarification_groups_follow_recorded_next_action_in_copy_text_and_html(
         requestor_name="Fictional Person 6",
         items=(replace(item, item_key="f-1", source_amount=Decimal("1.50")),),
     )
+    zero_held = replace(
+        held,
+        review_key="submission:v1:" + "d" * 64,
+        ref="NEW-07",
+        display_order=7,
+        requestor_name="Fictional Person 7",
+        items=(replace(item, item_key="d-1", source_amount=Decimal("0.00")),),
+        review=replace(held.review, action="Held at zero"),
+    )
     approved_only = next(ticket for ticket in report.tickets if ticket.ref == "NEW-01")
-    report = replace(report, tickets=(approved_only, requester, board, second_requester))
+    report = replace(report, tickets=(approved_only, requester, board, second_requester, zero_held))
 
     groups = report.clarification_groups
     assert [(group.action, [ticket.ref for ticket in group.tickets]) for group in groups] == [
@@ -545,12 +554,57 @@ def test_clarification_groups_follow_recorded_next_action_in_copy_text_and_html(
         "NEW-05\nFictional Person 5\nCheck\n<Verification #>\nEquipment\n4.25\n\n"
     )
     assert text.count("# Clarification") == 2
+    assert "Held at zero" not in text and "NEW-07" not in text
 
     rendered = reimbursement_report.render_html(report)
-    panel = rendered.split('id="clarification-groups"')[1].split("</section>")[0]
-    assert "2 groups" in panel
-    assert panel.index("Email sent to confirm the amount") < panel.index("Question for the board")
-    assert '<a href="#new-05">NEW-05</a>' in panel
+    assert 'id="clarification-groups"' not in rendered
+    assert "Clarification, by next step" not in rendered
+
+
+def test_queue_top_follows_layout_and_lists_open_follow_ups_first(tmp_path: Path) -> None:
+    path = tmp_path / "bundle.json"
+    _write_bundle(path, _bundle())
+    report = reimbursement_report.load_bundle(path)
+    cases = tuple(
+        reimbursement_report.FollowUpCase(
+            key=key,
+            title=f"Example follow-up {key}",
+            status=status,
+            summary="Fictional summary",
+            next_action="Fictional next action",
+            evidence=(),
+            page_ids=(),
+        )
+        for key, status in (
+            ("done-a", "DONE"),
+            ("open-a", "OPEN"),
+            ("done-b", "DONE"),
+            ("open-b", "OPEN"),
+        )
+    )
+    report = replace(report, appendix=replace(report.appendix, follow_ups=cases))
+    rendered = reimbursement_report.render_html(report)
+
+    markers = [
+        '<section class="current-state">',
+        '<div class="score">',
+        '<div class="legend">',
+        'id="action-index"',
+        'id="follow-up-index"',
+        'id="follow-ups"',
+    ]
+    positions = [rendered.index(marker) for marker in markers]
+    assert positions == sorted(positions)
+    top = rendered[positions[0] : positions[1]]
+    assert "follow-up" not in top and "Clarification" not in top
+
+    expected = ["open-a", "open-b", "done-a", "done-b"]
+    index = rendered[positions[4] : positions[5]]
+    section = rendered[positions[5] :]
+    assert re.findall(r'href="#follow-up-([a-z-]+)"', index) == expected
+    assert re.findall(r'id="follow-up-([a-z-]+)"', section) == expected
+    assert '<table class="ix">' in index and "<ul>" not in index
+    assert ".ix-id a,.cap a{color:inherit;text-decoration:none}" in rendered
 
 
 def test_copy_text_paid_window_is_thirty_days_and_lists_only_paid_lines(tmp_path: Path) -> None:
