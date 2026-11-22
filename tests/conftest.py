@@ -900,6 +900,139 @@ def planning_document(
     }
 
 
+# A fictional Classroom Budgets world for the fixture school year 2030-31 (FY2031, as of
+# Aug 15 2030): two teachers, one of them with two classes, and an academic ledger whose
+# rows exercise every attribution path. Labels, payees and references are fictional.
+CLASSROOM_CATEGORY = "Classroom Supplies"
+CLASSROOM_FISCAL_YEAR = 2031
+CLASSROOM_SHARED = "Example shared rug"
+CLASSROOM_CHECK = "Example check reimbursement"
+CLASSROOM_LEDGER_ROWS = [
+    PLANNING_LEDGER_HEADER,
+    [
+        "7/20/2030",
+        "Example art supplies",
+        "-60.00",
+        CLASSROOM_CATEGORY,
+        "2031",
+        "",
+        "Example Payee A",
+    ],
+    [
+        "6/25/2030",
+        "Example prepaid workbooks",
+        "-30.00",
+        CLASSROOM_CATEGORY,
+        "2031",
+        "",
+        "Example Payee B",
+    ],
+    ["8/1/2030", CLASSROOM_SHARED, "-90.00", CLASSROOM_CATEGORY, "2031", "EX-CHK-3001", ""],
+    ["8/5/2030", "Example unassigned supplies", "-12.50", CLASSROOM_CATEGORY, "2031", "", ""],
+    ["7/12/2030", CLASSROOM_CHECK, "-20.00", CLASSROOM_CATEGORY, "2031", "2001", ""],
+    ["8/10/2030", "Example field trip bus", "-200.00", "Field Trips", "2031", "", ""],
+    [
+        "8/20/2030",
+        "Example later supplies",
+        "-15.00",
+        CLASSROOM_CATEGORY,
+        "2031",
+        "",
+        "Example Payee A",
+    ],
+    [
+        "7/5/2030",
+        "Example prior-year carryover",
+        "-20.00",
+        CLASSROOM_CATEGORY,
+        "2030",
+        "",
+        "Example Payee A",
+    ],
+]
+
+
+def classroom_class(
+    class_id: str, teacher: str, students: int | None, rate: str | None = "5.00", **fields: Any
+) -> dict[str, Any]:
+    """One fictional roster class of the 2030-31 school year."""
+    return {
+        "class_id": class_id,
+        "teacher_label": teacher,
+        "student_count": students,
+        "per_student_amount": rate,
+        "effective_start": fields.pop("effective_start", "2030-08-01"),
+        "effective_end": fields.pop("effective_end", "2031-06-30"),
+        "eligible": fields.pop("eligible", True),
+    }
+
+
+CLASSROOM_CLASSES = [
+    classroom_class("class-a", "Example Teacher A", 20),
+    classroom_class("class-b", "Example Teacher B", 18),
+    classroom_class("class-c", "Example Teacher B", 12),
+]
+
+
+def classroom_document(
+    *,
+    classes: Sequence[Mapping[str, Any]] = CLASSROOM_CLASSES,
+    payment_allocations: Sequence[Mapping[str, Any]] = (),
+    period_allocations: Sequence[Mapping[str, Any]] = (),
+    roster_complete: bool = True,
+) -> dict[str, Any]:
+    """A fictional planning input for FY2031 binding :data:`CLASSROOM_LEDGER_ROWS`.
+
+    Two exact payee aliases (A, B), "Classroom Supplies" as the one classroom category and
+    "Field Trips" as another declared expense category.
+    """
+    document = planning_document(classroom_category=CLASSROOM_CATEGORY)
+    document.update(
+        fiscal_year=CLASSROOM_FISCAL_YEAR,
+        prior_fiscal_year=CLASSROOM_FISCAL_YEAR - 1,
+        roster_complete=roster_complete,
+        roster_as_of="2030-08-01",
+        classes=[dict(item) for item in classes],
+        payee_aliases=[
+            {"source_payee": "Example Payee A", "class_id": "class-a"},
+            {"source_payee": "Example Payee B", "class_id": "class-b"},
+        ],
+        payment_allocations=[dict(item) for item in payment_allocations],
+        period_allocations=[dict(item) for item in period_allocations],
+    )
+    document["category_roles"].append(
+        {"source_category": "Field Trips", "role": "expense", "budget_category": "Field Trips"}
+    )
+    prior = planning_binding(document, "prior_year_budget")
+    prior["columns"]["fiscal_year"] = {"constant": CLASSROOM_FISCAL_YEAR - 1}
+    prior.update(coverage_start="2029-07-01", coverage_end="2030-06-30")
+    planning_binding(document, "academic_ledger").update(
+        coverage_start="2030-06-01", coverage_end="2030-08-15"
+    )
+    return document
+
+
+def enable_planning(
+    config_path: Path,
+    harness: CfoHarness,
+    document: Mapping[str, Any],
+    *,
+    ledger: Sequence[Sequence[str]] = CLASSROOM_LEDGER_ROWS,
+) -> Path:
+    """Configure ``[main_reports.board_planning]`` beside ``config_path``, add the bound tabs to
+    ``harness`` and return the private input's path (rewrite it to change the input)."""
+    path = config_path.parent / PLANNING_INPUT
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document), encoding="utf-8")
+    config_path.write_text(config_path.read_text("utf-8") + PLANNING_TOML, encoding="utf-8")
+    harness.add_tab("Example Balances", PLANNING_BALANCES_ROWS, sheet_id=3001)
+    harness.add_tab("Example Prior Budget", PLANNING_PRIOR_ROWS, sheet_id=3002)
+    harness.add_tab(
+        "Example Academic Ledger", [list(row) for row in ledger], sheet_id=3003, own=True
+    )
+    return path
+
+
 def planning_binding(document: Mapping[str, Any], role: str) -> dict[str, Any]:
     """The one binding of ``document`` for ``role`` (a mutable reference into it)."""
     (binding,) = [item for item in document["bindings"] if item["role"] == role]
@@ -1376,6 +1509,69 @@ def _bundle_payload() -> dict[str, Any]:
     }
 
 
+def classroom_purchases(
+    payload: dict[str, Any], count: int, *, description: str = "Example classroom purchase"
+) -> dict[str, Any]:
+    """Add ``count`` paid fictional classroom requests: one approved, dated item each, paid on
+    Aug 2 2030 with an exact recorded reference ``EX-PAY-<n>`` that no ledger row carries."""
+    supplemental = payload["supplemental"]
+    for index in range(count):
+        order = 700 + index
+        ticket = _ticket(
+            order,
+            f"P-{order}",
+            "legacy",
+            "2030-07-25",
+            [
+                _item(
+                    f"p-{order}:line:1",
+                    1,
+                    f"2030-07-{10 + index % 18:02d}",
+                    f"{40 + index * 11}.00",
+                    "A",
+                    "Classroom Supplies",
+                )
+            ],
+            status="A",
+            decision="APPROVED",
+        )
+        ticket["items"][0]["source_description"] = f"{description} {index + 1}"
+        ticket["source_evidence_sha256"] = hashlib.sha256(f"ticket-{order}".encode()).hexdigest()
+        payload["tickets"].append(ticket)
+        evidence, event = _payment_records(
+            ticket["review_key"], "2030-08-02", f"{40 + index * 11}.00", f"EX-PAY-{order}", "0"
+        )
+        digest = hashlib.sha256(f"payment-{order}".encode()).hexdigest()
+        evidence.update(
+            evidence_key=f"operator-payment:v1:{digest}",
+            top_authored_sha256=digest,
+            evidence_sha256=digest,
+        )
+        _seal(evidence)
+        event.update(
+            event_key="event:v1:"
+            + hashlib.sha256(
+                f"{evidence['evidence_key']}\0{ticket['review_key']}\0PAYMENT_RECORDED".encode()
+            ).hexdigest(),
+            evidence_key=evidence["evidence_key"],
+            evidence_sha256=digest,
+        )
+        _seal(event)
+        ticket["live"] = {
+            "workflow_state": "SETTLED",
+            "decision": "APPROVED",
+            "payment_status": "PAID",
+            "payment_date": "2030-08-02",
+            "confirmations": [f"Reference EX-PAY-{order}; amount ${40 + index * 11}.00"],
+        }
+        ticket["archive_note"] = "Fictional archive note."
+        supplemental["evidence"].append(evidence)
+        supplemental["events"].append(event)
+    supplemental["evidence"].sort(key=lambda item: item["evidence_key"])
+    supplemental["events"].sort(key=lambda item: item["event_key"])
+    return payload
+
+
 # --------------------------------------------------------------------------------------
 # Production-path scenario
 # --------------------------------------------------------------------------------------
@@ -1393,8 +1589,12 @@ class Scenario:
         start_month: int = 7,
         sources: str = "",
         bundle: dict[str, Any] | None = None,
+        planning: Mapping[str, Any] | None = None,
+        planning_ledger: Sequence[Sequence[str]] = CLASSROOM_LEDGER_ROWS,
         **sheets: Any,
     ) -> None:
+        """``planning`` configures that fictional board-planning input (see
+        :func:`enable_planning`); ``self.planning_path`` is then its private file."""
         self.tmp_path = tmp_path
         self.config = _config(
             tmp_path,
@@ -1404,6 +1604,14 @@ class Scenario:
             sources=sources,
         )
         self.harness = _harness(self.config, **sheets)
+        self.planning_path: Path | None = None
+        if planning is not None:
+            config_path = tmp_path / "config.toml"
+            self.planning_path = enable_planning(
+                config_path, self.harness, planning, ledger=planning_ledger
+            )
+            self.config = load_config(config_path)
+            self.harness.config = self.config
         self.bundle_path = tmp_path / "reports" / "output" / "reimbursement-report.json"
         self.bundle_path.parent.mkdir(parents=True, exist_ok=True)
         self.bundle_path.write_text(
@@ -1453,6 +1661,7 @@ class Scenario:
             "periods": reporting_periods(AS_OF, 7),
             "captures": capture_set.captures,
             "crosswalk": self.config.main_reports.crosswalk,
+            "planning": capture_set.planning,
         }
         arguments.update(changes)
         result = build(

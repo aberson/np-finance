@@ -75,7 +75,12 @@ from tests.conftest import (
     require_chromium,
 )
 
-FAKE_PDF = b"%PDF-1.4\n% fictional export stand-in\n"
+# A minimal one-page portrait Letter structure: the page-count gate reads it as it
+# reads Chromium's output.
+FAKE_PDF = (
+    b"%PDF-1.4\n1 0 obj << /Type /Page /MediaBox [0 0 612 792] >> endobj\n"
+    b"% fictional export stand-in\n"
+)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 FIRST_REQUEST = "<example-runner-request-1@example.invalid>"
 SECOND_REQUEST = "<example-runner-request-2@example.invalid>"
@@ -381,8 +386,9 @@ def test_cli_smoke_publishes_the_complete_set_within_the_bound(
     for name, alias in runner.COMPATIBILITY_FILES:
         assert (world.output / alias).read_bytes() == (run_dir / name).read_bytes()
     stdout = capsys.readouterr().out
-    assert "15 file(s) validated" in stdout
-    assert "16 refreshed, 0 not refreshed (complete refresh)" in stdout
+    assert f"{len(render.OUTPUT_NAMES)} file(s) validated" in stdout
+    copies = len(runner.COMPATIBILITY_FILES)
+    assert f"{copies} refreshed, 0 not refreshed (complete refresh)" in stdout
     assert manifest["alias_refresh_state"] == "complete"
     # No CFO workbook write, and only read-only clients were requested.
     world.harness.assert_no_writes()
@@ -1154,7 +1160,8 @@ def test_alias_failure_is_explicit_and_keeps_the_new_pointer(
     assert not list(world.output.glob(f".{blocked}.*.tmp"))
     stdout = capsys.readouterr().out
     assert manifest["alias_refresh_state"] == "partial"
-    assert "15 refreshed, 1 not refreshed (partial refresh)" in stdout
+    copies = len(runner.COMPATIBILITY_FILES)
+    assert f"{copies - 1} refreshed, 1 not refreshed (partial refresh)" in stdout
     assert f"not refreshed: {blocked}" in stdout
 
 

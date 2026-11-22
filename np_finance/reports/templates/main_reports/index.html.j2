@@ -3,7 +3,7 @@
 {% block scope %}<p class="scope"><strong>{{ page.period.label }} · through {{ page.period.through }}</strong> · every report below was rendered from the same captured input set</p>{% endblock %}
 {% block content %}
   <section class="section" id="reports">
-    {{ m.section_heading('The five reports', 'HTML for reading; PDF and PNG are exports of the same page') }}
+    {{ m.section_heading('The ' ~ page.report_count ~ ' reports', 'HTML for reading; PDF and PNG are exports of the same page') }}
     <div class="reports">{% for link in links %}<article class="report"><h3><a href="{{ link.html }}">{{ link.title }}</a></h3><p>{{ link.period }}</p><p class="links"><a href="{{ link.html }}">HTML</a>{% for label, href in link.extras %}<a href="{{ href }}">{{ label }}</a>{% endfor %}</p></article>{% endfor %}</div>
   </section>
 

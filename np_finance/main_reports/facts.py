@@ -48,6 +48,11 @@ argument from one capture set, the adjusted ledger, the bundle and the config.
   (crosswalk configured, category mapped, coverage complete), otherwise unknown with a
   reason. Processor gross/fee/refund/net count each movement once and stay separate from,
   never added to, the bank view.
+* **Classroom Budgets.** The optional board-planning capture of the same input set becomes
+  the ``classroom`` section (:func:`np_finance.main_reports.planning.classroom_facts`):
+  enrollment-times-rate allocations, school-year posted payments attributed only by exact
+  mappings, and the review bundle's issued-but-unposted payments and larger purchases. No
+  planning input yields an explicitly unavailable section, never an invented allocation.
 * **Bridges.** Every scope, adjustment, window, recognition and payment difference is a
   :class:`~np_finance.main_reports.models.Bridge` whose rows link to source refs,
   adjustment IDs or item keys; residuals are computed, never forced to zero.
@@ -67,6 +72,7 @@ from decimal import Decimal
 
 from np_finance import report_source
 from np_finance.config import CategoryCrosswalk, Config
+from np_finance.main_reports import planning as board_planning
 from np_finance.main_reports.adjustments import read_journal, require_publishable
 from np_finance.main_reports.models import (
     ALLOCATION_ORIGINS,
@@ -93,6 +99,7 @@ from np_finance.main_reports.models import (
     FundraisingTotals,
     PaymentJoin,
     Period,
+    PlanningCapture,
     PnlView,
     QueueEntry,
     Reconciliation,
@@ -1242,12 +1249,16 @@ def build(
     *,
     captures: Sequence[SourceCapture],
     crosswalk: CategoryCrosswalk | None,
+    planning: PlanningCapture | None,
 ) -> ReportFacts:
     """Project one adjusted ledger, reimbursement bundle and adopted budget into facts (pure).
 
     ``captures`` are the source captures of the same input set (declared coverage evidence);
     ``crosswalk`` is the configured versioned crosswalk, which must be the one the
-    reconciliation applied (``None`` only when it applied none). Raises
+    reconciliation applied (``None`` only when it applied none). ``planning`` is the same
+    input set's optional board-planning capture (required keyword: ``None`` states that no
+    planning input exists, which yields an unavailable Classroom Budgets section; see
+    :func:`np_finance.main_reports.planning.classroom_facts`). Raises
     :class:`~np_finance.main_reports.adjustments.AdjustmentConflictError` when adjusted
     publication is blocked, and :class:`FactsError` when inputs are inconsistent
     (``periods_invalid``, ``as_of_mismatch``, ``capture_mismatch``, ``crosswalk_mismatch``,
@@ -1279,6 +1290,12 @@ def build(
         budget, school, views[(_SCHOOL, _ADJUSTED_VIEW)], crosswalk
     )
     fundraising, fundraising_issues = _fundraising(ledger.source, school, captures, complete)
+    try:
+        classroom = board_planning.classroom_facts(
+            planning, school, reimbursements, bundle, budget_facts.lines
+        )
+    except board_planning.PlanningError as error:
+        raise FactsError(error.code, error.detail) from None
     bridges = (
         _scope_bridge(
             _SCHOOL_SCOPE, school, ledger.source, source_lines, views[(_SCHOOL, _SOURCE_VIEW)]
@@ -1352,6 +1369,7 @@ def build(
         pending_adjustments=ledger.pending,
         superseded_adjustments=ledger.superseded,
         adjustment_warnings=ledger.warnings,
+        classroom=classroom,
     )
 
 
@@ -1381,4 +1399,5 @@ def build_from(
         reporting_periods(ledger.as_of, config.fiscal_year.start_month),
         captures=capture_set.captures,
         crosswalk=None if main_reports is None else main_reports.crosswalk,
+        planning=capture_set.planning,
     )

@@ -7,11 +7,14 @@ sections 5, 6E and 10). Into one caller-provided run directory it writes:
   the existing :func:`np_finance.reimbursement_report.build_report`, unchanged, so the
   queue template, copy text and fingerprint-validated receipt sidecar (embedded receipt
   pages with their red marks) are reused as they are;
-* four summaries rendered from the facts: **Reimbursement Summary** and **Budget Snapshot**
-  and **Fundraising Summary** (school year, July-June) and the **CFO P&L Summary**
-  (calendar year, monthly columns plus year to date), each as HTML plus a PDF and a PNG
-  (:mod:`np_finance.main_reports.export`);
-* the private report index ``main-report-set.html`` linking all five.
+* five summaries rendered from the facts: **Reimbursement Summary** and **Budget Snapshot**
+  and **Fundraising Summary** (school year, July-June), the **CFO P&L Summary** (calendar
+  year, monthly columns plus year to date) and **Classroom Budgets** (school year: roster
+  allocations beside attributed posted payments, from the optional board-planning capture,
+  or an explicitly unavailable page without one), each as HTML plus a PDF and a PNG
+  (:mod:`np_finance.main_reports.export`); the Classroom Budgets PDF must be exactly one
+  portrait Letter page, or nothing is written (``layout_overflow``);
+* the private report index ``main-report-set.html`` linking all six.
 
 :func:`pointer_page` renders the current-run pointer the runner publishes beside the runs
 folder. Every page carries :data:`CONTENT_SECURITY_POLICY` and the identity tags from
@@ -51,7 +54,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from markupsafe import Markup
 
 from np_finance import reimbursement_report
-from np_finance.main_reports import export, facts
+from np_finance.main_reports import export, facts, planning
 from np_finance.main_reports.models import (
     ARTIFACT_MEDIA_TYPES,
     BUDGET_ACTUAL_STATUSES,
@@ -60,11 +63,14 @@ from np_finance.main_reports.models import (
     HEX_DIGEST_PATTERN,
     PAYMENT_JOIN_STATES,
     PERIOD_BASES,
+    PLANNING_FACT_STATUSES,
     TRANSACTION_KINDS,
     VIEW_BASES,
     Artifact,
     ArtifactSet,
     CaptureSet,
+    ClassroomFacts,
+    ClassroomRow,
     CoverageStatus,
     Period,
     PnlMonthTotal,
@@ -84,6 +90,9 @@ __all__ = [
     "STAGING_PREFIX",
     "SUMMARY_NAMES",
     "REPORT_TITLES",
+    "EXPECTED_PAGES",
+    "PLANNING_INPUT_KIND",
+    "PLANNING_REFERENCE_KIND",
     "BRIDGE_TITLES",
     "SHORT_BRIDGE_TITLES",
     "ADOPTED_BUDGET_KIND",
@@ -121,8 +130,9 @@ SUMMARY_NAMES: tuple[str, ...] = (
     "budget-snapshot",
     "fundraising-summary",
     "cfo-pnl-summary",
+    "classroom-budgets",
 )
-_REIMBURSEMENT, _BUDGET, _FUNDRAISING, _PNL = SUMMARY_NAMES
+_REIMBURSEMENT, _BUDGET, _FUNDRAISING, _PNL, _CLASSROOM = SUMMARY_NAMES
 # build_report's copy-text companion of the queue (checked against what it writes).
 QUEUE_COPY_TEXT = f"{Path(QUEUE_HTML).stem}.copy.txt"
 # Every file one rendered set holds; the index is listed (and moved into place) last.
@@ -142,7 +152,12 @@ REPORT_TITLES: Mapping[str, str] = {
     _BUDGET: "Budget Snapshot",
     _FUNDRAISING: "Fundraising Summary",
     _PNL: "CFO P&L Summary",
+    _CLASSROOM: "Classroom Budgets",
 }
+# Summaries whose export must be exactly this many portrait US Letter pages: an automated
+# layout failure prevents publication instead of clipping or spilling a row onto a new page.
+EXPECTED_PAGES: Mapping[str, int] = {_CLASSROOM: 1}
+_LETTER_PORTRAIT = (612, 792)
 _HTML, _PDF, _PNG, _TEXT = ARTIFACT_MEDIA_TYPES
 
 BRIDGE_TITLES: Mapping[str, str] = {
@@ -179,6 +194,9 @@ RECORD_LINKS: tuple[str, ...] = (
 )
 # Freshness kind of our own adopted budget (the Assumptions capture keeps its own alias/kind).
 ADOPTED_BUDGET_KIND = "adopted_budget"
+# Freshness kinds of the optional board-planning input and its supplemental tabs.
+PLANNING_INPUT_KIND = "planning_input"
+PLANNING_REFERENCE_KIND = "planning_reference"
 
 RENDER_ERROR_CODES: tuple[str, ...] = (
     "run_dir_invalid",
@@ -192,6 +210,7 @@ RENDER_ERROR_CODES: tuple[str, ...] = (
     "run_dir_not_empty",
     "output_incomplete",
     "staging_not_removed",
+    "layout_overflow",
 )
 (
     _RUN_DIR_INVALID,
@@ -205,6 +224,7 @@ RENDER_ERROR_CODES: tuple[str, ...] = (
     _RUN_DIR_NOT_EMPTY,
     _OUTPUT_INCOMPLETE,
     _STAGING_NOT_REMOVED,
+    _LAYOUT_OVERFLOW,
 ) = RENDER_ERROR_CODES
 
 _SCHOOL, _CALENDAR = PERIOD_BASES
@@ -301,6 +321,8 @@ _TOP_SEGMENTS = 4
 _FOLLOWUP_LIMIT = 4
 # The Budget Snapshot carries one more section (progress meters), so fewer follow-ups.
 _BUDGET_FOLLOWUPS = 2
+# Classroom Budgets shows its follow-ups beside the purchases list.
+_CLASSROOM_FOLLOWUP_LIMIT = 3
 _CLARIFY = "C"
 if _CLARIFY not in STATUS_META:  # pragma: no cover - import-time invariant
     raise RuntimeError("render must name a reimbursement status the queue knows")
@@ -328,6 +350,7 @@ _PAGE_BRIDGES: Mapping[str, tuple[str, ...]] = {
     _BUDGET: ("school_source_scope", "school_adjustments", "school_budget_crosswalk"),
     _FUNDRAISING: (),
     _PNL: ("calendar_source_scope", "calendar_adjustments", "calendar_to_school"),
+    _CLASSROOM: (),
     _INDEX: facts.BRIDGE_NAMES,
 }
 _PAGES_LABELS: Mapping[str, str] = {_PNL: "1 page + appendix", _INDEX: ""}
@@ -508,7 +531,8 @@ class RenderContext:
     def from_capture_set(
         cls, run_id: str, capture_set: CaptureSet, *, input_sha256: str | None = None
     ) -> RenderContext:
-        """Freshness of every capture, our Assumptions and adopted budget, read once.
+        """Freshness of every capture, our Assumptions and adopted budget, read once, plus the
+        optional board-planning input and each of its supplemental tabs.
 
         ``input_sha256`` defaults to the capture set's aggregate hash.
         """
@@ -532,6 +556,26 @@ class RenderContext:
                 sha256=budget.sha256,
             )
         )
+        planning = capture_set.planning
+        if planning is not None:
+            # Fixed labels: the private tab titles never become page text.
+            sources.append(
+                SourceFreshness(
+                    label="Board planning input",
+                    kind=PLANNING_INPUT_KIND,
+                    captured_at=planning.captured_at,
+                    sha256=planning.input_sha256,
+                )
+            )
+            sources.extend(
+                SourceFreshness(
+                    label=f"Board planning {reference.role.replace('_', ' ')}",
+                    kind=PLANNING_REFERENCE_KIND,
+                    captured_at=reference.captured_at,
+                    sha256=reference.sha256,
+                )
+                for reference in planning.references
+            )
         return cls(
             run_id=run_id,
             input_sha256=input_sha256 or capture_set.aggregate_sha256,
@@ -772,6 +816,9 @@ def _all_refs(report: ReportFacts) -> Iterable[SourceRef]:
             yield from row.refs
     for join in report.reimbursements.joins:
         yield from join.bank_refs
+    if report.classroom is not None:
+        for payment in report.classroom.payments:
+            yield payment.ref
 
 
 def _check_bundle(report: ReportFacts, bundle: ReimbursementReport) -> None:
@@ -1144,6 +1191,7 @@ def _audit(report: ReportFacts, names: Sequence[str]) -> dict[str, Any]:
         "discrepancies": len(report.discrepancy_ids),
         "findings": sum(issue.count for issue in report.issues),
         "flags": len(report.coverage_flags),
+        "extra": [],
         "bridges": len(bridges),
         "balanced": sum(1 for bridge in bridges if bridge.balanced),
         "residuals": [
@@ -1327,6 +1375,31 @@ def _scope_extra(name: str, report: ReportFacts) -> list[str]:
     return []
 
 
+_FOLLOWUP_CAPS: Mapping[str, int] = {
+    _BUDGET: _BUDGET_FOLLOWUPS,
+    _CLASSROOM: _CLASSROOM_FOLLOWUP_LIMIT,
+}
+_CFO_SOURCE = "CFO workbook capture"
+
+
+def _classroom_sources(report: ReportFacts) -> str:
+    """The Classroom Budgets source clause: the roster date and the captured ledger."""
+    classroom = _classroom_of(report)
+    if classroom.roster_as_of is None:
+        return "No board-planning input"
+    ledger = ", school-year ledger" if classroom.ledger_sha256 is not None else ""
+    return f"Board-planning roster as of {_medium(classroom.roster_as_of)}{ledger}"
+
+
+def _classroom_coverage(report: ReportFacts) -> str:
+    classroom = _classroom_of(report)
+    if classroom.ledger_coverage is None:
+        return "No school-year ledger bound"
+    if classroom.ledger_coverage_complete:
+        return "Ledger coverage complete for the period"
+    return "Ledger coverage partial; see the run records"
+
+
 def _page(
     name: str,
     report: ReportFacts,
@@ -1335,6 +1408,11 @@ def _page(
     period: Period,
 ) -> dict[str, Any]:
     settings = bundle.settings
+    followups = _classroom_followups(report) if name == _CLASSROOM else _followups(report, name)
+    audit = _audit(report, _PAGE_BRIDGES.get(name, ()))
+    if name == _CLASSROOM:  # its own findings, beside the report-wide counts
+        found = sum(issue.count for issue in _classroom_of(report).findings)
+        audit["extra"] = [f"Classroom findings {found}"]
     return {
         "name": name,
         "title": REPORT_TITLES.get(name, "Main Report Set"),
@@ -1348,16 +1426,17 @@ def _page(
         "run_id": context.run_id,
         "input_sha": context.input_sha256,
         "captured": captured_label(source.captured_at for source in context.sources),
-        "coverage": _coverage_clause(report, context, period),
+        "coverage": _classroom_coverage(report)
+        if name == _CLASSROOM
+        else _coverage_clause(report, context, period),
         "bundle": {"as_of": _long(report.reimbursements.bundle_as_of)},
-        "reimbursement_backed": name in (_REIMBURSEMENT, _INDEX),
+        "reimbursement_backed": name in (_REIMBURSEMENT, _CLASSROOM, _INDEX),
+        "sources": _classroom_sources(report) if name == _CLASSROOM else _CFO_SOURCE,
         "footnotes": list(_FOOTNOTES.get(name, ())),
         "pages_label": _PAGES_LABELS.get(name, "1 page"),
-        "audit": _audit(report, _PAGE_BRIDGES.get(name, ())),
-        "followups": _followups(report, name)[
-            : _BUDGET_FOLLOWUPS if name == _BUDGET else _FOLLOWUP_LIMIT
-        ],
-        "followups_total": len(_followups(report, name)),
+        "audit": audit,
+        "followups": followups[: _FOLLOWUP_CAPS.get(name, _FOLLOWUP_LIMIT)],
+        "followups_total": len(followups),
         "index": INDEX_HTML,
         "queue": QUEUE_HTML,
     }
@@ -2037,6 +2116,524 @@ def _pnl_summary(report: ReportFacts, context: RenderContext) -> dict[str, Any]:
     }
 
 
+# --------------------------------------------------------------------------------------
+# Classroom Budgets (school year; the board-planning classroom facts)
+# --------------------------------------------------------------------------------------
+
+_STOP = "#922f38"
+_CLASSROOM_PURCHASES = 3
+_CLASSROOM_FOLLOWUPS = 3
+_CHART_WIDTH = 730
+_CHART_LEFT = 50
+_CHART_RIGHT = 726
+_CHART_TOP = 7
+# Plot height with horizontal labels and, for larger rosters, with vertical ones.
+_CHART_PLOT = 118
+_CHART_PLOT_DENSE = 90
+# Up to this many classes the axis labels run horizontally; beyond it they turn vertical.
+_HORIZONTAL_LABELS = 8
+_HORIZONTAL_BAND = 22
+_VERTICAL_BAND = 58
+_AXIS_FONT = 9.0
+_VERTICAL_FONT = 9.0
+# The most classes one table column holds before the table splits (one, two, then three
+# tables side by side); every class always has its own row.
+_TABLE_SPLITS = (8, 16)
+_ONE_TABLE_EMS = 20.0
+_SPLIT_TABLE_EMS = (12.5, 7.6)
+_PURCHASE_EMS = 17.0
+_NARRATIVE_ITEM = 32
+_UNAVAILABLE = "Unavailable"
+_CLASSROOM_UNAVAILABLE = PLANNING_FACT_STATUSES[2]
+_CLASSROOM_PARTIAL = PLANNING_FACT_STATUSES[1]
+# Findings that explain an unavailable or partial page come first.
+_CLASSROOM_FIRST = frozenset(
+    {
+        "planning_input_absent",
+        "planning_year_mismatch",
+        "academic_ledger_absent",
+        "classroom_categories_absent",
+        "roster_incomplete",
+        "class_allocation_missing",
+        "ledger_coverage_partial",
+        "ledger_rows_unreadable",
+        "ledger_category_unmapped",
+    }
+)
+_CLASSROOM_FOLLOWUP_TEXT: Mapping[str, tuple[str, str]] = {
+    "planning_input_absent": (
+        "No board-planning input",
+        "No private roster or school-year ledger is configured; nothing is estimated.",
+    ),
+    "planning_year_mismatch": (
+        "Planning input for another year",
+        "The planning input names another fiscal year; none of it is shown.",
+    ),
+    "academic_ledger_absent": (
+        "No school-year ledger bound",
+        "Posted classroom payments are unavailable until an academic ledger is bound.",
+    ),
+    "classroom_categories_absent": (
+        "No classroom categories",
+        "No category is mapped as classroom spending; posted payments are unavailable.",
+    ),
+    "roster_incomplete": (
+        "Roster not complete",
+        "The roster is declared incomplete; allocations are partial.",
+    ),
+    "class_allocation_missing": (
+        "Classes without an allocation",
+        "{n} eligible class(es) lack a student count or rate; never estimated.",
+    ),
+    "ledger_coverage_partial": (
+        "Ledger coverage incomplete",
+        "Declared ledger coverage does not span the school year to the as-of date.",
+    ),
+    "ledger_rows_unreadable": (
+        "Unreadable ledger rows",
+        "{n} ledger row(s) that may be classroom spending cannot be read.",
+    ),
+    "ledger_category_unmapped": (
+        "Ledger categories without a role",
+        "{n} school-year ledger row(s) have a category with no declared role.",
+    ),
+    "roster_empty": (
+        "No classes in the period",
+        "No roster class is effective during the school year.",
+    ),
+    "payment_unassigned": (
+        "Payments not assigned",
+        "{n} posted payment(s) have no exact payee alias or allocation yet.",
+    ),
+    "payment_allocation_unused": (
+        "Allocations not applied",
+        "{n} payment allocation(s) match no current classroom row.",
+    ),
+    "period_allocation_unused": (
+        "Year corrections not applied",
+        "{n} academic-year correction(s) match no captured ledger row.",
+    ),
+    "class_outside_period": (
+        "Classes outside the period",
+        "{n} roster class(es) or assignment(s) fall outside the school year.",
+    ),
+    "ledger_duplicate_identity": (
+        "Similar ledger rows",
+        "{n} ledger row(s) look alike but differ; each is kept.",
+    ),
+    "reimbursement_issued_not_posted": (
+        "Issued, not yet posted",
+        "{n} reimbursement payment(s) are not in the ledger yet; shown separately.",
+    ),
+    "reimbursement_payment_unlinked": (
+        "Payments without a reference",
+        "{n} paid classroom request(s) have no reference to match to the ledger.",
+    ),
+    "payment_reference_ambiguous": (
+        "Reference on several rows",
+        "{n} payment reference(s) appear on more than one ledger row.",
+    ),
+    "classroom_budget_unknown": (
+        "Adopted classroom budget unknown",
+        "No readable adopted classroom line; its difference is unknown.",
+    ),
+}
+if set(_CLASSROOM_FOLLOWUP_TEXT) != set(planning.CLASSROOM_FINDING_CODES):  # pragma: no cover
+    raise RuntimeError("render classroom follow-ups must match planning.CLASSROOM_FINDING_CODES")
+_CLASSROOM_REASONS: Mapping[str, str] = {
+    "planning_input_absent": "no board-planning input is configured",
+    "planning_year_mismatch": "the planning input is for another fiscal year",
+    "academic_ledger_absent": "no school-year ledger is bound",
+    "classroom_categories_absent": "no category is mapped as classroom spending",
+}
+
+
+def _classroom_of(report: ReportFacts) -> ClassroomFacts:
+    """The facts' classroom section; facts built without one render as unavailable."""
+    if report.classroom is None:
+        return planning.absent_classroom()
+    return report.classroom
+
+
+def _classroom_followups(report: ReportFacts) -> list[dict[str, Any]]:
+    """Reader-text cards for the classroom findings: blocking ones first, then by count."""
+    cards: list[dict[str, Any]] = []
+    for issue in _classroom_of(report).findings:
+        title, line = _CLASSROOM_FOLLOWUP_TEXT.get(
+            issue.code, (_humanize(issue.code), _FOLLOWUP_FALLBACK)
+        )
+        cards.append(
+            {
+                "code": issue.code,
+                "count": issue.count,
+                "title": _fit(title, _FIRST_COLUMN + 20, _FOLLOWUP_EMS),
+                "line": line.format(n=issue.count),
+            }
+        )
+    cards.sort(
+        key=lambda card: (card["code"] not in _CLASSROOM_FIRST, -card["count"], card["code"])
+    )
+    return cards
+
+
+def _fit_middle(label: str, ems: float) -> str:
+    """``label`` kept to one line of ``ems``: its start and end survive around an ellipsis,
+    so labels that differ only at the end (a class suffix) stay distinguishable."""
+    if _ems(label) <= ems:
+        return label
+    for keep in range(len(label) - 1, 1, -1):
+        tail = max(keep // 3, 1)
+        head = keep - tail
+        text = label[:head].rstrip() + "…" + label[len(label) - tail :].lstrip()
+        if _ems(text) <= ems:
+            return text
+    return label[:1] + "…"
+
+
+def _middle_label(label: str, ems: float) -> dict[str, str]:
+    text = _fit_middle(label, ems)
+    return {"text": text, "title": "" if text == label else label}
+
+
+def _nice_ceiling(value: Decimal) -> Decimal:
+    """The smallest of 1, 2, 2.5 and 5 times a power of ten at or above ``value``."""
+    if value <= 0:
+        return _ONE
+    exponent = Decimal(10) ** (len(str(int(value))) - 1)
+    for step in (_ONE, Decimal(2), Decimal("2.5"), Decimal(5)):
+        if step * exponent >= value:
+            return step * exponent
+    return Decimal(10) * exponent
+
+
+def _bar_state(row: ClassroomRow) -> str:
+    remainder = row.remainder
+    if row.paid is None:
+        return "posted payments unavailable"
+    if row.allocation is None:
+        return "allocation unknown"
+    if remainder is not None and remainder < 0:
+        return f"over budget by {format_whole(-remainder)}"
+    return f"{format_whole(remainder)} remaining"
+
+
+def _classroom_chart(classroom: ClassroomFacts) -> dict[str, Any]:
+    """Vertical paid/remaining bars per class on one dollar scale, teacher labels below.
+
+    Paid within the allocation is sea and the remaining allocation sun on top; paid above
+    the allocation is drawn in the stop colour above an allocation tick, so an overrun is
+    never hidden and a negative remaining stack is never drawn. An unknown allocation shows
+    the paid bar alone; an unavailable paid basis outlines the allocation.
+    """
+    rows = classroom.classes
+    count = len(rows)
+    horizontal = count <= _HORIZONTAL_LABELS
+    band = _HORIZONTAL_BAND if horizontal else _VERTICAL_BAND
+    plot = _CHART_PLOT if horizontal else _CHART_PLOT_DENSE
+    baseline = _CHART_TOP + plot
+    values = [max(row.allocation or _ZERO, row.paid or _ZERO, _ZERO) for row in rows]
+    peak = _nice_ceiling(max(values, default=_ZERO))
+    scale = Decimal(plot) / peak
+    slot = (_CHART_RIGHT - _CHART_LEFT) / max(count, 1)
+    width = min(38.0, slot * 0.62)
+
+    def y(amount: Decimal) -> float:
+        return float(baseline - max(amount, _ZERO) * scale)
+
+    ticks = [
+        {"y": _num(y(peak * share)), "label": format_whole(peak * share)}
+        for share in (_ZERO, Decimal("0.5"), _ONE)
+    ]
+    bars: list[dict[str, Any]] = []
+    titles: list[str] = []
+    for index, row in enumerate(rows):
+        centre = _CHART_LEFT + slot * (index + 0.5)
+        left = centre - width / 2
+        paid = max(row.paid or _ZERO, _ZERO)
+        allocation = row.allocation
+        parts: list[tuple[Decimal, Decimal, str]] = []
+        outline: dict[str, str] | None = None
+        tick: str | None = None
+        if row.paid is None:
+            if allocation is not None and allocation > 0:
+                outline = {
+                    "x": _num(left),
+                    "y": _num(y(allocation)),
+                    "w": _num(width),
+                    "h": _num(y(_ZERO) - y(allocation)),
+                }
+        elif allocation is None:
+            parts.append((_ZERO, paid, _SEA))
+        elif paid <= allocation:
+            parts += [(_ZERO, paid, _SEA), (paid, allocation, _SUN)]
+        else:
+            parts += [(_ZERO, allocation, _SEA), (allocation, paid, _STOP)]
+            tick = _num(y(allocation))
+        rects = [
+            {
+                "x": _num(left),
+                "y": _num(y(high)),
+                "w": _num(width),
+                "h": _num(y(low) - y(high)),
+                "fill": fill,
+            }
+            for low, high, fill in parts
+            if high > low
+        ]
+        fit = (slot - 6) / _AXIS_FONT if horizontal else (band - 6) / _VERTICAL_FONT
+        titles.append(
+            f"{row.label}: {format_whole(row.paid)} paid of "
+            f"{format_whole(allocation)} allocated; {_bar_state(row)}"
+        )
+        bars.append(
+            {
+                "class_id": row.class_id,
+                "title": titles[-1],
+                "rects": rects,
+                "outline": outline,
+                "tick": tick,
+                "tick_x1": _num(left - 2),
+                "tick_x2": _num(left + width + 2),
+                "x": _num(centre),
+                "label": _fit_middle(row.label, fit),
+                "label_y": _num(baseline + 13 if horizontal else baseline + 6),
+            }
+        )
+    over = len(classroom.over_budget)
+    scale_text = (
+        f"{plural(count, 'class', 'classes')}; dollars on the vertical axis up to "
+        f"{format_whole(peak)}"
+    )
+    desc = f"{scale_text}. {'; '.join(titles)}" + (f". {over} over budget." if over else ".")
+    return {
+        "height": baseline + band,
+        "baseline": _num(baseline),
+        "left": _CHART_LEFT,
+        "right": _CHART_RIGHT,
+        "ticks": ticks,
+        "bars": bars,
+        "horizontal": horizontal,
+        "font": _num(_AXIS_FONT if horizontal else _VERTICAL_FONT),
+        "desc": desc,
+    }
+
+
+def _rate_text(rate: Decimal | None) -> str:
+    """A per-student rate is an input, shown exactly: ``$5`` or ``$7.50``."""
+    if rate is None:
+        return _DASH
+    whole = rate == rate.to_integral_value()
+    return format_whole(rate) if whole else format_money(rate)
+
+
+def _classroom_tables(classroom: ClassroomFacts) -> dict[str, Any]:
+    """Every class in one table, or split side by side: never an "Other teachers" row."""
+    rows = classroom.classes
+    count = len(rows)
+    columns = 1 if count <= _TABLE_SPLITS[0] else 2 if count <= _TABLE_SPLITS[1] else 3
+    ems = _ONE_TABLE_EMS if columns == 1 else _SPLIT_TABLE_EMS[columns - 2]
+    built = []
+    for row in rows:
+        remainder = row.remainder
+        remaining = _cell(remainder)
+        remaining["over"] = remainder is not None and remainder < 0
+        built.append(
+            {
+                "class_id": row.class_id,
+                "label": _middle_label(row.label, ems),
+                "students": _DASH if row.student_count is None else f"{row.student_count:,}",
+                "rate": _rate_text(row.per_student_amount),
+                "eligible": row.eligible,
+                "allocation": _cell(row.allocation),
+                "paid": _cell(row.paid),
+                "remaining": remaining,
+            }
+        )
+    per = math.ceil(count / columns) if count else 1
+    qualifier = (
+        "Allocation is students times the per-student rate; negative remaining is over budget"
+        if columns == 1
+        else "Budget is students times the per-student rate; Left is negative when over budget"
+    )
+    return {
+        "qualifier": qualifier,
+        "columns": columns,
+        "chunks": [built[i : i + per] for i in range(0, count, per)],
+    }
+
+
+def _classroom_purchases(classroom: ClassroomFacts) -> dict[str, Any]:
+    purchases = classroom.purchases
+    shown, rest = purchases[:_CLASSROOM_PURCHASES], purchases[_CLASSROOM_PURCHASES:]
+    return {
+        "rows": [
+            {
+                "label": _label(item.description, _FIRST_COLUMN + 20, _PURCHASE_EMS),
+                "date": _short(item.expense_date),
+                "amount": _cell(item.amount),
+            }
+            for item in shown
+        ],
+        "other": {
+            "text": plural(len(rest), "more purchase", "more purchases"),
+            "amount": _cell(sum((item.amount for item in rest), _ZERO)),
+        }
+        if rest
+        else None,
+    }
+
+
+def _check_classroom(classroom: ClassroomFacts) -> None:
+    """Posted classroom spending equals the classes' payments plus the unassigned amount."""
+    by_class = sum((row.paid or _ZERO for row in classroom.classes), _ZERO)
+    if by_class + classroom.unassigned != classroom.source_total:
+        raise RenderError(
+            _TOTALS_MISMATCH,
+            "classroom payments do not reconcile to the assigned plus unassigned amount",
+        )
+
+
+def _purchase_phrase(classroom: ClassroomFacts) -> str:
+    purchases = classroom.purchases[:2]
+    if not purchases:
+        return "No paid, dated itemized purchase is in the review evidence yet."
+    parts = [
+        f"{truncate_label(item.description, _NARRATIVE_ITEM)} ({format_whole(item.amount)})"
+        for item in purchases
+    ]
+    return f"The largest itemized purchases were {' and '.join(parts)}."
+
+
+def _classroom_narrative(classroom: ClassroomFacts, period: Period) -> str:
+    """The factual spending description: counts, totals and itemized descriptions only."""
+    count = len(classroom.classes)
+    if not classroom.paid_available:
+        codes = [issue.code for issue in classroom.findings if issue.code in _CLASSROOM_REASONS]
+        reason = _CLASSROOM_REASONS[codes[0]] if codes else "the inputs are incomplete"
+        roster = ""
+        if classroom.allocated is not None:
+            roster = (
+                f" {plural(count, 'roster class has', 'roster classes have')} "
+                f"{format_whole(classroom.allocated)} allocated from enrollment times rate."
+            )
+        return (
+            f"Classroom figures for {_lower_first(period.label)} are unavailable: {reason}. "
+            "No allocation is estimated or distributed from the adopted budget." + roster
+        )
+    over = len(classroom.over_budget)
+    allocated = classroom.allocated
+    sentence = (
+        f"{plural(count, 'class has', 'classes have')} "
+        + (
+            f"{format_whole(allocated)} allocated from enrollment times rate"
+            if allocated is not None
+            else "no known allocation"
+        )
+        + f"; {format_whole(classroom.source_total)} of classroom spending is posted"
+    )
+    if classroom.remaining is not None:
+        sentence += f" and {format_whole(classroom.remaining)} remains"
+    sentence += (
+        f". {plural(over, 'class is', 'classes are')} over budget"
+        if over
+        else ". No class is over budget"
+    )
+    if classroom.unassigned:
+        sentence += f"; {format_whole(classroom.unassigned)} is not yet assigned to a class"
+    if classroom.issued_unposted:
+        sentence += f"; {format_whole(classroom.issued_total)} is issued but not yet posted"
+    return f"{sentence}. {_purchase_phrase(classroom)}"
+
+
+def _classroom_note(classroom: ClassroomFacts) -> str:
+    """The reconciliation line under the chart (whole dollars; exact cents in the records)."""
+    if not classroom.paid_available:
+        posted = "Posted classroom spending is unavailable"
+    else:
+        posted = (
+            f"Posted {format_whole(classroom.source_total)} = "
+            f"{format_whole(classroom.assigned)} assigned to classes + "
+            f"{format_whole(classroom.unassigned)} not yet assigned"
+        )
+    if classroom.issued_unposted:
+        issued = (
+            f"{format_whole(classroom.issued_total)} issued, not yet posted "
+            f"({plural(len(classroom.issued_unposted), 'payment', 'payments')}), "
+            "is never counted as paid"
+        )
+    else:
+        issued = "No issued reimbursement awaits posting"
+    envelope, difference = classroom.adopted_envelope, classroom.envelope_difference
+    if envelope is not None and difference is not None:
+        gap = (
+            f"{format_whole(difference)} below it"
+            if difference >= 0
+            else f"{format_whole(-difference)} above it"
+        )
+        adopted = (
+            f"Adopted classroom budget {format_whole(envelope)}; the "
+            f"{format_whole(classroom.allocated)} allocated is {gap}, never scaled to it"
+        )
+    else:
+        adopted = f"Adopted classroom budget {format_whole(envelope)}"
+    return f"{posted}. {issued}. {adopted}."
+
+
+def _classroom_budgets(report: ReportFacts) -> dict[str, Any]:
+    classroom = _classroom_of(report)
+    _check_classroom(classroom)
+    period = report.periods.school
+    partial = classroom.status == _CLASSROOM_PARTIAL
+    paid_known = classroom.paid_available
+    allocated = classroom.allocated
+    over = len(classroom.over_budget)
+    count = len(classroom.classes)
+    allocation_partial = allocated is not None and not classroom.allocation_complete
+    remaining = classroom.remaining if paid_known else None
+    tiles = [
+        _tile(
+            _UNAVAILABLE if allocated is None else format_whole(allocated),
+            "Allocated (students × rate)",
+            state="closed" if allocated is not None else "",
+            note=plural(count, "class", "classes"),
+            partial=allocation_partial,
+        ),
+        _tile(
+            format_whole(classroom.source_total) if paid_known else _UNAVAILABLE,
+            "Posted classroom spending",
+            state="spent" if paid_known else "",
+            note=plural(len(classroom.payments), "payment", "payments") if paid_known else "",
+            partial=partial and paid_known,
+        ),
+        _tile(
+            _UNAVAILABLE if remaining is None else format_whole(remaining),
+            "Remaining (signed)",
+            state="open" if over else "",
+            note=f"{plural(over, 'class', 'classes')} over budget" if paid_known else "",
+            partial=(partial or allocation_partial) and remaining is not None,
+        ),
+        _tile(
+            format_whole(classroom.unassigned) if paid_known else _UNAVAILABLE,
+            "Not assigned to a class",
+            state="amount" if paid_known and classroom.unassigned else "",
+            note=f"+ {format_whole(classroom.issued_total)} issued, not posted"
+            if classroom.issued_unposted
+            else "",
+        ),
+    ]
+    return {
+        "tiles": tiles,
+        "status": classroom.status,
+        "count": count,
+        "chart": _classroom_chart(classroom) if count else None,
+        "tables": _classroom_tables(classroom),
+        "purchases": _classroom_purchases(classroom),
+        "paid_known": paid_known,
+        "note": _classroom_note(classroom),
+        "narrative": _classroom_narrative(classroom, period),
+    }
+
+
 def _appendix_pages(rows: Sequence[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     """The matrix body cut into landscape pages of at most :data:`_APPENDIX_ROWS` rows, so
     the appendix runs to exactly ``ceil(rows / 40)`` pages and never a header-only page."""
@@ -2048,6 +2645,7 @@ _BASES: Mapping[str, str] = {
     _BUDGET: "adopted targets beside the adjusted bank view",
     _FUNDRAISING: "processor activity by payment date; the bank view is shown separately",
     _PNL: "adjusted bank view by bank date; internal transfers excluded",
+    _CLASSROOM: "posted payments by academic year",
 }
 _FOOTNOTES: Mapping[str, tuple[str, ...]] = {
     _BUDGET: ("No calendar-year budget is derived from these annual targets.",),
@@ -2193,7 +2791,7 @@ def write(
     sandbox: bool | None = None,
     exporter: Exporter | None = None,
 ) -> ArtifactSet:
-    """Render all five reports, the summary PDF/PNG exports and the index into ``run_dir``.
+    """Render all six reports, the summary PDF/PNG exports and the index into ``run_dir``.
 
     ``report`` comes from :func:`np_finance.main_reports.facts.build_from`; ``staged_bundle``
     is the reimbursement bundle those facts were projected from (its receipt sidecar, if any,
@@ -2230,6 +2828,7 @@ def write(
         _BUDGET: (school, _budget_snapshot(report)),
         _FUNDRAISING: (school, _fundraising_summary(report, context)),
         _PNL: (calendar, _pnl_summary(report, context)),
+        _CLASSROOM: (school, _classroom_budgets(report)),
     }
     environment = _environment()
     documents = {
@@ -2355,7 +2954,24 @@ def _write_set(
     ]
     sandboxed = run_export(jobs)
     export.verify_outputs(jobs)
+    _check_pages(staging)
     return sandboxed
+
+
+def _check_pages(staging: Path) -> None:
+    """Each fixed-length summary exports to exactly its portrait Letter pages.
+
+    A page that does not fit is an automated layout failure: nothing is moved into the run
+    directory, so nothing is published (never a clipped row or a spilled page).
+    """
+    for name, pages in EXPECTED_PAGES.items():
+        sizes = export.pdf_page_sizes((staging / f"{name}.pdf").read_bytes())
+        if sizes != (_LETTER_PORTRAIT,) * pages:
+            raise RenderError(
+                _LAYOUT_OVERFLOW,
+                f"the {REPORT_TITLES[name]} export has {len(sizes)} page(s); it must be "
+                f"exactly {pages} portrait Letter page(s), so the set was not written",
+            )
 
 
 def _links(builders: Mapping[str, tuple[Period, dict[str, Any]]]) -> list[dict[str, Any]]:
@@ -2380,6 +2996,9 @@ def _links(builders: Mapping[str, tuple[Period, dict[str, Any]]]) -> list[dict[s
     return links
 
 
+_COUNT_WORDS: Mapping[int, str] = {5: "five", 6: "six", 7: "seven", 8: "eight"}
+
+
 def _index_page(
     report: ReportFacts, bundle: ReimbursementReport, context: RenderContext
 ) -> dict[str, Any]:
@@ -2396,6 +3015,7 @@ def _index_page(
                 "legacy": "",
             },
             "coverage": "Declared coverage per source is in the Inputs table",
+            "report_count": _COUNT_WORDS.get(1 + len(SUMMARY_NAMES), str(1 + len(SUMMARY_NAMES))),
             "inputs": _freshness(report, context),
             "records": [f"{RECORDS_LINK_DIR}/{name}" for name in RECORD_LINKS],
         }

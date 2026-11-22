@@ -93,6 +93,15 @@ a.ref{font-size:9.5px;color:var(--muted);white-space:nowrap;text-decoration:unde
 .foot .id{overflow-wrap:normal}.foot .id .mono{white-space:nowrap;font-size:.9em}
 .foot a{text-decoration:underline;text-underline-offset:2px}
 .private{font-weight:850;color:var(--stop)}
+/* Classroom Budgets: one chart and a table row for every class, split side by side */
+.classes{display:block;width:100%;height:auto;margin-top:2px}
+.section.tight,.overview.tight{margin-top:9px}.tight .chart-note{margin-top:4px}
+.class-tables{display:grid;gap:8px}.class-tables.cols-2{grid-template-columns:1fr 1fr}.class-tables.cols-3{grid-template-columns:1fr 1fr 1fr}
+table.dense th{padding:2px 5px;font-size:9.5px;line-height:1.2;letter-spacing:.04em}
+table.dense td{padding:1px 5px;font-size:9.5px;line-height:1.15;white-space:nowrap;overflow:hidden}
+table.dense td strong{font-size:9.5px;display:inline}
+table.dense td.over,td.over{color:var(--stop);font-weight:800;white-space:normal}td.over .flag{font-size:8px;text-transform:uppercase;letter-spacing:.04em}
+.overview .followups{grid-template-columns:1fr}.overview .followup{padding:4px 0}
 /* P&L appendix */
 .sheet.appendix{width:10.5in;min-height:0;margin-top:24px}
 .appendix .tablewrap{overflow-x:auto}
@@ -112,6 +121,7 @@ table.pnl tr.group td{background:var(--deep);color:#fff;font-weight:800;text-tra
   .metrics{grid-template-columns:1fr 1fr}.overview{grid-template-columns:1fr}
   .tablewrap{overflow-x:auto}th{white-space:normal!important}
   .followups{grid-template-columns:1fr}.section-heading{flex-wrap:wrap;row-gap:2px}
+  .class-tables.cols-2,.class-tables.cols-3{grid-template-columns:1fr}
   .route{grid-template-columns:42% 1fr 76px}
   th:first-child{width:35%}td{padding:4px 6px}
   .foot .row{display:block}.foot .row>span{display:block;margin-top:4px;text-align:left}.foot .id{white-space:normal;overflow-wrap:anywhere}

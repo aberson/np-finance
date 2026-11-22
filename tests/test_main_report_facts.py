@@ -1471,8 +1471,20 @@ def test_report_facts_payload_pins_every_key_and_shape(tmp_path: Path) -> None:
         "pending_adjustments",
         "superseded_adjustments",
         "adjustment_warnings",
+        "classroom",
     }
     assert payload["schema_version"] == 1 and payload["as_of"] == "2030-08-15"
+    # No board-planning input: an explicitly unavailable, separately versioned section.
+    classroom = payload["classroom"]
+    assert classroom["schema_version"] == 1 and classroom["status"] == "unavailable"
+    assert classroom["classes"] == [] and classroom["payments"] == []
+    assert classroom["totals"]["allocated"] is None
+    assert classroom["findings"] == [
+        {"code": "planning_input_absent", "count": 1, "subject": None}
+    ]
+    # A facts object without the section keeps the historical serialized shape.
+    old_shape = json.loads(canonical_json_bytes(dataclasses.replace(result, classroom=None).to_dict()))
+    assert set(old_shape) == set(payload) - {"classroom"}
     assert payload["journal_sha256"] == ledger.journal_sha256
     assert payload["pnl_control_status"] == "matched"
     assert payload["discrepancy_ids"] == [d.discrepancy_id for d in ledger.source.unresolved]

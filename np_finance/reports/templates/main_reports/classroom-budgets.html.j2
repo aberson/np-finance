@@ -1,0 +1,46 @@
+{% extends 'main_reports/base.html.j2' %}
+{% import 'main_reports/macros.html.j2' as m %}
+{% macro remaining(c) -%}
+{% if c.over %}<td class="amt over" data-state="over" title="Over budget: posted payments exceed the allocation">{{ c.text }} <span class="flag">over</span></td>{% else %}{{ m.amount(c) }}{% endif %}
+{%- endmacro %}
+{% macro allocation(row) -%}
+{% if not row.eligible %}<td class="amt unk" data-state="ineligible" title="Not eligible for a classroom allocation">–</td>{% else %}{{ m.amount(row.allocation) }}{% endif %}
+{%- endmacro %}
+{% block content %}
+  {{ m.tiles(data.tiles) }}
+
+  <section class="section tight" id="chart">
+    <div class="section-heading"><h2>Paid and remaining by classroom</h2><span class="key"><span class="swatch" style="background:#147d83"></span>Paid <span class="swatch" style="background:#edb528"></span>Remaining <span class="swatch" style="background:#922f38"></span>Paid above the allocation</span></div>
+    {% if data.chart %}{% set c = data.chart %}<svg class="classes" viewBox="0 0 730 {{ c.height }}" role="img" aria-labelledby="classes-title classes-desc"><title id="classes-title">Paid and remaining allocation by classroom</title><desc id="classes-desc">{{ c.desc }}</desc>{% for t in c.ticks %}<line x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#ccd9d6"/><text x="{{ c.left - 5 }}" y="{{ t.y }}" dy="3" font-size="9" text-anchor="end" fill="#637881">{{ t.label }}</text>{% endfor %}{% for b in c.bars %}<g data-class="{{ b.class_id }}"><title>{{ b.title }}</title>{% for r in b.rects %}<rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" fill="{{ r.fill }}"/>{% endfor %}{% if b.outline %}<rect x="{{ b.outline.x }}" y="{{ b.outline.y }}" width="{{ b.outline.w }}" height="{{ b.outline.h }}" fill="none" stroke="#71838d" stroke-dasharray="3 2"/>{% endif %}{% if b.tick %}<line x1="{{ b.tick_x1 }}" x2="{{ b.tick_x2 }}" y1="{{ b.tick }}" y2="{{ b.tick }}" stroke="#123f4a" stroke-width="2"/>{% endif %}{% if c.horizontal %}<text x="{{ b.x }}" y="{{ b.label_y }}" font-size="{{ c.font }}" text-anchor="middle" fill="#475d69">{{ b.label }}</text>{% else %}<text x="{{ b.x }}" y="{{ b.label_y }}" dy="3" font-size="{{ c.font }}" text-anchor="end" fill="#475d69" transform="rotate(-90 {{ b.x }} {{ b.label_y }})">{{ b.label }}</text>{% endif %}</g>{% endfor %}<line x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ c.baseline }}" y2="{{ c.baseline }}" stroke="#71838d"/></svg>{% else %}<p class="chart-note" id="no-roster">No roster class is available, so no classroom allocation is shown. Allocations come only from enrollment times a per-student rate; the adopted budget is never divided among classes.</p>{% endif %}
+    <p class="chart-note">{{ data.note }}</p>
+  </section>
+
+  <section class="section tight" id="classes">
+    {{ m.section_heading('Classes', data.tables.qualifier) }}
+    {% if data.tables.chunks %}<div class="class-tables cols-{{ data.tables.columns }}">{% for chunk in data.tables.chunks %}<div class="tablewrap"><table class="dense">
+      {% if data.tables.columns == 1 %}<colgroup><col style="width:34%"><col style="width:11%"><col style="width:13%"><col style="width:14%"><col style="width:13%"><col style="width:15%"></colgroup>
+      <thead><tr><th>Teacher</th><th class="amt">Students</th><th class="amt">Per student</th><th class="amt">Allocation</th><th class="amt">Paid</th><th class="amt">Remaining</th></tr></thead>
+      {% elif data.tables.columns == 2 %}<colgroup><col style="width:40%"><col style="width:21%"><col style="width:18%"><col style="width:21%"></colgroup>
+      <thead><tr><th>Teacher</th><th class="amt">Budget</th><th class="amt">Paid</th><th class="amt">Left</th></tr></thead>
+      {% else %}<colgroup><col style="width:34%"><col style="width:21%"><col style="width:18%"><col style="width:27%"></colgroup>
+      <thead><tr><th>Teacher</th><th class="amt">Budget</th><th class="amt">Paid</th><th class="amt">Left</th></tr></thead>
+      {% endif %}<tbody>{% for row in chunk %}<tr data-class="{{ row.class_id }}"><td><strong>{{ m.label(row.label) }}</strong></td>{% if data.tables.columns == 1 %}<td class="amt">{{ row.students }}</td><td class="amt">{{ row.rate }}</td>{% endif %}{{ allocation(row) }}{{ m.amount(row.paid) }}{{ remaining(row.remaining) }}</tr>{% endfor %}</tbody>
+    </table></div>{% endfor %}</div>{% else %}<p class="chart-note">No classes to list.</p>{% endif %}
+  </section>
+
+  <div class="overview tight" id="details">
+    <section>
+      {{ m.section_heading('Larger reimbursed purchases', 'Paid, dated review items') }}
+      <div class="tablewrap"><table class="dense" id="purchases">
+        <colgroup><col style="width:64%"><col style="width:16%"><col style="width:20%"></colgroup>
+        <thead><tr><th>Item</th><th>Date</th><th class="amt">Amount</th></tr></thead>
+        <tbody>{% for row in data.purchases.rows %}<tr><td>{{ m.label(row.label) }}</td><td>{{ row.date }}</td>{{ m.amount(row.amount) }}</tr>{% else %}<tr><td colspan="3">{% if data.paid_known %}No paid, dated itemized purchase yet.{% else %}Unavailable: no classroom category mapping.{% endif %}</td></tr>{% endfor %}
+        {% if data.purchases.other %}<tr class="other"><td colspan="2">{{ data.purchases.other.text }}</td>{{ m.amount(data.purchases.other.amount) }}</tr>{% endif %}</tbody>
+      </table></div>
+    </section>
+    <section id="followups">
+      {{ m.section_heading('Data follow-ups', m.followup_qualifier(page)) }}
+      {{ m.followups(page.followups) }}
+    </section>
+  </div>
+{% endblock %}

@@ -21,6 +21,7 @@ installed with ``uv run playwright install chromium``.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import warnings
@@ -44,6 +45,7 @@ __all__ = [
     "default_sandbox",
     "export_documents",
     "verify_outputs",
+    "pdf_page_sizes",
     # types
     "ExportError",
     "ExportJob",
@@ -64,6 +66,9 @@ VIEWPORT_WIDTH = 1100
 EXPORT_TIMEOUT_MS = 60_000
 
 _PDF_SIGNATURE = b"%PDF-"
+# Chromium writes one uncompressed page object per page, each with its media box.
+_PDF_PAGE = re.compile(rb"/Type\s*/Page(?![A-Za-z])")
+_PDF_MEDIA_BOX = re.compile(rb"/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]")
 # Context network emulation; the route handler below blocks requests on its own.
 _OFFLINE = True
 
@@ -217,6 +222,23 @@ def verify_outputs(jobs: Sequence[ExportJob]) -> None:
     for job in jobs:
         _check_output(job.pdf, _PDF_SIGNATURE)
         _check_output(job.png, PNG_SIGNATURE)
+
+
+def pdf_page_sizes(payload: bytes) -> tuple[tuple[int, int], ...]:
+    """(width, height) in whole points of every page of an exported PDF.
+
+    Read from the PDF structure alone (no optional library): Chromium writes one uncompressed
+    ``/Type /Page`` object with its ``/MediaBox`` per page. A file whose page structure cannot
+    be read this way fails closed with ``export_output_invalid`` rather than passing a page
+    check it cannot prove.
+    """
+    if not payload.startswith(_PDF_SIGNATURE):
+        raise ExportError(_OUTPUT_INVALID, "an exported file is not the expected format")
+    pages = _PDF_PAGE.findall(payload)
+    boxes = _PDF_MEDIA_BOX.findall(payload)
+    if not pages or len(pages) != len(boxes):
+        raise ExportError(_OUTPUT_INVALID, "an exported PDF's page structure cannot be read")
+    return tuple((round(float(width)), round(float(height))) for width, height in boxes)
 
 
 def export_documents(

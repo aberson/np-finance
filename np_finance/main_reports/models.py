@@ -69,6 +69,9 @@ __all__ = [
     "RUN_STATUSES",
     "ALIAS_STATUSES",
     "ALIAS_REFRESH_STATES",
+    "CLASSROOM_SCHEMA_VERSION",
+    "PLANNING_FACT_STATUSES",
+    "CLASSROOM_ASSIGNMENT_BASES",
     "is_valid_source_alias",
     "is_valid_record_key",
     "canonical_json_bytes",
@@ -134,6 +137,12 @@ __all__ = [
     "FundraisingCategory",
     "FundraisingTotals",
     "FactIssue",
+    "ClassroomAssignment",
+    "ClassroomPayment",
+    "ClassroomRow",
+    "IssuedPayment",
+    "ClassroomPurchase",
+    "ClassroomFacts",
     "ReportFacts",
     "Artifact",
     "ArtifactSet",
@@ -250,6 +259,12 @@ RUN_STATUSES: tuple[str, ...] = ("failed", "validated", "published")
 ALIAS_STATUSES: tuple[str, ...] = ("refreshed", "failed", "not_attempted")
 # ``pending``: the pointer may already name the run while its copies are not yet refreshed.
 ALIAS_REFRESH_STATES: tuple[str, ...] = ("pending", "complete", "partial")
+# Board-planning fact sections (Classroom Budgets): their own payload version, the status of
+# a section and how a posted classroom payment is assigned to a roster class.
+CLASSROOM_SCHEMA_VERSION = 1
+PLANNING_FACT_STATUSES: tuple[str, ...] = ("complete", "partial", "unavailable")
+_UNAVAILABLE_STATUS = PLANNING_FACT_STATUSES[2]
+CLASSROOM_ASSIGNMENT_BASES: tuple[str, ...] = ("payment_allocation", "payee_alias")
 
 
 def is_valid_source_alias(alias: str) -> bool:
@@ -2101,6 +2116,311 @@ class FactIssue:
 
 
 @dataclass(frozen=True)
+class ClassroomAssignment:
+    """One reporting assignment of (part of) a posted classroom payment to a roster class.
+
+    ``basis`` is a :data:`CLASSROOM_ASSIGNMENT_BASES` entry: an evidence-backed private
+    ``payment_allocation`` (exact source key and revision; ``evidence`` is its text) or an
+    exact ``payee_alias``. Never a payment-authority record.
+    """
+
+    class_id: str
+    amount: Decimal
+    basis: str
+    evidence: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "class_id": self.class_id,
+            "amount": money_str(self.amount),
+            "basis": self.basis,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass(frozen=True)
+class ClassroomPayment:
+    """One posted academic-ledger row of classroom spending attributed to the school year.
+
+    ``amount`` is spending: the negation of the signed ledger amount (a refund is negative and
+    kept). ``source_fiscal_year`` is the ledger's own academic-year label; ``fiscal_year`` the
+    attribution used (an operator ``period_allocation`` overrides it, with its ``period_evidence``).
+    The assignments plus ``unassigned`` always sum exactly to ``amount``. ``prepaid`` marks a
+    payment dated before the school-year start. ``linked_review_keys`` are the reimbursement
+    requests whose recorded payment reference equals this row's exact payment reference.
+    """
+
+    ref: SourceRef
+    payment_date: date
+    description: str
+    source_category: str
+    budget_category: str
+    source_fiscal_year: int
+    fiscal_year: int
+    period_evidence: str | None
+    amount: Decimal
+    payment_reference: str | None
+    assignments: tuple[ClassroomAssignment, ...]
+    unassigned: Decimal
+    prepaid: bool
+    linked_review_keys: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ref": self.ref.to_dict(),
+            "payment_date": self.payment_date.isoformat(),
+            "description": self.description,
+            "source_category": self.source_category,
+            "budget_category": self.budget_category,
+            "source_fiscal_year": self.source_fiscal_year,
+            "fiscal_year": self.fiscal_year,
+            "period_evidence": self.period_evidence,
+            "amount": money_str(self.amount),
+            "payment_reference": self.payment_reference,
+            "assignments": [item.to_dict() for item in self.assignments],
+            "unassigned": money_str(self.unassigned),
+            "prepaid": self.prepaid,
+            "linked_review_keys": list(self.linked_review_keys),
+        }
+
+
+@dataclass(frozen=True)
+class ClassroomRow:
+    """One roster class: its allocation (enrollment times rate), posted payments and remainder.
+
+    ``allocation`` is ``student_count * per_student_amount`` and ``None`` when either is
+    missing or the class is not ``eligible``: the adopted total is never distributed.
+    ``paid`` is the sum of the class's assignments (``None`` when no posted-payment basis is
+    available). ``remainder`` is the SIGNED ``allocation - paid``: negative means over budget.
+    ``payments`` lists every ``(record_key, revision_hash, amount)`` assigned to the class.
+    """
+
+    class_id: str
+    teacher_label: str
+    label: str
+    eligible: bool
+    student_count: int | None
+    per_student_amount: Decimal | None
+    effective_start: date
+    effective_end: date
+    allocation: Decimal | None
+    paid: Decimal | None
+    payments: tuple[tuple[str, str, Decimal], ...] = ()
+
+    @property
+    def remainder(self) -> Decimal | None:
+        if self.allocation is None or self.paid is None:
+            return None
+        return self.allocation - self.paid
+
+    @property
+    def over_budget(self) -> bool:
+        remainder = self.remainder
+        return remainder is not None and remainder < 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "class_id": self.class_id,
+            "teacher_label": self.teacher_label,
+            "label": self.label,
+            "eligible": self.eligible,
+            "student_count": self.student_count,
+            "per_student_amount": _opt_money(self.per_student_amount),
+            "effective_start": self.effective_start.isoformat(),
+            "effective_end": self.effective_end.isoformat(),
+            "allocation": _opt_money(self.allocation),
+            "paid": _opt_money(self.paid),
+            "remainder": _opt_money(self.remainder),
+            "over_budget": self.over_budget,
+            "payments": [
+                {"record_key": key, "revision_hash": revision, "amount": money_str(amount)}
+                for key, revision, amount in self.payments
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class IssuedPayment:
+    """A reimbursement paid in the school year whose exact reference is not yet posted.
+
+    ``amount`` is the request's approved classroom items dated in the period. It is shown
+    beside, never added to, posted classroom spending, so a later posting is not counted twice.
+    """
+
+    review_key: str
+    ticket_ref: str
+    payment_date: date
+    reference: str
+    amount: Decimal
+    item_keys: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "review_key": self.review_key,
+            "ticket_ref": self.ticket_ref,
+            "payment_date": self.payment_date.isoformat(),
+            "reference": self.reference,
+            "amount": money_str(self.amount),
+            "item_keys": list(self.item_keys),
+        }
+
+
+@dataclass(frozen=True)
+class ClassroomPurchase:
+    """One paid, dated, itemized classroom purchase from the reimbursement review evidence.
+
+    ``posted`` says whether its request's recorded payment reference is on a posted ledger
+    row. Aggregate paper totals are never split into invented products.
+    """
+
+    review_key: str
+    ticket_ref: str
+    item_key: str
+    expense_date: date
+    category: str
+    description: str
+    amount: Decimal
+    posted: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "review_key": self.review_key,
+            "ticket_ref": self.ticket_ref,
+            "item_key": self.item_key,
+            "expense_date": self.expense_date.isoformat(),
+            "category": self.category,
+            "description": self.description,
+            "amount": money_str(self.amount),
+            "posted": self.posted,
+        }
+
+
+@dataclass(frozen=True)
+class ClassroomFacts:
+    """The Classroom Budgets facts of one school year (versioned payload, ``schema_version``).
+
+    ``status`` is a :data:`PLANNING_FACT_STATUSES` entry: ``unavailable`` when no board-planning
+    input, no matching fiscal year, no academic ledger or no classroom category exists;
+    ``partial`` when the roster, allocations or ledger coverage are incomplete. Every total is
+    derived from ``classes`` and ``payments`` (one source of truth): posted classroom spending
+    always equals the assigned plus the unassigned amount. ``excluded`` counts captured ledger
+    rows left out by reason (codes, never values). ``findings`` never carry a money value.
+    """
+
+    status: str
+    fiscal_year: int | None
+    roster_complete: bool | None
+    roster_as_of: date | None
+    planning_sha256: str | None
+    ledger_sha256: str | None
+    ledger_coverage: tuple[date, date] | None
+    ledger_coverage_complete: bool
+    classes: tuple[ClassroomRow, ...]
+    payments: tuple[ClassroomPayment, ...]
+    issued_unposted: tuple[IssuedPayment, ...]
+    purchases: tuple[ClassroomPurchase, ...]
+    adopted_envelope: Decimal | None
+    excluded: tuple[tuple[str, int], ...]
+    findings: tuple[FactIssue, ...]
+    schema_version: int = CLASSROOM_SCHEMA_VERSION
+
+    @property
+    def paid_available(self) -> bool:
+        """Whether a posted-payment basis exists (an academic ledger and classroom mapping)."""
+        return self.ledger_sha256 is not None and self.status != _UNAVAILABLE_STATUS
+
+    @property
+    def source_total(self) -> Decimal:
+        """Posted classroom spending attributed to the school year (all captured rows)."""
+        return sum((payment.amount for payment in self.payments), _ZERO_MONEY)
+
+    @property
+    def assigned(self) -> Decimal:
+        return sum(
+            (item.amount for payment in self.payments for item in payment.assignments),
+            _ZERO_MONEY,
+        )
+
+    @property
+    def unassigned(self) -> Decimal:
+        return sum((payment.unassigned for payment in self.payments), _ZERO_MONEY)
+
+    @property
+    def unassigned_payments(self) -> int:
+        return sum(1 for payment in self.payments if payment.unassigned)
+
+    @property
+    def allocated(self) -> Decimal | None:
+        """Sum of the known allocations of eligible classes (``None`` when there are none)."""
+        known = [row.allocation for row in self.classes if row.allocation is not None]
+        return sum(known, _ZERO_MONEY) if known else None
+
+    @property
+    def allocation_complete(self) -> bool:
+        """Every eligible class has an allocation and the roster is declared complete."""
+        eligible = [row for row in self.classes if row.eligible]
+        return (
+            bool(self.roster_complete)
+            and bool(eligible)
+            and all(row.allocation is not None for row in eligible)
+        )
+
+    @property
+    def remaining(self) -> Decimal | None:
+        """Signed sum of the classes' remainders (classes with a known allocation)."""
+        known = [row.remainder for row in self.classes if row.remainder is not None]
+        return sum(known, _ZERO_MONEY) if known else None
+
+    @property
+    def over_budget(self) -> tuple[ClassroomRow, ...]:
+        return tuple(row for row in self.classes if row.over_budget)
+
+    @property
+    def issued_total(self) -> Decimal:
+        return sum((item.amount for item in self.issued_unposted), _ZERO_MONEY)
+
+    @property
+    def envelope_difference(self) -> Decimal | None:
+        """Adopted classroom budget less the allocations: shown, never silently scaled."""
+        allocated = self.allocated
+        if self.adopted_envelope is None or allocated is None:
+            return None
+        return self.adopted_envelope - allocated
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "status": self.status,
+            "fiscal_year": self.fiscal_year,
+            "roster_complete": self.roster_complete,
+            "roster_as_of": _opt_date(self.roster_as_of),
+            "planning_sha256": self.planning_sha256,
+            "ledger_sha256": self.ledger_sha256,
+            "ledger_coverage": None
+            if self.ledger_coverage is None
+            else [day.isoformat() for day in self.ledger_coverage],
+            "ledger_coverage_complete": self.ledger_coverage_complete,
+            "classes": [row.to_dict() for row in self.classes],
+            "payments": [payment.to_dict() for payment in self.payments],
+            "issued_unposted": [item.to_dict() for item in self.issued_unposted],
+            "purchases": [item.to_dict() for item in self.purchases],
+            "adopted_envelope": _opt_money(self.adopted_envelope),
+            "totals": {
+                "source_total": money_str(self.source_total),
+                "assigned": money_str(self.assigned),
+                "unassigned": money_str(self.unassigned),
+                "allocated": _opt_money(self.allocated),
+                "allocation_complete": self.allocation_complete,
+                "remaining": _opt_money(self.remaining),
+                "issued_unposted": money_str(self.issued_total),
+                "envelope_difference": _opt_money(self.envelope_difference),
+            },
+            "excluded": dict(self.excluded),
+            "findings": [issue.to_dict() for issue in self.findings],
+        }
+
+
+@dataclass(frozen=True)
 class ReportFacts:
     """Every figure the Main Report Set renders, projected from one captured input set.
 
@@ -2110,6 +2430,9 @@ class ReportFacts:
     finding carried from the source view. ``pending_adjustments`` (effective after the as-of
     date), ``superseded_adjustments`` and ``adjustment_warnings`` repeat the adjusted ledger's
     journal diagnostics so they can be shown beside the applied entries.
+
+    ``classroom`` is the optional Classroom Budgets section (its own versioned payload). When
+    it is ``None`` the serialized facts carry no ``classroom`` key, the historical shape.
     """
 
     as_of: date
@@ -2129,6 +2452,7 @@ class ReportFacts:
     pending_adjustments: tuple[str, ...]
     superseded_adjustments: tuple[str, ...]
     adjustment_warnings: tuple[AdjustmentIssue, ...]
+    classroom: ClassroomFacts | None = None
     schema_version: int = SCHEMA_VERSION
 
     def view(self, basis: str, view: str) -> PnlView:
@@ -2141,6 +2465,12 @@ class ReportFacts:
         return found
 
     def to_dict(self) -> dict[str, Any]:
+        entry = self._base_dict()
+        if self.classroom is not None:
+            entry["classroom"] = self.classroom.to_dict()
+        return entry
+
+    def _base_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "as_of": self.as_of.isoformat(),

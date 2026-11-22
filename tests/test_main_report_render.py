@@ -1,4 +1,4 @@
-"""Tests for np_finance.main_reports.render and export — the five-report Main Report Set.
+"""Tests for np_finance.main_reports.render and export — the six-report Main Report Set.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). Content cases run the
 production path without a browser: fake gspread workbooks -> read-only capture ->
@@ -74,8 +74,10 @@ from np_finance.main_reports.render import (
 )
 from np_finance.reimbursement_report import STATUS_META
 from tests.conftest import (
+    AS_OF,
     BANK_ROWS,
     BUDGET_ROWS,
+    CLASSROOM_CLASSES,
     CROSSWALK_TOML,
     PNL_VALUES,
     Scenario,
@@ -87,6 +89,9 @@ from tests.conftest import (
     _record_payment,
     _ticket,
     _wix,
+    classroom_class,
+    classroom_document,
+    classroom_purchases,
     require_chromium,
 )
 
@@ -109,6 +114,7 @@ TITLES = {
     "budget-snapshot.html": "Budget Snapshot",
     "fundraising-summary.html": "Fundraising Summary",
     "cfo-pnl-summary.html": "CFO P&L Summary",
+    "classroom-budgets.html": "Classroom Budgets",
 }
 BUCKET_LABELS = {
     "prior": "Before the period",
@@ -131,7 +137,12 @@ CSP = (
     "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; "
     "form-action 'none'"
 )
-FAKE_PDF = b"%PDF-1.4\n% fictional export stand-in\n"
+# A minimal one-page portrait Letter structure: the page-count gate reads it as it
+# reads Chromium's output.
+FAKE_PDF = (
+    b"%PDF-1.4\n1 0 obj << /Type /Page /MediaBox [0 0 612 792] >> endobj\n"
+    b"% fictional export stand-in\n"
+)
 
 
 # --------------------------------------------------------------------------------------
@@ -1712,7 +1723,11 @@ def test_a_written_run_directory_is_never_written_again(tmp_path: Path, leftover
         inputs.write(context=other)
     assert caught.value.code == "run_dir_not_empty"
     _assert_clean_error(caught.value)
-    expected = "15 output file(s) and 0" if leftover == "output" else "0 output file(s) and 1"
+    expected = (
+        f"{len(render.OUTPUT_NAMES)} output file(s) and 0"
+        if leftover == "output"
+        else "0 output file(s) and 1"
+    )
     assert expected in str(caught.value)
     assert _files(inputs.run_dir) == previous  # byte-identical
     assert sorted(p.name for p in inputs.run_dir.iterdir()) == sorted(
@@ -2288,6 +2303,11 @@ def test_every_summary_amount_is_whole_dollars_traced_to_the_facts(rendered: Ren
         text = _text(rendered.html(name))
         assert not re.search(r"\$[\d,]+\.\d", text), name  # never cents on a summary
         shown = set(re.findall(r"-?\$\d{1,3}(?:,\d{3})*", text))
+        if name == "classroom-budgets.html":  # no planning input: nothing is estimated
+            classroom = rendered.facts.classroom
+            assert classroom is not None and classroom.status == "unavailable"
+            assert shown == set(), sorted(shown)
+            continue
         assert shown and shown <= pool, (name, sorted(shown - pool))
     assert re.search(r"\$[\d,]+\.\d\d", _text(rendered.html(INDEX_HTML)))  # cents live here
 
@@ -2577,3 +2597,290 @@ def test_unreadable_income_targets_mark_the_fundraising_percent_and_meter(tmp_pa
     assert "Target $1,500*</text>" in html
     assert "(some adopted targets are unreadable)" in _text(html)
     assert _text(html).count(LEGEND) == 1
+
+
+# --------------------------------------------------------------------------------------
+# Classroom Budgets (fictional board-planning input; Phase CORE-BRIEFS Step 66)
+# --------------------------------------------------------------------------------------
+
+CLASSROOM_HTML = "classroom-budgets.html"
+_DATA_CLASS = re.compile(r'<tr data-class="([^"]+)">')
+_BAR_CLASS = re.compile(r'<g data-class="([^"]+)">')
+LARGE_CLASSES = 36
+
+
+def _classroom_inputs(
+    tmp_path: Path,
+    document: dict[str, Any] | None = None,
+    *,
+    bundle: dict[str, Any] | None = None,
+) -> RunInputs:
+    return _inputs(
+        tmp_path,
+        adjusted=False,
+        planning=classroom_document() if document is None else document,
+        bundle=bundle,
+    )
+
+
+def _over_budget_document() -> dict[str, Any]:
+    classes = [dict(item) for item in CLASSROOM_CLASSES]
+    classes[0]["student_count"] = 10  # $50.00 allocated against $60.00 posted
+    return classroom_document(classes=classes)
+
+
+def _large_classroom(tmp_path: Path) -> RunInputs:
+    """36 classes with 120-character labels (one hostile), unequal rates, an over-budget
+    class and long purchase descriptions: the stress case of the one-page fit."""
+    long_name = _long_name("Example Teacher With A Remarkably Long Fictional Name")
+    classes = [
+        classroom_class(
+            "class-a" if index == 0 else "class-b" if index == 1 else f"class-{index:02d}",
+            HOSTILE if index == 5 else f"{long_name} {index:02d}",
+            18 + index % 9,
+            "12.50" if index % 4 else "7.25",
+        )
+        for index in range(LARGE_CLASSES)
+    ]
+    classes[0]["student_count"] = 1  # $7.25 allocated against $60.00 posted: over budget
+    bundle = classroom_purchases(_bundle_payload(), 7, description=_long_name("Example purchase"))
+    return _classroom_inputs(tmp_path, classroom_document(classes=classes), bundle=bundle)
+
+
+def _classroom_pool(classroom: Any) -> set[str]:
+    """Every whole-dollar amount the page may show: the classroom facts' own amounts and
+    sums, their negations, and the chart's dollar ticks (a nice ceiling and its half)."""
+    values: set[Decimal] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for item in node.values():
+                walk(item)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+        elif isinstance(node, str) and re.fullmatch(r"-?\d+\.\d\d", node):
+            values.add(Decimal(node))
+
+    walk(classroom.to_dict())
+    shown, rest = classroom.purchases[:3], classroom.purchases[3:]
+    values.add(sum((item.amount for item in rest), Decimal("0.00")))
+    values.update(item.amount for item in shown)
+    peak = render._nice_ceiling(
+        max(
+            [max(r.allocation or Decimal(0), r.paid or Decimal(0)) for r in classroom.classes],
+            default=Decimal(0),
+        )
+    )
+    values.update({peak, peak / 2, Decimal(0)})
+    return {format_whole(v) for v in values} | {format_whole(-v) for v in values}
+
+
+def test_classroom_budgets_show_every_class_and_reconcile_posted_spending(
+    tmp_path: Path,
+) -> None:
+    inputs = _classroom_inputs(tmp_path)
+    artifacts = inputs.write()
+    classroom = inputs.facts.classroom
+    assert classroom is not None and classroom.status == "complete"
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    text = _text(html)
+    # The triplet is part of the one artifact set, beside the existing summaries.
+    assert {f"classroom-budgets.{suffix}" for suffix in ("html", "pdf", "png")} <= set(
+        artifacts.paths
+    )
+    assert f'<meta name="pta-run-id" content="{RUN_ID}">' in html
+    assert f'<meta name="pta-input-set" content="{inputs.context.input_sha256}">' in html
+    assert [tile[2:4] for tile in _tiles(html)] == [
+        ("$250", "Allocated (students × rate)"),
+        ("$213", "Posted classroom spending"),  # 212.50, rounded once at display
+        ("$160", "Remaining (signed)"),
+        ("$123", "Not assigned to a class"),
+    ]
+    # Every class has its own row and its own bar, in roster order.
+    assert _DATA_CLASS.findall(html) == ["class-a", "class-b", "class-c"]
+    assert _BAR_CLASS.findall(html) == ["class-a", "class-b", "class-c"]
+    rows = [row for row in _tables(html)["classes"] if row[0].text != "Teacher"]
+    assert _texts(rows) == [
+        ["Example Teacher A", "20", "$5", "$100", "$60", "$40"],
+        ["Example Teacher B · class-b", "18", "$5", "$90", "$30", "$60"],
+        ["Example Teacher B · class-c", "12", "$5", "$60", "$0", "$60"],
+    ]
+    assert "Posted $213 = $90 assigned to classes + $123 not yet assigned" in text
+    assert "No issued reimbursement awaits posting" in text
+    assert "Adopted classroom budget $500; the $250 allocated is $250 below it" in text
+    assert "Board-planning roster as of Aug 1, 2030, school-year ledger" in text
+    assert "Ledger coverage complete for the period" in text
+    assert "Classroom findings 3" in _audit_text(html)
+    purchases = _texts(_body(_tables(html)["purchases"]))
+    assert purchases == [["Fictional classroom materials", "Jul 2", "$20"]]
+    narrative = html.split('<section class="narrative">')[1].split("</section>")[0]
+    assert "3 classes have $250 allocated from enrollment times rate" in _text("<body>" + narrative)
+    # Only fictional, traceable whole-dollar amounts; no private payee or reference text.
+    shown = set(re.findall(r"-?\$\d{1,3}(?:,\d{3})*", text))
+    assert shown and shown <= _classroom_pool(classroom), sorted(shown - _classroom_pool(classroom))
+    assert "Example Payee" not in html and "EX-CHK-3001" not in html
+    # The index and pointer link the new summary like every other one.
+    index = (inputs.run_dir / INDEX_HTML).read_text(encoding="utf-8")
+    for suffix in ("html", "pdf", "png"):
+        assert f'href="classroom-budgets.{suffix}"' in index
+    assert "The six reports" in _text(index)
+    pointer = render.pointer_page(
+        run_id=RUN_ID,
+        input_sha256=inputs.context.input_sha256,
+        as_of=AS_OF,
+        published_at=datetime(2030, 8, 15, 14, 0, tzinfo=UTC),
+        run_link="main-report-runs/x",
+        manifest_name="run-manifest.json",
+    )
+    assert 'href="main-report-runs/x/classroom-budgets.html">Classroom Budgets<' in pointer
+    # The planning input and its tabs are named in the index freshness sentence only.
+    assert "Board planning input" in _text(index)
+
+
+def test_an_over_budget_class_is_marked_and_drawn_above_its_allocation(tmp_path: Path) -> None:
+    inputs = _classroom_inputs(tmp_path, _over_budget_document())
+    inputs.write()
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    (row,) = [r for r in _tables(html)["classes"] if r[0].text == "Example Teacher A"]
+    remaining = row[-1]
+    assert remaining.text == "-$10 over" and "state:over" in remaining.classes
+    assert "over" in remaining.classes
+    bar = html.split('<g data-class="class-a">')[1].split("</g>")[0]
+    assert 'fill="#922f38"' in bar  # paid above the allocation, never a negative stack
+    assert 'stroke="#123f4a"' in bar  # the allocation tick
+    assert "over budget by $10" in bar
+    other = html.split('<g data-class="class-b">')[1].split("</g>")[0]
+    assert 'fill="#922f38"' not in other and 'fill="#edb528"' in other
+    tile = _tiles(html)[2]
+    assert tile[:4] == ("open", "", "$110", "Remaining (signed)")
+    assert tile[4] == "1 class over budget"
+    assert "1 class is over budget" in _text(html)
+
+
+def test_without_planning_input_the_classroom_page_is_explicitly_unavailable(
+    rendered: RenderedSet,
+) -> None:
+    html = rendered.html(CLASSROOM_HTML)
+    text = _text(html)
+    assert [tile[2] for tile in _tiles(html)] == ["Unavailable"] * 4
+    assert _DATA_CLASS.findall(html) == [] and _BAR_CLASS.findall(html) == []
+    assert "the adopted budget is never divided among classes" in text
+    assert "No board-planning input" in text
+    assert "no board-planning input is configured" in text
+    assert "Unavailable: no classroom category mapping." in text
+    assert not re.findall(r"\$\d", text)  # no allocation, total or share is estimated
+    # The other five reports are unchanged in kind and still written.
+    assert all((rendered.inputs.run_dir / name).is_file() for name in OUTPUT_NAMES)
+
+
+def _two_page_classroom(jobs: Sequence[ExportJob]) -> None:
+    fake_exporter(jobs)
+    for job in jobs:
+        if job.html.name == CLASSROOM_HTML:
+            job.pdf.write_bytes(FAKE_PDF + b"2 0 obj << /Type /Page /MediaBox [0 0 612 792] >>\n")
+
+
+def test_a_classroom_page_that_does_not_fit_one_page_is_never_written(tmp_path: Path) -> None:
+    inputs = _classroom_inputs(tmp_path)
+    with pytest.raises(RenderError) as caught:
+        inputs.write(exporter=_two_page_classroom)
+    assert caught.value.code == "layout_overflow"
+    assert "Classroom Budgets export has 2 page(s)" in str(caught.value)
+    assert list(inputs.run_dir.iterdir()) == []  # nothing moved into place, no staging left
+
+
+def test_an_unreadable_page_structure_fails_closed() -> None:
+    with pytest.raises(ExportError) as caught:
+        export.pdf_page_sizes(b"%PDF-1.4\n% compressed objects only\n")
+    assert caught.value.code == "export_output_invalid"
+    with pytest.raises(ExportError):
+        export.pdf_page_sizes(b"not a pdf")
+    assert export.pdf_page_sizes(FAKE_PDF) == ((612, 792),)
+
+
+def test_classroom_totals_that_do_not_reconcile_are_refused(tmp_path: Path) -> None:
+    inputs = _classroom_inputs(tmp_path)
+    classroom = inputs.facts.classroom
+    assert classroom is not None
+    tampered = dataclasses.replace(
+        classroom,
+        classes=(
+            dataclasses.replace(classroom.classes[0], paid=Decimal("61.00")),
+            *classroom.classes[1:],
+        ),
+    )
+    with pytest.raises(RenderError) as caught:
+        inputs.write(facts=dataclasses.replace(inputs.facts, classroom=tampered))
+    assert caught.value.code == "totals_mismatch"
+    assert list(inputs.run_dir.iterdir()) == []
+
+
+CLASSROOM_FIT_WORLDS = ["standard", "over_budget", "large"]
+
+
+@pytest.mark.parametrize("world", CLASSROOM_FIT_WORLDS)
+def test_chromium_classroom_budgets_fit_one_readable_letter_page(
+    tmp_path: Path, world: str
+) -> None:
+    playwright = require_chromium()
+    if world == "large":
+        inputs = _large_classroom(tmp_path)
+    else:
+        document = _over_budget_document() if world == "over_budget" else None
+        inputs = _classroom_inputs(tmp_path, document)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UnsandboxedExportWarning)
+        inputs.write(exporter=None)  # the real export and the one-page gate
+    classroom = inputs.facts.classroom
+    assert classroom is not None and classroom.status == "complete"
+    count = len(classroom.classes)
+    if world == "large":
+        assert count == LARGE_CLASSES and len(classroom.purchases) == 8
+        assert classroom.over_budget  # the stress case also carries an overrun
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    assert RAW_MARKER not in html
+    ids = [row.class_id for row in classroom.classes]
+    assert _DATA_CLASS.findall(html) == ids and _BAR_CLASS.findall(html) == ids
+    uri = (inputs.run_dir / CLASSROOM_HTML).as_uri()
+    with playwright.sync_playwright() as driver:
+        browser = driver.chromium.launch(channel="chromium")
+        page = browser.new_page(viewport={"width": 1100, "height": 1200})
+        errors: list[str] = []
+        requests: list[str] = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on("request", lambda request: requests.append(request.url))
+        page.goto(uri)
+        screen = page.evaluate(_SCREEN_CHECK)
+        assert screen["scroll"] <= screen["inner"]
+        assert screen["problems"] == [], screen["problems"][:5]  # no clipped label or cell
+        smallest = page.evaluate(
+            "Math.min(...[...document.querySelectorAll('td, th, p, li')]"
+            ".map(el => parseFloat(getComputedStyle(el).fontSize)))"
+        )
+        assert smallest >= 9.5
+        page.set_viewport_size({"width": 730, "height": 1000})
+        page.emulate_media(media="print")
+        page.goto(uri)
+        fit = page.evaluate(_PRINT_CHECK)
+        visible = page.evaluate(
+            "[...document.querySelectorAll('tr[data-class]')]"
+            ".filter(r => r.getBoundingClientRect().height > 0).length"
+        )
+        page.emulate_media(media="screen")
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(uri)
+        phone = page.evaluate(_PHONE_CHECK)
+        browser.close()
+    assert not errors
+    assert all(url.startswith(("file:", "data:")) for url in requests)
+    assert fit["height"] <= FIT_LIMIT - FIT_RESERVE, fit["height"]
+    assert fit["row"] <= 38 and fit["narrative"] <= 4.2 * fit["line"] + 16
+    assert visible == count  # no hidden teacher row
+    flat = " ".join(fit["text"].split())
+    for label in re.findall(r'<tr data-class="[^"]+"><td><strong><span[^>]*>([^<]*)</span>', html):
+        assert unescape(label) in flat
+    assert "Classroom Budgets" in flat and "1 page" in flat and RUN_ID in flat
+    assert phone["overflow"] <= 1 and phone["tops"] == 2 and phone["pad"] >= 16
+    sizes = _pdf_sizes((inputs.run_dir / "classroom-budgets.pdf").read_bytes())
+    assert sizes == [(612, 792)]
