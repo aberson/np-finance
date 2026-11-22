@@ -39,6 +39,7 @@ __all__ = [
     "CrosswalkTarget",
     "CrosswalkEntry",
     "CategoryCrosswalk",
+    "BoardPlanning",
     "MainReports",
     "Config",
     "load_config",
@@ -202,6 +203,21 @@ class CategoryCrosswalk:
 
 
 @dataclass(frozen=True)
+class BoardPlanning:
+    """The OPTIONAL ``[main_reports.board_planning]`` block.
+
+    ``input_file`` names one private, versioned JSON document (roster, explicit mappings and
+    policies, supplemental tab bindings); ``input_path`` is it resolved against the config
+    file's directory. The file is read, validated and captured by
+    ``main_reports.sources.capture``, never here. Absent block: no planning capture, and every
+    existing run keeps its historical input identity.
+    """
+
+    input_file: str
+    input_path: Path
+
+
+@dataclass(frozen=True)
 class MainReports:
     """The OPTIONAL ``[main_reports]`` block: CFO workbook bindings for the Main Report Set.
 
@@ -216,6 +232,7 @@ class MainReports:
     assumptions_tab: str
     sources: tuple[SourceBinding, ...]
     crosswalk: CategoryCrosswalk | None = None
+    board_planning: BoardPlanning | None = None
 
 
 @dataclass(frozen=True)
@@ -683,6 +700,19 @@ def _load_crosswalk(raw: Any) -> CategoryCrosswalk | None:
     return CategoryCrosswalk(version=version, entries=tuple(entries))
 
 
+def _load_board_planning(raw: Any, base_dir: Path) -> BoardPlanning | None:
+    if raw is None:
+        return None
+    dotted = "main_reports.board_planning"
+    if not isinstance(raw, dict):
+        raise ConfigError(dotted, f"expected a [{dotted}] table")
+    unknown = set(raw) - {"input_file"}
+    if unknown:
+        raise ConfigError(dotted, f"{dotted} has unsupported keys: {sorted(unknown)}")
+    input_file = _require_str(raw, "input_file", f"{dotted}.input_file")
+    return BoardPlanning(input_file=input_file, input_path=_resolve_path(input_file, base_dir))
+
+
 def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
     """Parse the OPTIONAL ``[main_reports]`` section; ``None`` when absent.
 
@@ -720,4 +750,5 @@ def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
         assumptions_tab=assumptions_tab,
         sources=sources,
         crosswalk=_load_crosswalk(raw.get("crosswalk")),
+        board_planning=_load_board_planning(raw.get("board_planning"), base_dir),
     )

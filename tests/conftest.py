@@ -18,7 +18,7 @@ from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequenc
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from gspread.exceptions import APIError
@@ -38,7 +38,13 @@ from np_finance.main_reports.models import (
     Transaction,
     make_adjustment_id,
 )
-from np_finance.main_reports.sources import ReadOnlyWorkbook, capture, connect_source_client
+from np_finance.main_reports.sources import (
+    PLANNING_ROLES,
+    PLANNING_SCHEMA_VERSION,
+    ReadOnlyWorkbook,
+    capture,
+    connect_source_client,
+)
 from np_finance.reimbursement_report import ReimbursementReport
 from np_finance.sheets import SheetsClient
 
@@ -724,6 +730,162 @@ class CfoHarness:
         assert self.assumptions.add_rows_calls == []
         assert self.assumptions.add_cols_calls == []
         assert self.own_spreadsheet.add_worksheet_calls == []
+
+
+# --------------------------------------------------------------------------------------
+# Fictional board-planning input and its supplemental tabs
+# --------------------------------------------------------------------------------------
+
+PLANNING_BALANCES_HEADER = ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"]
+PLANNING_LEDGER_HEADER = [
+    "Date",
+    "Description",
+    "Amount",
+    "Category",
+    "School Year",
+    "Reference",
+    "Payee",
+]
+PLANNING_PRIOR_HEADER = ["Category", "Type", "Proposed", "Actual"]
+PLANNING_LEDGER_ROWS = [
+    PLANNING_LEDGER_HEADER,
+    ["9/5/2029", "Example classroom supplies", "-25.00", "Classroom Supplies", "2030", "", ""],
+    [
+        "8/20/2029",
+        "Example prepaid supplies",
+        "-40.00",
+        "Classroom Supplies",
+        "2030",
+        "EX-REF-1",
+        "Example Payee",
+    ],
+]
+PLANNING_PRIOR_ROWS = [PLANNING_PRIOR_HEADER, ["Classroom Supplies", "Expense", "500.00", "450.00"]]
+# A fictional stand-in for private text (such as a person's name) placed in a malformed
+# planning input; validation output must never echo it.
+PLANNING_SENTINEL = "Example Sentinel Person"
+
+
+def planning_document(
+    *, bindings: Sequence[str] = PLANNING_ROLES, classroom_category: str | None = None
+) -> dict[str, Any]:
+    """A fictional ``[main_reports.board_planning]`` input document at the current version.
+
+    ``bindings`` selects (and orders) the supplemental roles bound; the default binds every
+    production role in production order. The balances and prior-year budget tabs live in the
+    CFO workbook, the academic ledger in our own. Look a binding up by role with
+    :func:`planning_binding` rather than by position.
+    ``classroom_category`` maps that source category as an expense and selects it as the
+    classroom category in both the roster and the central case; ``None`` leaves every
+    category list empty.
+    """
+    specs: dict[str, dict[str, Any]] = {
+        "balances": {
+            "role": "balances",
+            "workbook": "cfo",
+            "tab": "Example Balances",
+            "header_signature": [PLANNING_BALANCES_HEADER],
+            "columns": {
+                "date": "Date",
+                "checking": "Checking",
+                "savings": "Savings",
+                "cd": "CD",
+                "credit_card_liability": {"label": "Card Liability", "liability_sign": "negative"},
+                "total": "Total",
+            },
+            "coverage_start": "2030-01-01",
+            "coverage_end": "2030-08-31",
+            "coverage_evidence": "fictional monthly close",
+        },
+        "academic_ledger": {
+            "role": "academic_ledger",
+            "workbook": "own",
+            "tab": "Example Academic Ledger",
+            "header_signature": [PLANNING_LEDGER_HEADER],
+            "columns": {
+                "payment_date": "Date",
+                "description": "Description",
+                "amount": "Amount",
+                "category": "Category",
+                "fiscal_year": "School Year",
+                "payment_reference": "Reference",
+                "payee": "Payee",
+            },
+            "coverage_start": "2029-07-01",
+            "coverage_end": "2030-08-15",
+            "coverage_evidence": "fictional ledger review",
+        },
+        "prior_year_budget": {
+            "role": "prior_year_budget",
+            "workbook": "cfo",
+            "tab": "Example Prior Budget",
+            "header_signature": [PLANNING_PRIOR_HEADER],
+            "columns": {
+                "fiscal_year": {"constant": 2029},
+                "category": "Category",
+                "type": "Type",
+                "proposed": "Proposed",
+                "actual": "Actual",
+            },
+            "coverage_start": "2028-07-01",
+            "coverage_end": "2029-06-30",
+            "coverage_evidence": "fictional prior-year close",
+        },
+    }
+    classroom = [classroom_category] if classroom_category is not None else []
+    return {
+        "schema_version": PLANNING_SCHEMA_VERSION,
+        "fiscal_year": 2030,
+        "prior_fiscal_year": 2029,
+        "roster_complete": True,
+        "roster_as_of": "2030-01-15",
+        "roster_evidence": "fictional roster review",
+        "classes": [
+            {
+                "class_id": "class-a",
+                "teacher_label": "Example Teacher A",
+                "student_count": 20,
+                "per_student_amount": "10.00",
+                "effective_start": "2029-08-01",
+                "effective_end": "2030-06-30",
+                "eligible": True,
+            }
+        ],
+        "payee_aliases": [{"source_payee": "Example Payee", "class_id": "class-a"}],
+        "payment_allocations": [],
+        "category_roles": [
+            {"source_category": category, "role": "expense", "budget_category": category}
+            for category in classroom
+        ],
+        "classroom_categories": list(classroom),
+        "bindings": [specs[role] for role in bindings],
+        "reserve_basis": {
+            "kind": "source_account_balance",
+            "binding_role": "balances",
+            "component": "cd",
+            "evidence": "fictional board policy",
+        },
+        "specialist_contract_categories": [],
+        "central_case": {
+            "fundraising_basis": "prior_actual_dollars",
+            "classroom_budget_categories": list(classroom),
+            "prior_classroom_categories": [],
+            "future_events": [],
+        },
+        "period_allocations": [],
+    }
+
+
+def planning_binding(document: Mapping[str, Any], role: str) -> dict[str, Any]:
+    """The one binding of ``document`` for ``role`` (a mutable reference into it)."""
+    (binding,) = [item for item in document["bindings"] if item["role"] == role]
+    return cast(dict[str, Any], binding)
+
+
+def planning_binding_index(document: Mapping[str, Any], role: str) -> int:
+    """The position of ``role``'s binding, as a validation message names it."""
+    (index,) = [i for i, item in enumerate(document["bindings"]) if item["role"] == role]
+    return index
 
 
 # --------------------------------------------------------------------------------------

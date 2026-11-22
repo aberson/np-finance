@@ -124,5 +124,11 @@ service_account_file = "secrets/service-account.json"
 # targets = [{ category = "Fundraiser Income", share = "1" }]
 # note = "one-to-one"
 
+# Optional private board-planning contract. The JSON file is versioned schema 1 and contains
+# the roster, explicit aliases/policies, and optional read-only supplemental tab bindings.
+# Resolve this path relative to config.toml; do not commit the private JSON document.
+# [main_reports.board_planning]
+# input_file = "reports/output/private/board-planning.json"
+
 # [llm]            # Phase 4
 # api_key_env = "ANTHROPIC_API_KEY"
