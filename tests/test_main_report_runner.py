@@ -22,6 +22,7 @@ import warnings
 import zlib
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,9 @@ from tests.conftest import (
     _FULL_CONFIG,
     AS_OF,
     CFO_ID,
+    CLASSROOM_CATEGORY,
+    CLASSROOM_LEDGER_ROWS,
+    CLASSROOM_LEDGER_TAB,
     PLANNING_BALANCES_ROWS,
     PLANNING_CANARY,
     PLANNING_INPUT,
@@ -68,11 +72,13 @@ from tests.conftest import (
     _bundle_payload,
     _config,
     _harness,
+    classroom_planning_document,
     make_api_error,
     planning_binding,
     planning_binding_index,
     planning_document,
     require_chromium,
+    write_planning,
 )
 
 FAKE_PDF = b"%PDF-1.4\n% fictional export stand-in\n"
@@ -341,7 +347,7 @@ def _tickets(path: Path) -> int:
 
 
 # --------------------------------------------------------------------------------------
-# Bounded smoke: the production CLI from sources to a published five-report set
+# Bounded smoke: the production CLI from sources to a published six-report set
 # --------------------------------------------------------------------------------------
 
 
@@ -381,8 +387,9 @@ def test_cli_smoke_publishes_the_complete_set_within_the_bound(
     for name, alias in runner.COMPATIBILITY_FILES:
         assert (world.output / alias).read_bytes() == (run_dir / name).read_bytes()
     stdout = capsys.readouterr().out
-    assert "15 file(s) validated" in stdout
-    assert "16 refreshed, 0 not refreshed (complete refresh)" in stdout
+    assert f"{len(render.OUTPUT_NAMES)} file(s) validated" in stdout
+    assert len(render.OUTPUT_NAMES) == 18  # queue + copy text, five summary triplets, index
+    assert "19 refreshed, 0 not refreshed (complete refresh)" in stdout
     assert manifest["alias_refresh_state"] == "complete"
     # No CFO workbook write, and only read-only clients were requested.
     world.harness.assert_no_writes()
@@ -538,7 +545,6 @@ def test_dry_run_validates_everything_and_writes_nothing(
 # Optional board-planning capture through the production CLI
 # --------------------------------------------------------------------------------------
 
-_CLASSROOM = "Classroom Supplies"
 _PLANNING_LINE = (
     f"  planning      : input schema {sources.PLANNING_SCHEMA_VERSION} validated, "
     f"{len(sources.PLANNING_ROLES)} supplemental tab(s) captured read-only"
@@ -548,7 +554,7 @@ _PLANNING_LINE = (
 def _enable_planning(world: World, document: dict[str, Any] | None = None) -> Path:
     """Configure ``[main_reports.board_planning]`` with fictional input and bound tabs."""
     path = world.root / PLANNING_INPUT
-    planning = document or planning_document(classroom_category=_CLASSROOM)
+    planning = document or planning_document(classroom_category=CLASSROOM_CATEGORY)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(planning), encoding="utf-8")
     world.config_path.write_text(
@@ -602,7 +608,7 @@ def test_cli_refuses_a_committable_planning_input_before_any_capture(
 def test_cli_dry_run_rejects_invalid_planning_without_writing(
     world: World, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    document = planning_document(classroom_category=_CLASSROOM)
+    document = planning_document(classroom_category=CLASSROOM_CATEGORY)
     document["classes"][0]["per_student_amount"] = "1e3"
     _enable_planning(world, document)
     before = _tree(world.root)
@@ -740,7 +746,7 @@ def test_cli_invalid_planning_input_keeps_the_publication_pointer(
 
     planning_path = _enable_planning(world)
     if case == "contract":
-        invalid = planning_document(classroom_category=_CLASSROOM)
+        invalid = planning_document(classroom_category=CLASSROOM_CATEGORY)
         planning_binding(invalid, "balances")["columns"]["credit_card_liability"] = "Card Liability"
         planning_path.write_text(json.dumps(invalid), encoding="utf-8")
     elif case == "unreadable":
@@ -799,7 +805,7 @@ def test_cli_planning_failure_never_echoes_input_keys_or_values(
     capsys.readouterr()
 
     planning_path = _enable_planning(world)
-    invalid = planning_document(classroom_category=_CLASSROOM)
+    invalid = planning_document(classroom_category=CLASSROOM_CATEGORY)
     expected = expected.format(balances=planning_binding_index(invalid, "balances"))
     if case == "unsupported_key":
         invalid[PLANNING_CANARY] = "fictional"
@@ -850,6 +856,139 @@ def test_cli_detects_a_mutated_stored_planning_capture(
     stdout = capsys.readouterr().out
     assert "capture_store_failed" in stdout
     assert "stored_capture_conflict" in stdout
+    assert world.published() == published
+
+
+# --------------------------------------------------------------------------------------
+# Classroom Budgets through the production CLI (CORE-BRIEFS Step 66)
+# --------------------------------------------------------------------------------------
+
+_CLASSROOM_FILES = tuple(f"classroom-budgets.{suffix}" for suffix in ("html", "pdf", "png"))
+_CLASSROOM_HTML, _CLASSROOM_PDF, _CLASSROOM_PNG = _CLASSROOM_FILES
+
+
+def _enable_classroom(world: World) -> Path:
+    """Configure the fictional FY2031 classroom planning input and its academic ledger."""
+    path = write_planning(world.root, classroom_planning_document())
+    world.config_path.write_text(
+        world.config_path.read_text("utf-8") + PLANNING_TOML, encoding="utf-8"
+    )
+    world.harness.add_tab(
+        CLASSROOM_LEDGER_TAB, [list(row) for row in CLASSROOM_LEDGER_ROWS], sheet_id=3003, own=True
+    )
+    return path
+
+
+def test_normal_cli_run_publishes_the_classroom_triplet_with_one_identity(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _enable_classroom(world)
+    assert world.main() == runner.EXIT_OK
+    (run_dir,) = world.run_dirs()
+    manifest = _manifest(run_dir)
+    assert manifest["status"] == "published" and manifest["planning_sha256"] is not None
+    paths = {item["path"] for item in manifest["artifacts"]["artifacts"]}
+    assert paths == set(render.OUTPUT_NAMES) and set(_CLASSROOM_FILES) <= paths
+    run_id, input_sha = manifest["run_id"], manifest["input_sha256"]
+    # The classroom page names the same run and captured input set as every other page.
+    for name in (*(f"{n}.html" for n in render.SUMMARY_NAMES), render.INDEX_HTML):
+        html = (run_dir / name).read_text("utf-8")
+        assert str(render.run_id_meta(run_id)) in html, name
+        assert str(render.input_set_meta(input_sha)) in html, name
+    assert (run_dir / _CLASSROOM_PDF).read_bytes().startswith(b"%PDF-")
+    assert (run_dir / _CLASSROOM_PNG).read_bytes().startswith(PNG_SIGNATURE)
+    # The normal publication links and copies carry the triplet.
+    for name in _CLASSROOM_FILES:
+        assert (world.output / name).read_bytes() == (run_dir / name).read_bytes()
+        assert manifest["alias_refresh"][name] == "refreshed"
+    pointer = (world.output / runner.POINTER_NAME).read_text("utf-8")
+    assert f"main-report-runs/{run_dir.name}/{_CLASSROOM_HTML}" in pointer
+    # The private records hold every classroom row, reconciled.
+    facts_record = json.loads((run_dir / runner.RECORDS_DIR / "facts.json").read_text("utf-8"))
+    classroom = facts_record["classroom"]
+    assert classroom["status"] == "partial" and classroom["reasons"] == ["payments_unassigned"]
+    assert classroom["planning_sha256"] == manifest["planning_sha256"]
+    source = Decimal(classroom["source_total"])
+    assert source == Decimal(classroom["assigned_total"]) + Decimal(classroom["unassigned_total"])
+    assert source == sum(Decimal(p["amount"]) for p in classroom["payments"])
+    assert len(classroom["classes"]) == 5 and len(classroom["payments"]) == 5
+    over = [row for row in classroom["classes"] if row["over_budget"]]
+    assert [(row["class_id"], row["remainder"]) for row in over] == [("class-c", "-30.00")]
+    stdout = capsys.readouterr().out
+    assert (
+        "  classroom     : partial (payments_unassigned); 5 classroom(s), 5 posted payment "
+        "row(s) (1 unassigned), 0 issued not yet matched"
+    ) in stdout.splitlines()
+    assert "Example Teacher" not in stdout and "Example Payee" not in stdout
+    world.harness.assert_no_writes()
+
+
+def test_cli_without_planning_publishes_an_unavailable_classroom_page(world: World) -> None:
+    assert world.main() == runner.EXIT_OK
+    (run_dir,) = world.run_dirs()
+    facts_record = json.loads((run_dir / runner.RECORDS_DIR / "facts.json").read_text("utf-8"))
+    assert facts_record["classroom"]["status"] == "unavailable"
+    assert facts_record["classroom"]["reasons"] == ["planning_absent"]
+    html = (run_dir / _CLASSROOM_HTML).read_text("utf-8")
+    assert "No board-planning input is configured for this run." in html
+    assert _manifest(run_dir)["planning_sha256"] is None
+
+
+def test_dry_run_reports_classroom_counts_without_writing(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _enable_classroom(world)
+    before = _tree(world.root)
+    assert world.main("--dry-run") == runner.EXIT_OK
+    assert _tree(world.root) == before
+    assert "  classroom     : partial (payments_unassigned)" in capsys.readouterr().out
+
+
+def test_a_failed_classroom_export_keeps_the_previous_pointer(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _enable_classroom(world)
+    assert world.main() == runner.EXIT_OK
+    (first,) = world.run_dirs()
+    published = world.published()
+    first_tree = _tree(first)
+    capsys.readouterr()
+
+    def classroom_fails(
+        jobs: Sequence[ExportJob], *, executable: Path | None = None, sandbox: bool | None = None
+    ) -> bool:
+        if any(job.html.name == _CLASSROOM_HTML for job in jobs):
+            raise ExportError("export_failed", "a summary could not be printed or captured")
+        return fake_export(jobs)
+
+    world.monkeypatch.setattr(export, "export_documents", classroom_fails)
+    assert world.main() == runner.EXIT_FAILED
+    stdout = capsys.readouterr().out
+    assert "render_failed" in stdout and "previous publication is unchanged" in stdout
+    assert world.published() == published  # pointer and every compatibility copy
+    assert _tree(first) == first_tree
+    failed = next(d for d in world.run_dirs() if d != first)
+    record = json.loads(
+        (world.runs / runner.FAILED_RUNS_DIR / f"{failed.name}.json").read_text("utf-8")
+    )
+    assert record["failure_codes"] == ["render_failed"] and record["artifacts"] is None
+    assert not any((failed / name).exists() for name in render.OUTPUT_NAMES)
+
+
+def test_corrupt_classroom_allocations_stop_before_publication(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _enable_classroom(world)
+    assert world.main() == runner.EXIT_OK
+    published = world.published()
+    document = json.loads(path.read_text("utf-8"))
+    document["payment_allocations"][0]["amount"] = "59.00"  # no longer adds up to the row
+    path.write_text(json.dumps(document), encoding="utf-8")
+    capsys.readouterr()
+    assert world.main() == runner.EXIT_FAILED
+    stdout = capsys.readouterr().out
+    assert "facts_failed" in stdout and "payment_allocation_mismatch" in stdout
+    assert "59.00" not in stdout
     assert world.published() == published
 
 
@@ -1154,7 +1293,8 @@ def test_alias_failure_is_explicit_and_keeps_the_new_pointer(
     assert not list(world.output.glob(f".{blocked}.*.tmp"))
     stdout = capsys.readouterr().out
     assert manifest["alias_refresh_state"] == "partial"
-    assert "15 refreshed, 1 not refreshed (partial refresh)" in stdout
+    refreshed_count = len(runner.COMPATIBILITY_FILES) - 1
+    assert f"{refreshed_count} refreshed, 1 not refreshed (partial refresh)" in stdout
     assert f"not refreshed: {blocked}" in stdout
 
 

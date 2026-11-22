@@ -56,12 +56,12 @@
 {%- endmacro %}
 
 {% macro audit(a) -%}
-<p class="audit">Audit detail: Adjustments applied {{ a.applied }} · pending {{ a.pending }} · superseded {{ a.superseded }} · Adjustment warnings {{ a.warnings }} · Unresolved discrepancies {{ a.discrepancies }} · Findings {{ a.findings }} · Coverage flags {{ a.flags }}{% if a.bridges %} · Bridges balanced {{ a.balanced }} of {{ a.bridges }}{% endif %}. Listed in records/facts.json and records/reconciliation.json of this run.{% for r in a.residuals %} <span class="warn">{{ r.title }}: residual {{ r.residual }}</span>{% endfor %}</p>
+<p class="audit">Audit detail: Adjustments applied {{ a.applied }} · pending {{ a.pending }} · superseded {{ a.superseded }} · Adjustment warnings {{ a.warnings }} · Unresolved discrepancies {{ a.discrepancies }} · Findings {{ a.findings }} · Coverage flags {{ a.flags }}{% if a.bridges %} · Bridges balanced {{ a.balanced }} of {{ a.bridges }}{% endif %}{% if a.detail %} · {{ a.detail }}{% endif %}. Listed in records/facts.json and records/reconciliation.json of this run.{% for r in a.residuals %} <span class="warn">{{ r.title }}: residual {{ r.residual }}</span>{% endfor %}</p>
 {%- endmacro %}
 
 {% macro footer(page) -%}
 <footer class="foot">
-  <div class="row"><span>Sources: CFO workbook capture{% if page.reimbursement_backed %} and the reimbursement queue as of {{ page.bundle.as_of }}{% endif %} · {{ page.coverage }} · Amounts rounded to whole dollars; exact cents are in the run records{% for note in page.footnotes %} · {{ note }}{% endfor %} · <a href="{{ page.index }}">Main Report Set index</a> · <a href="{{ page.queue }}">Reimbursement Queue</a></span><span>{% if page.period.range %}{{ page.period.range }}{% else %}{{ page.period.label }}{% endif %}{% if page.pages_label %}<br>{{ page.pages_label }}{% endif %}</span></div>
+  <div class="row"><span>Sources: {{ page.sources }}{% if page.reimbursement_backed %} and the reimbursement queue as of {{ page.bundle.as_of }}{% endif %} · {{ page.coverage }} · Amounts rounded to whole dollars; exact cents are in the run records{% for note in page.footnotes %} · {{ note }}{% endfor %} · <a href="{{ page.index }}">Main Report Set index</a> · <a href="{{ page.queue }}">Reimbursement Queue</a></span><span>{% if page.period.range %}{{ page.period.range }}{% else %}{{ page.period.label }}{% endif %}{% if page.pages_label %}<br>{{ page.pages_label }}{% endif %}</span></div>
   <div class="id"><span class="private">Private financial report.</span> Run <span class="mono">{{ page.run_id }}</span> · Input set <span class="mono">{{ page.input_sha[:16] }}</span> · Inputs captured {{ page.captured }}</div>
 </footer>
 {%- endmacro %}

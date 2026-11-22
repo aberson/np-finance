@@ -61,7 +61,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -129,6 +129,7 @@ __all__ = [
     "MIN_CHECK_REFERENCE_LENGTH",
     "RECORDED_PAYMENT_EVENT",
     "APPROVED_STATUS",
+    "PAID_STATUS",
     "BRIDGE_NAMES",
     "BRIDGE_ROW_KINDS",
     "ISSUE_CODES",
@@ -170,9 +171,10 @@ _ZERO = Decimal("0.00")
 # approved item status, the item statuses that are no obligation (declined, informational)
 # and the three ticket payment statuses. An unknown payment status fails closed at build.
 APPROVED_STATUS = "A"
+PAID_STATUS = "PAID"
 _APPROVED = APPROVED_STATUS
 _NOT_OBLIGATION = frozenset({"D", "-"})
-_NOT_PAID, _PAID, _PAID_PRIOR = "NOT_PAID", "PAID", "PAID_PRIOR"
+_NOT_PAID, _PAID, _PAID_PRIOR = "NOT_PAID", PAID_STATUS, "PAID_PRIOR"
 _PAYMENT_STATUSES = frozenset({_NOT_PAID, _PAID, _PAID_PRIOR})
 # Reconciliation states whose processor rows count as one movement each.
 _PRIMARY, _FEE, _REFUND, _CONFLICT = (
@@ -1368,13 +1370,21 @@ def build_from(
     (verified against the reconciliation's). The ledger must have been projected from this
     capture set's journal (``journal_mismatch`` otherwise: recapture after any journal write
     before finalizing facts).
+
+    The Classroom Budgets section comes from the capture set's optional board-planning
+    capture (:func:`np_finance.main_reports.planning.classroom_facts`): without one it is
+    present with an ``unavailable`` status, so every run renders the classroom page.
     """
-    if read_journal(capture_set.assumptions).sha256 != ledger.journal_sha256:
+    # Imported here: planning reads this module's vocabulary and errors at import time.
+    from np_finance.main_reports import planning
+
+    journal = read_journal(capture_set.assumptions)
+    if journal.sha256 != ledger.journal_sha256:
         raise FactsError(
             "journal_mismatch", "the adjusted ledger was not projected from this capture's journal"
         )
     main_reports = config.main_reports
-    return build(
+    report = build(
         ledger,
         bundle,
         capture_set.adopted_budget,
@@ -1382,3 +1392,11 @@ def build_from(
         captures=capture_set.captures,
         crosswalk=None if main_reports is None else main_reports.crosswalk,
     )
+    classroom = planning.classroom_facts(
+        capture_set.planning,
+        report.periods.school,
+        bundle,
+        report.budget.lines,
+        journal_targets=(key for item in journal.adjustments for key, _ in item.targets),
+    )
+    return replace(report, classroom=classroom)

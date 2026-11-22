@@ -11,6 +11,7 @@ recorded adjustments and facts) is shared by the facts and render tests.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import itertools
 import json
@@ -27,13 +28,14 @@ from requests.models import Response
 
 from np_finance import reimbursement_report, report_source
 from np_finance.config import Config, load_config
-from np_finance.main_reports import reconcile
+from np_finance.main_reports import planning, reconcile
 from np_finance.main_reports.adjustments import acquire_run_lock, project, read_journal, record
 from np_finance.main_reports.facts import build, build_from, reporting_periods
 from np_finance.main_reports.models import (
     AdjustedLedger,
     Adjustment,
     CaptureSet,
+    ClassroomFacts,
     ReportFacts,
     Transaction,
     make_adjustment_id,
@@ -913,6 +915,374 @@ def planning_binding_index(document: Mapping[str, Any], role: str) -> int:
 
 
 # --------------------------------------------------------------------------------------
+# Fictional Classroom Budgets planning world (school year 2030-31 = FY2031, as of Aug 15 2030)
+# --------------------------------------------------------------------------------------
+
+CLASSROOM_CATEGORY = "Classroom Supplies"
+# The logical columns of PLANNING_LEDGER_HEADER (zero-based), as a binding resolves them.
+CLASSROOM_LEDGER_COLUMNS = {
+    "payment_date": 0,
+    "description": 1,
+    "amount": 2,
+    "category": 3,
+    "fiscal_year": 4,
+    "payment_reference": 5,
+    "payee": 6,
+}
+CLASSROOM_LEDGER_TAB = "Example Academic Ledger"
+# Reference "2001" is the recorded payment of the fixture bundle's paid request NEW-01.
+CLASSROOM_LINKED = [
+    "7/10/2030",
+    "Example classroom order",
+    "-45.00",
+    CLASSROOM_CATEGORY,
+    "2031",
+    "2001",
+    "Example Payee A",
+]
+CLASSROOM_SHARED = [
+    "8/5/2030",
+    "Example shared order",
+    "-90.00",
+    CLASSROOM_CATEGORY,
+    "2031",
+    "EX-3002",
+    "Example Shared Vendor",
+]
+CLASSROOM_PREPAID = [
+    "6/20/2030",
+    "Example prepaid order",
+    "-250.00",
+    CLASSROOM_CATEGORY,
+    "2031",
+    "EX-3003",
+    "Example Payee C",
+]
+CLASSROOM_NO_REFERENCE = [
+    "8/10/2030",
+    "Example card purchase",
+    "-15.50",
+    CLASSROOM_CATEGORY,
+    "2031",
+    "",
+    "Example Payee A",
+]
+CLASSROOM_REFUND = [
+    "8/12/2030",
+    "Example returned item",
+    "5.00",
+    CLASSROOM_CATEGORY,
+    "2031",
+    "EX-3004",
+    "Example Payee A",
+]
+CLASSROOM_LATER = [
+    "8/20/2030",
+    "Example later order",
+    "-30.00",
+    CLASSROOM_CATEGORY,
+    "2031",
+    "EX-3005",
+    "Example Payee A",
+]
+CLASSROOM_PRIOR_YEAR = [
+    "3/1/2030",
+    "Example prior-year order",
+    "-40.00",
+    CLASSROOM_CATEGORY,
+    "2030",
+    "EX-2001",
+    "Example Payee A",
+]
+CLASSROOM_OTHER_CATEGORY = [
+    "8/3/2030",
+    "Example field trip bus",
+    "-120.00",
+    "Field Trips",
+    "2031",
+    "EX-3006",
+    "Example Bus Company",
+]
+CLASSROOM_LEDGER_ROWS = [
+    PLANNING_LEDGER_HEADER,
+    CLASSROOM_LINKED,
+    CLASSROOM_SHARED,
+    CLASSROOM_PREPAID,
+    CLASSROOM_NO_REFERENCE,
+    CLASSROOM_REFUND,
+    CLASSROOM_LATER,
+    CLASSROOM_PRIOR_YEAR,
+    CLASSROOM_OTHER_CATEGORY,
+]
+# The recorded reference of a classroom request paid on Aug 14 that has not posted yet.
+CLASSROOM_ISSUED_REFERENCE = "EX-3010"
+CLASSROOM_ISSUED_TICKET = "P-010"
+# An optional request paid on Aug 13 with no recorded payment event, so no reference.
+CLASSROOM_UNREFERENCED_TICKET = "P-011"
+
+
+def classroom_ledger_row(
+    row: Sequence[str], rows: Sequence[Sequence[str]] = ()
+) -> planning.LedgerRow:
+    """The identified ledger row of ``row`` within ``rows`` (default the classroom grid)."""
+    grid = list(rows) or CLASSROOM_LEDGER_ROWS
+    (found,) = [
+        item
+        for item in planning.read_ledger(grid, 1, CLASSROOM_LEDGER_COLUMNS)
+        if grid[item.row_number - 1] == list(row)
+    ]
+    return found
+
+
+def classroom_planning_document(
+    *,
+    classes: Sequence[Mapping[str, Any]] | None = None,
+    rows: Sequence[Sequence[str]] = (),
+    roster_complete: bool = True,
+    allocations: Sequence[Mapping[str, Any]] | None = None,
+    fiscal_year: int = 2031,
+) -> dict[str, Any]:
+    """A fictional FY2031 planning document whose academic ledger is ``rows``.
+
+    Five classes (two of them one teacher's), one ineligible specialist; the shared order is
+    split by an evidence-backed allocation of its exact key and revision.
+    """
+
+    def roster(
+        class_id: str, label: str, count: int | None, eligible: bool = True
+    ) -> dict[str, Any]:
+        return {
+            "class_id": class_id,
+            "teacher_label": label,
+            "student_count": count,
+            "per_student_amount": "10.00" if count is not None else None,
+            "effective_start": "2030-07-01",
+            "effective_end": "2031-06-30",
+            "eligible": eligible,
+        }
+
+    if allocations is None:
+        shared = classroom_ledger_row(CLASSROOM_SHARED, rows)
+        allocations = [
+            {
+                "source_record_key": shared.record_key,
+                "source_revision_hash": shared.revision_hash,
+                "class_id": class_id,
+                "amount": amount,
+                "evidence": "fictional split receipt",
+            }
+            for class_id, amount in (("class-b", "60.00"), ("class-d", "30.00"))
+        ]
+    return {
+        "schema_version": PLANNING_SCHEMA_VERSION,
+        "fiscal_year": fiscal_year,
+        "roster_complete": roster_complete,
+        "roster_as_of": "2030-07-15",
+        "roster_evidence": "fictional roster review",
+        "classes": list(classes)
+        if classes is not None
+        else [
+            roster("class-a", "Example Teacher A", 20),
+            roster("class-b", "Example Teacher B", 18),
+            roster("class-c", "Example Teacher C", 22),
+            roster("class-d", "Example Teacher B", 10),
+            roster("class-e", "Example Specialist E", None, eligible=False),
+        ],
+        "payee_aliases": [
+            {"source_payee": "Example Payee A", "class_id": "class-a"},
+            {"source_payee": "Example Payee C", "class_id": "class-c"},
+        ],
+        "payment_allocations": list(allocations),
+        "category_roles": [
+            {
+                "source_category": CLASSROOM_CATEGORY,
+                "role": "expense",
+                "budget_category": CLASSROOM_CATEGORY,
+            },
+            {"source_category": "Field Trips", "role": "expense", "budget_category": "Field Trips"},
+        ],
+        "classroom_categories": [CLASSROOM_CATEGORY],
+        "bindings": [
+            {
+                "role": "academic_ledger",
+                "workbook": "own",
+                "tab": CLASSROOM_LEDGER_TAB,
+                "header_signature": [PLANNING_LEDGER_HEADER],
+                "columns": {
+                    "payment_date": "Date",
+                    "description": "Description",
+                    "amount": "Amount",
+                    "category": "Category",
+                    "fiscal_year": "School Year",
+                    "payment_reference": "Reference",
+                    "payee": "Payee",
+                },
+                "coverage_start": "2030-06-01",
+                "coverage_end": "2030-08-31",
+                "coverage_evidence": "fictional ledger review",
+            }
+        ],
+        "period_allocations": [],
+    }
+
+
+def write_planning(config_dir: Path, document: Mapping[str, Any]) -> Path:
+    """Write ``document`` as the fictional private planning input beside ``config.toml``."""
+    path = config_dir / PLANNING_INPUT
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def classroom_bundle(*, unreferenced: str | None = None) -> dict[str, Any]:
+    """The fixture bundle plus one classroom request paid on Aug 14 whose payment (reference
+    :data:`CLASSROOM_ISSUED_REFERENCE`) has not posted to the academic ledger.
+
+    ``unreferenced`` (a category) adds :data:`CLASSROOM_UNREFERENCED_TICKET`: a $12 request
+    in that category, settled as paid on Aug 13 with no recorded payment event (a payment
+    event always carries a reference), so it has no reference to link by.
+    """
+    payload = _bundle_payload()
+    issued = _ticket(
+        10,
+        CLASSROOM_ISSUED_TICKET,
+        "legacy",
+        "2030-08-02",
+        [_item("p-010:line:1", 1, "2030-08-01", "12.00", "A", CLASSROOM_CATEGORY)],
+        status="A",
+        decision="APPROVED",
+    )
+    payload["tickets"].append(issued)
+    _record_payment(payload, issued, "2030-08-14", CLASSROOM_ISSUED_REFERENCE, "a")
+    if unreferenced is not None:
+        bare = _ticket(
+            11,
+            CLASSROOM_UNREFERENCED_TICKET,
+            "legacy",
+            "2030-08-03",
+            [_item("p-011:line:1", 1, "2030-08-02", "12.00", "A", unreferenced)],
+            status="A",
+            decision="APPROVED",
+            workflow="SETTLED",
+            payment_status="PAID",
+            payment_date="2030-08-13",
+            confirmations=["Fictional confirmation"],
+        )
+        bare["archive_note"] = "Fictional archive note."
+        payload["tickets"].append(bare)
+    return payload
+
+
+# Fictional cents that force rule-11 rounding choices (D51), for :func:`classroom_figures`
+# over the fictional roster (classrooms a to d allocated, the specialist e not eligible):
+# allocations of 100.40 beside a 50.60 budget (half up, $100 and $51), tied fractions, a
+# classroom over budget by 40 cents and an Other purchase row that displays as $0.
+CLASSROOM_ROUNDING_FIGURES: dict[str, Any] = {
+    "allocations": ["50.20", "50.20", "0.00", "0.00", None],
+    "paid": ["10.50", "20.50", "0.40", "60.60", "0.00"],
+    "unassigned": "20.50",
+    "budget": "50.60",
+    "purchases": ["10.50", "10.50", "10.50", "0.25", "0.25"],
+    "issued": ["0.50", "0.50"],
+}
+
+# Fictional cents where a classroom's displayed allocation less its displayed paid has the
+# opposite sign of its cents remainder (D51), for :func:`classroom_figures`. "over": 10
+# cents over budget with allocation 100.60 ($101) and paid 100.70 ($100, as the other
+# classroom's 90 cents and the 80 unassigned cents take the missing dollars). "under": 10
+# cents under budget with allocation 100.40 ($100) and paid 100.30 ($101, taking the
+# dollar of the 100.50 paid total). Classroom a's displayed remaining is $0 in both.
+CLASSROOM_SIGN_FIGURES: dict[str, dict[str, Any]] = {
+    "over": {
+        "allocations": ["100.60", "50.00", "50.00", "50.00", None],
+        "paid": ["100.70", "0.90", "0.00", "0.00", "0.00"],
+        "unassigned": "0.80",
+    },
+    "under": {
+        "allocations": ["100.40", "50.00", "50.00", "50.00", None],
+        "paid": ["100.30", "0.10", "0.00", "0.00", "0.00"],
+        "unassigned": "0.10",
+    },
+}
+
+
+def generated_classroom_figures(seed: int) -> dict[str, Any]:
+    """Deterministic fictional cents for :func:`classroom_figures` over the fictional roster
+    (four allocations, five paid figures with some classrooms over budget, unassigned
+    payments, a budget, five purchases and two issued requests); ``seed`` picks the world."""
+
+    def cents(index: int, high: int) -> str:
+        value = (seed * 7919 + index * 9731) % (high * 100 + 1)
+        return f"{value // 100}.{value % 100:02d}"
+
+    return {
+        "allocations": [*(cents(index, 400) for index in range(4)), None],
+        "paid": [cents(4 + index, 450) for index in range(5)],
+        "unassigned": cents(9, 60),
+        "budget": cents(10, 1600),
+        "purchases": [cents(11 + index, 80) for index in range(5)],
+        "issued": [cents(16 + index, 30) for index in range(2)],
+    }
+
+
+def classroom_figures(
+    classroom: ClassroomFacts,
+    allocations: Sequence[str | None],
+    paid: Sequence[str],
+    *,
+    unassigned: str = "0.00",
+    budget: str | None = None,
+    purchases: Sequence[str] = (),
+    issued: Sequence[str] = (),
+) -> ClassroomFacts:
+    """The fictional classroom facts carrying other fictional cent figures, kept consistent.
+
+    ``allocations`` and ``paid`` are each classroom's figures in roster order (``None`` for
+    a classroom without an allocation); every remainder and the allocation, assigned,
+    unassigned and source totals follow from them as :func:`planning.classroom_facts`
+    derives them. ``purchases`` (largest first) and ``issued`` copy the first purchase and
+    issued request of ``classroom`` with these amounts. Display tests use it to put chosen
+    cents in front of the production renderer; every other fact is unchanged.
+    """
+    classes = []
+    for row, allocated, spent in zip(classroom.classes, allocations, paid, strict=True):
+        allocation = None if allocated is None else Decimal(allocated)
+        posted = Decimal(spent)
+        classes.append(
+            dataclasses.replace(
+                row,
+                allocation=allocation,
+                paid=posted,
+                remainder=None if allocation is None else allocation - posted,
+            )
+        )
+    known = [row.allocation for row in classes if row.allocation is not None]
+    assigned = sum((row.paid for row in classes if row.paid is not None), Decimal("0.00"))
+    template, request = classroom.purchases[0], classroom.issued[0]
+    return dataclasses.replace(
+        classroom,
+        classes=tuple(classes),
+        allocation_total=sum(known, Decimal("0.00")) if known else None,
+        classroom_budget=None if budget is None else Decimal(budget),
+        assigned_total=assigned,
+        unassigned_total=Decimal(unassigned),
+        source_total=assigned + Decimal(unassigned),
+        purchases=tuple(
+            dataclasses.replace(
+                template, amount=Decimal(amount), item_key=f"{template.item_key}:{index}"
+            )
+            for index, amount in enumerate(sorted(purchases, key=Decimal, reverse=True))
+        ),
+        issued=tuple(
+            dataclasses.replace(
+                request, amount=Decimal(amount), review_key=f"{request.review_key}:{index}"
+            )
+            for index, amount in enumerate(issued)
+        ),
+    )
+
+
+# --------------------------------------------------------------------------------------
 # Fictional source shapes (school year 2030-31, calendar year 2030, as of Aug 15 2030)
 # --------------------------------------------------------------------------------------
 
@@ -1393,9 +1763,18 @@ class Scenario:
         start_month: int = 7,
         sources: str = "",
         bundle: dict[str, Any] | None = None,
+        planning: Mapping[str, Any] | None = None,
+        planning_tabs: Mapping[str, Sequence[Sequence[str]]] | None = None,
         **sheets: Any,
     ) -> None:
+        """``planning`` configures that fictional board-planning document (written under
+        ``reports/output/``); ``planning_tabs`` gives each bound tab's grid by tab title
+        (default: the classroom academic ledger)."""
         self.tmp_path = tmp_path
+        if planning is not None:
+            tmp_path.mkdir(parents=True, exist_ok=True)
+            write_planning(tmp_path, planning)
+            sources += PLANNING_TOML
         self.config = _config(
             tmp_path,
             bank_coverage=bank_coverage,
@@ -1404,6 +1783,15 @@ class Scenario:
             sources=sources,
         )
         self.harness = _harness(self.config, **sheets)
+        if planning is not None:
+            grids = {CLASSROOM_LEDGER_TAB: CLASSROOM_LEDGER_ROWS, **(planning_tabs or {})}
+            for offset, binding in enumerate(planning["bindings"]):
+                self.harness.add_tab(
+                    binding["tab"],
+                    [list(row) for row in grids[binding["tab"]]],
+                    sheet_id=3001 + offset,
+                    own=binding["workbook"] == "own",
+                )
         self.bundle_path = tmp_path / "reports" / "output" / "reimbursement-report.json"
         self.bundle_path.parent.mkdir(parents=True, exist_ok=True)
         self.bundle_path.write_text(

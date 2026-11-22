@@ -101,6 +101,7 @@ __all__ = [
     "ADAPTERS",
     "PLANNING_SCHEMA_VERSION",
     "PLANNING_ROLES",
+    "CATEGORY_ROLES",
     # functions
     "resolve_binding",
     "require_bindings",
@@ -111,6 +112,7 @@ __all__ = [
     "normalize",
     "normalize_with_report",
     "is_dash_placeholder",
+    "trim_trailing_blanks",
     "entered_matches",
     "parse_money",
     "parse_source_date",
@@ -366,7 +368,9 @@ class ResolvedBinding:
     columns: tuple[tuple[str, int], ...]
 
 
-def _trim(row: Sequence[str]) -> tuple[str, ...]:
+def trim_trailing_blanks(row: Sequence[str]) -> tuple[str, ...]:
+    """``row`` without its trailing empty cells, as a tuple (the one trim of a source row;
+    header signatures and capture/revision hashes use it)."""
     cells = list(row)
     while cells and cells[-1] == "":
         cells.pop()
@@ -487,7 +491,7 @@ def resolve_binding(binding: SourceBinding) -> ResolvedBinding:
             "header_signature_shape",
             f"{binding.alias}: {binding.kind} expects {spec.header_rows} header row(s)",
         )
-    if spec.requires_signature and (not signature or not _trim(signature[-1])):
+    if spec.requires_signature and (not signature or not trim_trailing_blanks(signature[-1])):
         raise SourceConfigError(
             "header_signature_missing", f"{binding.alias}: a complete header signature is required"
         )
@@ -974,8 +978,9 @@ _CFO_WORKBOOK, _OWN_WORKBOOK = "cfo", "own"
 _PLANNING_WORKBOOKS = (_CFO_WORKBOOK, _OWN_WORKBOOK)
 # The category-role vocabulary of ``category_roles``. A category without a role stays
 # unresolved: income or expense is never inferred from the sign of an amount.
-_FUNDRAISING, _EXPENSE = "fundraising", "expense"
-_CATEGORY_ROLES = frozenset({_FUNDRAISING, "other_income", _EXPENSE, "transfer"})
+CATEGORY_ROLES: tuple[str, ...] = ("fundraising", "other_income", "expense", "transfer")
+_FUNDRAISING, _EXPENSE = CATEGORY_ROLES[0], CATEGORY_ROLES[2]
+_CATEGORY_ROLES = frozenset(CATEGORY_ROLES)
 # The one role every category of a future event's income or expense list is mapped to.
 _EVENT_CATEGORY_ROLES: Mapping[str, str] = {
     "income_categories": _FUNDRAISING,
@@ -1183,21 +1188,36 @@ def _validate_payee_aliases(raw: Any, class_ids: frozenset[str]) -> None:
 
 
 def _validate_payment_allocations(raw: Any, class_ids: frozenset[str]) -> None:
-    """Evidence-backed reporting assignments of exact source rows to classes."""
+    """Evidence-backed reporting assignments of exact source rows to classes.
+
+    The optional ``review_key`` (D49) names, exactly, the paid request the row settles; it
+    is checked against the staged review bundle when facts are built, not here. One row may
+    carry several allocations to one class only when each names a different request (one
+    reference-less check settling two requests of that class); the same row, class and
+    ``review_key`` (or two without one) is a duplicate. ``evidence`` is free text and never
+    an identifier.
+    """
     expected = {"source_record_key", "source_revision_hash", "class_id", "amount", "evidence"}
-    allocations: set[tuple[str, str, str]] = set()
+    optional = {"review_key"}
+    allocations: set[tuple[str, str, str, str | None]] = set()
     for index, item_raw in enumerate(_planning_list(raw, "payment_allocations")):
         item_dotted = f"payment_allocations[{index}]"
         item = _planning_object(item_raw, item_dotted)
-        if set(item) != expected:
-            raise _planning_error(item_dotted, f"must contain exactly {sorted(expected)}")
+        if not expected <= set(item) <= expected | optional:
+            raise _planning_error(
+                item_dotted,
+                f"must contain exactly {sorted(expected)}, optionally with {sorted(optional)}",
+            )
+        review_key = None
+        if "review_key" in item:
+            review_key = _planning_str(item["review_key"], f"{item_dotted}.review_key")
         key, revision = _planning_source_row(item, item_dotted)
         class_id = _planning_str(item["class_id"], f"{item_dotted}.class_id")
         if class_id not in class_ids:
             raise _planning_error(f"{item_dotted}.class_id", "does not name a class")
-        if (key, revision, class_id) in allocations:
+        if (key, revision, class_id, review_key) in allocations:
             raise _planning_error(item_dotted, "duplicates an allocation")
-        allocations.add((key, revision, class_id))
+        allocations.add((key, revision, class_id, review_key))
         _planning_decimal(item["amount"], f"{item_dotted}.amount")
         _planning_str(item["evidence"], f"{item_dotted}.evidence")
 
@@ -1641,9 +1661,10 @@ def _capture_tab(
     values = _rectangular(workbook.read_values(binding.tab))
     formulas, entered_numbers = workbook.read_entered_cells(binding.tab)
 
-    expected = tuple(_trim(row) for row in binding.header_signature)
+    expected = tuple(trim_trailing_blanks(row) for row in binding.header_signature)
     actual = tuple(
-        _trim(values[index]) if index < len(values) else () for index in range(resolved.header_rows)
+        trim_trailing_blanks(values[index]) if index < len(values) else ()
+        for index in range(resolved.header_rows)
     )
     header_changed = actual != expected
     warnings: list[str] = []
@@ -1836,9 +1857,10 @@ def _capture_planning_reference(
     values = _rectangular(workbook.read_values(binding.tab))
     formulas, entered_numbers = workbook.read_entered_cells(binding.tab)
 
-    expected = tuple(_trim(row) for row in binding.header_signature)
+    expected = tuple(trim_trailing_blanks(row) for row in binding.header_signature)
     actual = tuple(
-        _trim(values[index]) if index < len(values) else () for index in range(len(expected))
+        trim_trailing_blanks(values[index]) if index < len(values) else ()
+        for index in range(len(expected))
     )
     if actual != expected:
         positions = _header_differences(expected, actual)
@@ -2293,7 +2315,11 @@ def _rows(capture_item: SourceCapture) -> Iterator[_Row]:
 def _revision(capture_item: SourceCapture, row: _Row) -> str:
     """Hash of the row's source fields (trailing padding ignored, so widening never matters)."""
     return content_hash(
-        {"alias": capture_item.alias, "kind": capture_item.kind, "values": list(_trim(row.cells))}
+        {
+            "alias": capture_item.alias,
+            "kind": capture_item.kind,
+            "values": list(trim_trailing_blanks(row.cells)),
+        }
     )
 
 

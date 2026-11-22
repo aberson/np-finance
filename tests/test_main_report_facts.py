@@ -1471,7 +1471,16 @@ def test_report_facts_payload_pins_every_key_and_shape(tmp_path: Path) -> None:
         "pending_adjustments",
         "superseded_adjustments",
         "adjustment_warnings",
+        "classroom",
     }
+    # The production caller always carries the classroom section (unavailable without a
+    # planning input); facts without one keep the historical shape (no key at all).
+    assert payload["classroom"]["status"] == "unavailable"
+    assert payload["classroom"]["reasons"] == ["planning_absent"]
+    assert payload["classroom"]["schema_version"] == 1
+    without = dataclasses.replace(result, classroom=None)
+    old_shape = json.loads(canonical_json_bytes(without.to_dict()))
+    assert set(old_shape) == set(payload) - {"classroom"}
     assert payload["schema_version"] == 1 and payload["as_of"] == "2030-08-15"
     assert payload["journal_sha256"] == ledger.journal_sha256
     assert payload["pnl_control_status"] == "matched"

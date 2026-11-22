@@ -16,8 +16,9 @@
    built from the journal as it now reads; reruns record nothing twice;
 5. stages the refreshed bundle, its receipt sidecar and every referenced page byte for byte
    into the run's own ``inputs/`` folder, builds the facts from that staged copy and renders
-   all five reports, the summary PDF/PNG exports and the run index into a fresh
-   ``<output_dir>/<run-id>/`` folder whose rendered files never change afterwards;
+   every report (Classroom Budgets included), the summary PDF/PNG exports and the run index
+   into a fresh ``<output_dir>/<run-id>/`` folder whose rendered files never change
+   afterwards;
 6. re-hashes and checks the complete set (every page names this run and input set), writes
    the run manifest, and only then switches the single current-run pointer
    (``main-report-set.html`` in the folder above ``output_dir``, replaced atomically) and
@@ -1093,6 +1094,15 @@ def _print_facts(out: Callable[[str], None], report: ReportFacts, ledger: Adjust
         f"  findings      : {len(report.discrepancy_ids)} unresolved discrepancy(ies), "
         f"{len(report.issues)} issue(s), {len(report.coverage_flags)} coverage flag(s)"
     )
+    classroom = report.classroom
+    if classroom is not None:  # counts and codes only, never a name or amount
+        reasons = f" ({', '.join(classroom.reasons)})" if classroom.reasons else ""
+        unassigned = sum(1 for payment in classroom.payments if payment.unassigned != 0)
+        out(
+            f"  classroom     : {classroom.status}{reasons}; {len(classroom.classes)} "
+            f"classroom(s), {len(classroom.payments)} posted payment row(s) "
+            f"({unassigned} unassigned), {len(classroom.issued)} issued not yet matched"
+        )
 
 
 def _print_capture(out: Callable[[str], None], capture_set: CaptureSet) -> None:

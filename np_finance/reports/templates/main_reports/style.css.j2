@@ -55,6 +55,9 @@ h1{font-size:26px;line-height:1.1;margin:4px 0 5px;letter-spacing:-.5px}
 .cat{display:grid;grid-template-columns:12px 1fr 78px 40px;gap:6px;align-items:center;font-size:10.5px;line-height:1.3;padding:2px 0}
 .cat .amt,.cat .pct{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.cat .pct{color:var(--muted)}
 .meter{display:block;width:100%;height:auto}
+/* classroom chart (teachers across, dollars up) */
+.classchart{display:block;width:100%;height:auto;margin-top:2px}
+.legends{display:flex;flex-wrap:wrap;gap:0 14px;margin-top:2px}.legends .legend{margin:2px 0;font-size:10.5px}
 .months{display:block;height:120px;width:auto;max-width:100%}
 .key{font-size:10px;font-weight:600;color:var(--ink-2);margin-left:8px;white-space:nowrap}.key .swatch{margin:0 3px 0 6px}
 /* sections and tables */
@@ -130,7 +133,7 @@ table.pnl tr.group td{background:var(--deep);color:#fff;font-weight:800;text-tra
   .sheet,.sheet.appendix{width:auto;min-height:0;max-width:none;margin:0;padding:0;box-shadow:none}
   .appendix{page:wide;break-before:page}
   .appendix .next-page{break-before:page}
-  .mast,.metrics,.overview,.narrative,.followup,.bars,.callout,tr{break-inside:avoid}
+  .mast,.metrics,.overview,.narrative,.followup,.bars,.callout,.classchart,tr{break-inside:avoid}
   h1,h2,h3,.section-heading{break-after:avoid}thead{display:table-header-group}
   .appendix .tablewrap{overflow:visible}a{text-decoration:none!important}
 }

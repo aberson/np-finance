@@ -1,4 +1,4 @@
-"""Tests for np_finance.main_reports.render and export — the five-report Main Report Set.
+"""Tests for np_finance.main_reports.render and export — the six-report Main Report Set.
 
 Every fixture is fictional (``Example`` placeholders, fake ids). Content cases run the
 production path without a browser: fake gspread workbooks -> read-only capture ->
@@ -39,7 +39,7 @@ import pytest
 from markupsafe import escape
 
 from np_finance import receipt_viewer, reimbursement_report
-from np_finance.main_reports import export, facts, render, runner
+from np_finance.main_reports import export, facts, planning, render, runner
 from np_finance.main_reports.export import (
     ExportError,
     ExportJob,
@@ -76,6 +76,12 @@ from np_finance.reimbursement_report import STATUS_META
 from tests.conftest import (
     BANK_ROWS,
     BUDGET_ROWS,
+    CLASSROOM_CATEGORY,
+    CLASSROOM_LEDGER_ROWS,
+    CLASSROOM_LEDGER_TAB,
+    CLASSROOM_NO_REFERENCE,
+    CLASSROOM_ROUNDING_FIGURES,
+    CLASSROOM_SIGN_FIGURES,
     CROSSWALK_TOML,
     PNL_VALUES,
     Scenario,
@@ -87,6 +93,10 @@ from tests.conftest import (
     _record_payment,
     _ticket,
     _wix,
+    classroom_bundle,
+    classroom_figures,
+    classroom_planning_document,
+    generated_classroom_figures,
     require_chromium,
 )
 
@@ -104,11 +114,14 @@ SUMMARY_FILES = [f"{name}.{suffix}" for name in SUMMARY_NAMES for suffix in ("ht
 COPY_TEXT = "reimbursement-report.copy.txt"
 ALL_FILES = sorted([QUEUE_HTML, COPY_TEXT, INDEX_HTML, *SUMMARY_FILES])
 HTML_FILES = [QUEUE_HTML, INDEX_HTML, *SUMMARY_HTML]
+CLASSROOM = "classroom-budgets"
+CLASSROOM_HTML = f"{CLASSROOM}.html"
 TITLES = {
     "reimbursement-summary.html": "Reimbursement Summary",
     "budget-snapshot.html": "Budget Snapshot",
     "fundraising-summary.html": "Fundraising Summary",
     "cfo-pnl-summary.html": "CFO P&L Summary",
+    "classroom-budgets.html": "Classroom Budgets",
 }
 BUCKET_LABELS = {
     "prior": "Before the period",
@@ -1712,7 +1725,11 @@ def test_a_written_run_directory_is_never_written_again(tmp_path: Path, leftover
         inputs.write(context=other)
     assert caught.value.code == "run_dir_not_empty"
     _assert_clean_error(caught.value)
-    expected = "15 output file(s) and 0" if leftover == "output" else "0 output file(s) and 1"
+    expected = (
+        f"{len(OUTPUT_NAMES)} output file(s) and 0"
+        if leftover == "output"
+        else "0 output file(s) and 1"
+    )
     assert expected in str(caught.value)
     assert _files(inputs.run_dir) == previous  # byte-identical
     assert sorted(p.name for p in inputs.run_dir.iterdir()) == sorted(
@@ -2288,6 +2305,11 @@ def test_every_summary_amount_is_whole_dollars_traced_to_the_facts(rendered: Ren
         text = _text(rendered.html(name))
         assert not re.search(r"\$[\d,]+\.\d", text), name  # never cents on a summary
         shown = set(re.findall(r"-?\$\d{1,3}(?:,\d{3})*", text))
+        if name == CLASSROOM_HTML:  # no planning input: unavailable, never $0
+            assert rendered.facts.classroom is not None
+            assert rendered.facts.classroom.status == "unavailable"
+            assert not shown and "Unknown" in text
+            continue
         assert shown and shown <= pool, (name, sorted(shown - pool))
     assert re.search(r"\$[\d,]+\.\d\d", _text(rendered.html(INDEX_HTML)))  # cents live here
 
@@ -2577,3 +2599,779 @@ def test_unreadable_income_targets_mark_the_fundraising_percent_and_meter(tmp_pa
     assert "Target $1,500*</text>" in html
     assert "(some adopted targets are unreadable)" in _text(html)
     assert _text(html).count(LEGEND) == 1
+
+
+# --------------------------------------------------------------------------------------
+# Classroom Budgets (CORE-BRIEFS Step 66)
+# --------------------------------------------------------------------------------------
+
+_CLASSBAR = re.compile(r'<g class="classbar"><title>([^<]*)</title>')
+_VALUE = re.compile(r'<text class="value( over)?"[^>]*>([^<]*)</text>')
+_TEACHER = re.compile(r'<text class="teacher"[^>]*>(.*?)</text>')
+_LEGEND = re.compile(r'<p class="legend"><span class="swatch"[^>]*></span>([^<]*)</p>')
+# A classroom bar's tooltip: its label, then its allocation, paid and remaining figures.
+_BAR_FIGURES = re.compile(r"(.*): allocation (\S+), paid (\S+), remaining (\S+)(?: \(.+\))?")
+# The gridline labels (the only classroom text with a dy offset): not figures of any group.
+_TICK_TEXT = re.compile(r'<text x="[^"]*" y="[^"]*" dy="[^"]*"[^>]*>[^<]*</text>')
+_FIGURE = re.compile(r"-?\$\d{1,3}(?:,\d{3})*")
+
+
+def _classroom_inputs(
+    tmp_path: Path,
+    document: dict[str, Any] | None = None,
+    *,
+    rows: Sequence[Sequence[str]] | None = None,
+    **kwargs: Any,
+) -> RunInputs:
+    """The fictional classroom world through the production facts path (no adjustments)."""
+    grid = list(rows or CLASSROOM_LEDGER_ROWS)
+    return _inputs(
+        tmp_path,
+        adjusted=False,
+        planning=document if document is not None else classroom_planning_document(rows=grid),
+        planning_tabs={CLASSROOM_LEDGER_TAB: grid},
+        bundle=kwargs.pop("bundle", classroom_bundle()),
+        **kwargs,
+    )
+
+
+@pytest.fixture(scope="module")
+def classroom_rendered(tmp_path_factory: pytest.TempPathFactory) -> RenderedSet:
+    """One rendered set of the fictional classroom world (stand-in exporter, no browser)."""
+    inputs = _classroom_inputs(tmp_path_factory.mktemp("classroom-set"))
+    return RenderedSet(inputs, inputs.write())
+
+
+def _teacher_labels(html: str) -> list[list[str]]:
+    return [unescape(re.sub(r"<[^>]+>", " ", label)).split() for label in _TEACHER.findall(html)]
+
+
+def _figure(text: str) -> int | None:
+    """A printed whole-dollar figure as an integer (``None`` for Unknown or the dash)."""
+    if text in (render._UNKNOWN, render._DASH):
+        return None
+    assert _FIGURE.fullmatch(text), text
+    return int(text.replace("$", "").replace(",", ""))
+
+
+def _refuse(*args: Any, **kwargs: Any) -> Any:
+    raise AssertionError("a classroom print site rounded cents on its own")
+
+
+def test_classroom_budgets_follow_the_facts(classroom_rendered: RenderedSet) -> None:
+    data = classroom_rendered.facts.classroom
+    assert data is not None and data.status == "partial"
+    html = classroom_rendered.html(CLASSROOM_HTML)
+    text = _text(html)
+    # One identity with every other page of the set.
+    assert f'<meta name="pta-run-id" content="{RUN_ID}">' in html
+    assert text.count(RUN_ID) == 1
+    assert f"<title>Classroom Budgets · {SCHOOL_LABEL}</title>" in html
+    scope = _text("<body>" + html.split('<p class="scope">')[1].split("</p>")[0])
+    assert scope.startswith(f"{SCHOOL_LABEL} · {SCHOOL_RANGE} · through August 15, 2030 · FY2031")
+    assert "enrollment times the per-student rate beside posted academic-ledger payments" in scope
+    # Tiles: whole dollars tied to their totals (assigned $380 + unassigned $16 = paid $396).
+    assert _tiles(html) == [
+        ("", "", "$700", "Allocated to classrooms", "4 classrooms allocated"),
+        ("spent", "", "$396", "Paid (posted)", "$16 unassigned"),
+        ("amount", "partial", "$320", "Remaining", "Net of 1 classroom $30 over budget"),
+        ("open", "", "$12", "Issued, not yet matched", "1 request; not counted as paid"),
+    ]
+    # Every roster classroom has a bar (none hidden), plus the unassigned payments.
+    titles = [unescape(title) for title in _CLASSBAR.findall(html)]
+    assert len(titles) == len(data.classes) + 1 == 6
+    assert titles[2] == "Example Teacher C: allocation $220, paid $250, remaining -$30"
+    assert titles[4].startswith("Example Specialist E: allocation Unknown, paid $0")
+    assert titles[5] == "Unassigned posted payments: $16"
+    # One teacher with two classes gets class-qualified labels.
+    labels = _teacher_labels(html)
+    assert ["Example", "Teacher", "B", "(class-b)"] in labels
+    assert ["Example", "Teacher", "B", "(class-d)"] in labels
+    # The over-budget classroom: a signed negative remainder, a red overrun above its
+    # allocation line, and never a negative remaining stack.
+    values = [(bool(over), unescape(value)) for over, value in _VALUE.findall(html)]
+    assert values == [
+        (False, "$160"),
+        (False, "$120"),
+        (True, "-$30"),
+        (False, "$70"),
+        (False, "–"),
+        (False, "$16"),
+    ]
+    assert sum(int(v.replace("$", "").replace(",", "")) for _, v in values[:4]) == 320
+    assert html.count(f'fill="{render._STOP}"/>') == 1
+    assert html.count('class="allocation-line"') == 1
+    # The unassigned bar carries its posted amount, never a remaining figure (D51).
+    assert (
+        "the figure above each classroom bar is what remains. The unassigned bar shows posted "
+        "payments not yet assigned to a classroom; its figure is that posted amount."
+    ) in text
+    (desc,) = re.findall(r'<desc id="classchart-desc">([^<]*)</desc>', html)
+    assert "The figure above each classroom bar is the amount remaining" in desc
+    assert "its figure is that posted amount, with no remaining figure." in desc
+    # The template draws with render's own layout constants and palette (no copies).
+    assert f'font-size="{render._num(render._VALUE_FONT)}"' in html
+    assert f'font-size="{render._num(render._AXIS_FONT)}"' in html
+    swatches = re.findall(r'class="swatch" style="background:(#[0-9a-f]{6})"', html)
+    assert swatches == [render._SEA, render._SUN, render._STOP, render._INK_3]
+    assert 'height="-' not in html
+    # Larger purchases: paid, dated review items of the posted, linked payment only.
+    rows = _texts(_body(_tables(html)["purchases"]))
+    assert rows == [
+        ["Fictional classroom materials", "Jun 28", "Example Teacher A", "$25"],
+        ["Fictional classroom materials", "Jul 2", "Example Teacher A", "$20"],
+        ["Itemized purchases on posted payments", "$45"],
+    ]
+    narrative = _text("<body>" + html.split('<section class="narrative">')[1])
+    assert "4 classrooms have allocations totaling $700." in narrative
+    assert "They are $200 above the adopted classroom budget of $500" in narrative
+    assert "spending through Aug 15 is $396: $380 assigned and $16 not yet assigned" in narrative
+    # $16 is not yet assigned, so the over-budget count and the remaining figures are partial
+    # (rule 9): the count is "so far", the legend's remaining swatch says so and so does the
+    # chart's description.
+    assert "1 classroom is over budget so far." in narrative and "$12 is issued" in narrative
+    assert _LEGEND.findall(html)[1] == render._REMAINING_LEGEND_PARTIAL
+    assert text.count(render._REMAINING_PARTIAL) == 1 and render._REMAINING_PARTIAL in desc
+    footer = _text("<body>" + html.split('<footer class="foot">')[1])
+    assert footer.startswith(
+        "Sources: Board-planning roster and academic-ledger capture and the reimbursement queue "
+        "as of August 15, 2030 · Academic ledger coverage Jun 1, 2030 to Aug 31, 2030"
+    )
+    # The shared audit line (counts, never lists) carries the classroom counts too.
+    audit = _audit_text(html)
+    assert audit.startswith("Audit detail: Adjustments applied ")
+    findings = sum(item.count for item in data.findings)
+    assert (
+        "Classroom payment rows 5 (fully assigned 4) · Classroom rows left out 2 · "
+        f"Classroom findings {findings}. Listed in records/facts.json"
+    ) in audit
+    assert "Fictional Person" not in text and "Example Payee" not in text
+    assert not re.search(r"\$[\d,]+\.\d", text)  # whole dollars; cents stay in the records
+    assert text.count("– Unknown or no allocation recorded, never zero.") == 1
+    # The index and pointer link the classroom triplet like every other summary.
+    index = classroom_rendered.html(INDEX_HTML)
+    assert "The six reports" in _text(index)
+    for suffix in ("html", "pdf", "png"):
+        assert f'href="{CLASSROOM}.{suffix}"' in index
+    assert "Board planning input" in _text(index) and "Board planning academic ledger" in _text(
+        index
+    )
+
+
+def test_classroom_amounts_trace_to_the_facts(classroom_rendered: RenderedSet) -> None:
+    data = classroom_rendered.facts.classroom
+    assert data is not None
+    text = _text(classroom_rendered.html(CLASSROOM_HTML))
+    # The fictional cents are whole dollars except 15.50, so here every printed figure is
+    # also its own rounded fact; cents that force rounding choices are covered by
+    # test_every_printed_classroom_figure_ties_to_its_group.
+    shown = set(_FIGURE.findall(text))
+    values = {
+        data.allocation_total,
+        data.source_total,
+        data.assigned_total,
+        data.unassigned_total,
+        data.remaining_total,
+        data.issued_total,
+        data.classroom_budget,
+        data.allocation_difference,
+        sum((p.amount for p in data.purchases), Decimal("0.00")),
+        *(p.amount for p in data.purchases),
+        *(row.allocation for row in data.classes),
+        *(row.paid for row in data.classes),
+        *(row.remainder for row in data.classes),
+    }
+    pool = {format_whole(v) for v in values if v is not None}
+    pool |= {format_whole(Decimal(tick)) for tick in ("0", "100", "200", "300")}  # gridlines
+    assert shown and shown <= pool, sorted(shown - pool)
+
+
+@pytest.mark.parametrize(
+    "figures",
+    [
+        pytest.param(CLASSROOM_ROUNDING_FIGURES, id="rounding"),
+        *(
+            pytest.param(generated_classroom_figures(seed), id=f"generated-{seed}")
+            for seed in range(4)
+        ),
+    ],
+)
+def test_every_printed_classroom_figure_ties_to_its_group(
+    classroom_rendered: RenderedSet, tmp_path: Path, figures: dict[str, Any]
+) -> None:
+    """Rule 11 / D51 on the published page itself, over chosen and generated cents: each
+    group's printed parts add to its printed total (the bar labels to Remaining), each
+    derived figure is the difference of the printed figures it comes from, and no printed
+    remaining has the opposite sign of its over-budget marker."""
+    inputs = classroom_rendered.inputs
+    assert inputs.facts.classroom is not None
+    data = classroom_figures(inputs.facts.classroom, **figures)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    rerun = dataclasses.replace(inputs, run_dir=run_dir)
+    rerun.write(facts=dataclasses.replace(inputs.facts, classroom=data))
+    html = (run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    tiles = {label: (value, note) for _, _, value, label, note in _tiles(html)}
+    allocated = _figure(tiles[render._ALLOCATED_TILE][0])
+    paid_total = _figure(tiles[render._PAID_TILE][0])
+    remaining_total = _figure(tiles[render._REMAINING_TILE][0])
+    issued = _figure(tiles[render._ISSUED_TILE][0])
+    unassigned = _figure(tiles[render._PAID_TILE][1].removesuffix(" unassigned"))
+    assert None not in (allocated, paid_total, remaining_total, issued, unassigned)
+    # The kept totals are the correctly rounded cents.
+    assert tiles[render._ALLOCATED_TILE][0] == format_whole(data.allocation_total)
+    assert tiles[render._PAID_TILE][0] == format_whole(data.source_total)
+    assert tiles[render._ISSUED_TILE][0] == format_whole(data.issued_total)
+
+    # Each classroom bar: the figure above it is the remaining in its tooltip, agreeing in
+    # sign with its cents remainder and its marker, and within $1 of allocation - paid.
+    titles = [unescape(title) for title in _CLASSBAR.findall(html)]
+    labels = [(bool(over), unescape(value)) for over, value in _VALUE.findall(html)]
+    bars = [_BAR_FIGURES.fullmatch(title) for title in titles[: len(data.classes)]]
+    rows = []
+    for match, (over, label), row in zip(
+        bars, labels[: len(data.classes)], data.classes, strict=True
+    ):
+        assert match is not None and match[1] == row.label
+        allocation, paid, remaining = (_figure(match[i]) for i in (2, 3, 4))
+        assert _figure(label) == remaining and over is row.over_budget
+        if remaining is not None:
+            assert allocation is not None and paid is not None and row.remainder is not None
+            assert abs(allocation - paid - remaining) <= 1
+            assert (remaining < 0) <= row.over_budget and (remaining > 0) <= (not over)
+            assert remaining == 0 or (remaining < 0) is (row.remainder < 0)
+        rows.append((allocation, paid, remaining))
+    assert sum(a for a, _, _ in rows if a is not None) == allocated
+    class_paid = sum(p for _, p, _ in rows if p is not None)
+    assert class_paid + unassigned == paid_total
+    remainders = [r for _, _, r in rows if r is not None]
+    assert sum(remainders) == remaining_total
+    # The unassigned bar is labelled as unassigned posted payments, with that same figure.
+    assert unassigned is not None
+    shown_unassigned = render._dollars(unassigned)
+    if data.unassigned_total != 0:
+        assert titles[-1] == f"Unassigned posted payments: {shown_unassigned}"
+        assert labels[-1] == (False, shown_unassigned)
+    assert len(titles) == len(data.classes) + (data.unassigned_total != 0)
+    over_note = tiles[render._REMAINING_TILE][1]
+    overrun = -sum(r for r in remainders if r < 0)
+    # The fictional world keeps a payment unassigned, so its remaining figures are partial
+    # and "none over budget" is never claimed as definitive (rule 9).
+    assert "payments_unassigned" in data.reasons
+    if data.over_budget:
+        expected = f" {render._dollars(overrun)}" if overrun > 0 else ""
+        count = len(data.over_budget)
+        assert over_note == (
+            f"Net of {count} classroom{'' if count == 1 else 's'}{expected} over budget"
+        )
+    else:
+        assert over_note == "None over budget so far" and overrun == 0
+
+    # The narrative prints the same integers; its difference is allocated - budget.
+    narrative = _text("<body>" + html.split('<section class="narrative">')[1])
+    (total,) = re.findall(r"allocations totaling (\$[\d,]+)\.", narrative)
+    assert _figure(total) == allocated
+    ((gap_text, side, budget_text),) = re.findall(
+        r"They (?:are (\$[\d,]+|less than \$1) (above|below)|equal) the adopted classroom "
+        r"budget of (\$[\d,]+)",
+        narrative,
+    )
+    gap = 0 if gap_text in ("", "less than $1") else _figure(gap_text)
+    budget = _figure(budget_text)
+    assert gap is not None and budget is not None and allocated is not None
+    assert allocated - budget == (-gap if side == "below" else gap)
+    assert budget_text == format_whole(data.classroom_budget)
+    (posted,) = re.findall(
+        r"is (\$[\d,]+): (\$[\d,]+) assigned and (\$[\d,]+) not yet assigned", narrative
+    )
+    assert [_figure(value) for value in posted] == [paid_total, class_paid, unassigned]
+    (issued_text,) = re.findall(r"(\$[\d,]+) is issued", narrative)
+    assert _figure(issued_text) == issued
+
+    # Purchases: the listed rows plus the exact Other row add to the printed total.
+    table = _texts(_body(_tables(html)["purchases"]))
+    *listed, (other_text, other), (_, purchase_total) = table
+    assert other_text == f"Other itemized purchases ({len(data.purchases) - len(listed)})"
+    amounts = [_figure(row[-1]) for row in listed] + [_figure(other)]
+    assert all(amount is not None for amount in amounts)
+    assert sum(a for a in amounts if a is not None) == _figure(purchase_total)
+
+
+@pytest.mark.parametrize(
+    ("case", "title", "tile"),
+    [
+        (
+            "over",
+            "allocation $101, paid $100, remaining $0",
+            ("$149", "Net of 1 classroom over budget"),
+        ),
+        ("under", "allocation $100, paid $101, remaining $0", ("$150", "None over budget so far")),
+    ],
+)
+def test_a_printed_remaining_agrees_with_its_over_budget_marker(
+    classroom_rendered: RenderedSet, tmp_path: Path, case: str, title: str, tile: tuple[str, str]
+) -> None:
+    """Round 5's two cases on the published page: allocation less paid in displayed dollars
+    would read +$1 beside the over-budget marker ("over") or -$1 with no marker and no
+    classroom over budget ("under"); the printed remaining is $0 and the tile agrees. Both
+    worlds keep an unassigned payment, so the wording is "so far" (rule 9; the definitive
+    wording of complete figures is test_definitive_classroom_wording_needs_complete_figures).
+    """
+    inputs = classroom_rendered.inputs
+    assert inputs.facts.classroom is not None
+    data = classroom_figures(inputs.facts.classroom, **CLASSROOM_SIGN_FIGURES[case])
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    rerun = dataclasses.replace(inputs, run_dir=run_dir)
+    rerun.write(facts=dataclasses.replace(inputs.facts, classroom=data))
+    html = (run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    first = data.classes[0]
+    assert unescape(_CLASSBAR.findall(html)[0]) == f"{first.label}: {title}"
+    values = [(bool(over), unescape(value)) for over, value in _VALUE.findall(html)]
+    assert values[0] == (case == "over", "$0")
+    assert sum(_figure(value) or 0 for _, value in values[: len(data.classes)]) == int(
+        tile[0].removeprefix("$")
+    )
+    tiles = {label: (value, note) for _, _, value, label, note in _tiles(html)}
+    assert tiles[render._REMAINING_TILE] == tile
+    narrative = _text("<body>" + html.split('<section class="narrative">')[1])
+    assert ("1 classroom is over budget so far." in narrative) is (case == "over")
+    assert "over budget." not in narrative.replace("over budget so far.", "")
+
+
+# The fictional ledger without its one reference-less row: every payment is assigned, so
+# the classroom facts are complete.
+_COMPLETE_ROWS = [row for row in CLASSROOM_LEDGER_ROWS if row is not CLASSROOM_NO_REFERENCE]
+
+
+def _classroom_page(inputs: RunInputs) -> tuple[str, str, dict[str, tuple[str, str, str]]]:
+    """(page text, narrative, tile label -> (classes, value, note)) of a written world."""
+    inputs.write()
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    narrative = _text("<body>" + html.split('<section class="narrative">')[1])
+    tiles = {label: (classes, value, note) for _, classes, value, label, note in _tiles(html)}
+    return _text(html), narrative, tiles
+
+
+def test_definitive_classroom_wording_needs_complete_figures(tmp_path: Path) -> None:
+    """Complete facts state the allocation difference, the over-budget count and "no
+    classroom over budget" definitively, with no partial mark (the counterpart of the
+    rule-9 cases below)."""
+    inputs = _classroom_inputs(
+        tmp_path / "world", classroom_planning_document(rows=_COMPLETE_ROWS), rows=_COMPLETE_ROWS
+    )
+    data = inputs.facts.classroom
+    assert data is not None and (data.status, data.reasons) == ("complete", ())
+    text, narrative, tiles = _classroom_page(inputs)
+    assert all(classes == "" for classes, _, _ in tiles.values())
+    assert tiles[render._REMAINING_TILE][2] == "Net of 1 classroom $30 over budget"
+    assert "4 classrooms have allocations totaling $700. They are $200 above the adopted " in (
+        narrative
+    )
+    assert "spending through Aug 15 is $380: $380 assigned and $0 not yet assigned." in narrative
+    assert "1 classroom is over budget." in narrative and "so far" not in narrative
+    assert render._REMAINING_PARTIAL not in text and "Remaining allocation" in text
+    assert render._REMAINING_LEGEND_PARTIAL not in text
+    # Complete figures with no classroom over budget: the definitive "none" wording.
+    under = classroom_figures(data, **{**CLASSROOM_SIGN_FIGURES["under"], "unassigned": "0.00"})
+    assert under.reasons == () and not under.over_budget
+    run_dir = tmp_path / "under"
+    run_dir.mkdir()
+    rerun = dataclasses.replace(inputs, run_dir=run_dir)
+    rerun.write(facts=dataclasses.replace(inputs.facts, classroom=under))
+    html = (run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    tiles = {label: (classes, value, note) for _, classes, value, label, note in _tiles(html)}
+    assert tiles[render._REMAINING_TILE] == ("", "$150", "No classroom over budget")
+    assert "over budget" not in _text("<body>" + html.split('<section class="narrative">')[1])
+
+
+@pytest.mark.parametrize(
+    ("case", "sentence", "over"),
+    [
+        (
+            "rates",
+            "Allocations recorded so far total $300 for 2 of 4 eligible classrooms, so no "
+            "difference from the adopted budget is stated yet.",
+            "None over budget so far",
+        ),
+        (
+            "roster",
+            "Allocations recorded so far total $700 for 4 of 4 eligible classrooms (the roster "
+            "is incomplete), so no difference from the adopted budget is stated yet.",
+            "Net of 1 classroom $30 over budget",
+        ),
+    ],
+    ids=["rates", "roster"],
+)
+def test_a_partial_allocation_total_states_no_difference_from_the_budget(
+    tmp_path: Path, case: str, sentence: str, over: str
+) -> None:
+    """Rule 9: classrooms without enrollment or a rate, or an incomplete roster, leave the
+    allocation total a partial observed subtotal: it is shown (starred) as recorded so far
+    and no difference from the adopted budget is stated; the remaining figures resting on
+    it are starred, the chart's legend and description say they are partial and the
+    over-budget count is "so far"."""
+    document = classroom_planning_document(rows=_COMPLETE_ROWS, roster_complete=case != "roster")
+    if case == "rates":
+        document["classes"][1]["student_count"] = None
+        document["classes"][2]["per_student_amount"] = None
+    inputs = _classroom_inputs(tmp_path, document, rows=_COMPLETE_ROWS)
+    data = inputs.facts.classroom
+    assert data is not None and data.classroom_budget == Decimal("500.00")
+    text, narrative, tiles = _classroom_page(inputs)
+    assert narrative.split(" Posted classroom spending")[0] == f"Where things stand {sentence}"
+    assert "adopted classroom budget of" not in narrative
+    assert not re.search(r"\b(?:above|below|equal)\b", narrative)
+    assert tiles[render._ALLOCATED_TILE][0] == "partial"
+    assert tiles[render._REMAINING_TILE][0] == "partial"
+    assert tiles[render._REMAINING_TILE][2] == over
+    assert render._REMAINING_LEGEND_PARTIAL in text and render._REMAINING_PARTIAL in text
+    if case == "roster":
+        assert "1 classroom is over budget so far." in narrative
+    # Posted spending is complete here: neither its tile nor its sentence is partial.
+    assert tiles[render._PAID_TILE][0] == "" and "so far:" not in narrative
+
+
+def test_partial_ledger_coverage_marks_paid_purchases_and_remaining_partial(
+    tmp_path: Path,
+) -> None:
+    """Rule 9: a ledger whose declared coverage stops before the as-of date leaves the
+    posted total, the purchases on posted payments and the remaining figures partial."""
+    document = classroom_planning_document(rows=_COMPLETE_ROWS)
+    document["bindings"][0]["coverage_end"] = "2030-07-31"
+    inputs = _classroom_inputs(tmp_path, document, rows=_COMPLETE_ROWS)
+    data = inputs.facts.classroom
+    assert data is not None and data.reasons == ("ledger_coverage_partial",)
+    text, narrative, tiles = _classroom_page(inputs)
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    assert (
+        "Posted classroom spending through Aug 15 is $380 so far: $380 assigned and $0 not yet "
+        "assigned."
+    ) in narrative
+    assert tiles[render._PAID_TILE][0] == tiles[render._REMAINING_TILE][0] == "partial"
+    assert tiles[render._ALLOCATED_TILE][0] == ""
+    assert "They are $200 above the adopted classroom budget of $500" in narrative
+    assert "1 classroom is over budget so far." in narrative
+    *_, total = _body(_tables(html)["purchases"])
+    assert total[0].text == "Itemized purchases on posted payments"
+    assert "partial" in total[-1].classes
+    assert render._REMAINING_LEGEND_PARTIAL in text and render._REMAINING_PARTIAL in text
+    # Why it is partial: the footer's coverage clause.
+    assert "Academic ledger coverage Jun 1, 2030 to Jul 31, 2030; partial for the period" in text
+
+
+@pytest.mark.parametrize(
+    ("case", "paid_note", "issued", "because"),
+    [
+        ("ledger", "No academic ledger bound", "$57", "no academic ledger is bound"),
+        (
+            "category",
+            "No classroom category declared",
+            "Unknown",
+            "no classroom spending category is declared",
+        ),
+    ],
+    ids=["ledger", "category"],
+)
+def test_unknown_spending_is_never_stated_as_zero_or_none_over_budget(
+    tmp_path: Path, case: str, paid_note: str, issued: str, because: str
+) -> None:
+    """Rule 9: without a ledger, or without a declared classroom category, posted spending
+    is unknown: Paid and Remaining read Unknown (never $0), the Remaining tile claims
+    nothing about over-budget classrooms, and without a category no request can be a
+    classroom request, so Issued is unknown too."""
+    document = classroom_planning_document()
+    if case == "ledger":
+        document["bindings"] = []
+    else:
+        document["classroom_categories"] = []
+    inputs = _classroom_inputs(tmp_path, document)
+    text, narrative, tiles = _classroom_page(inputs)
+    assert tiles[render._PAID_TILE][1:] == ("Unknown", paid_note)
+    assert tiles[render._REMAINING_TILE][1:] == (
+        "Unknown",
+        "Needs allocations and posted payments",
+    )
+    assert tiles[render._ISSUED_TILE][1] == issued
+    if case == "category":
+        assert tiles[render._ISSUED_TILE][2] == "No classroom category declared"
+    assert f"Posted spending is unknown: {because}." in narrative
+    assert "over budget" not in narrative and render._REMAINING_PARTIAL not in text
+    # The allocations are still complete, so they stand with their stated basis.
+    assert "4 classrooms have allocations totaling $700." in narrative
+
+
+def test_classroom_print_sites_read_only_the_display_figures(
+    classroom_rendered: RenderedSet, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No classroom print site rounds (or recomputes) a figure: given display figures that
+    no cents of the facts round to, the page prints exactly those, gridlines aside."""
+    world = classroom_rendered.facts
+    assert world.classroom is not None
+    # Two more purchases than the page lists, so the exact Other row's print site is read too.
+    template = world.classroom.purchases[0]
+    extra = render._PURCHASE_ROWS + 2 - len(world.classroom.purchases)
+    report = dataclasses.replace(
+        world,
+        classroom=dataclasses.replace(
+            world.classroom,
+            purchases=world.classroom.purchases
+            + tuple(
+                dataclasses.replace(template, amount=Decimal("1.00"), item_key=f"other:{index}")
+                for index in range(extra)
+            ),
+        ),
+    )
+    assert report.classroom is not None
+    real = planning.classroom_display(report.classroom, listed=render._PURCHASE_ROWS)
+    # Deliberately untied, so a site that re-derives a figure is caught as well.
+    fake = dataclasses.replace(
+        real,
+        classes=tuple(
+            dataclasses.replace(
+                row,
+                allocation=None if row.allocation is None else 1101 + index,
+                paid=None if row.paid is None else 2201 + index,
+                remaining=None if row.remaining is None else 3301 + index,
+            )
+            for index, row in enumerate(real.classes)
+        ),
+        allocation_total=4401,
+        classroom_budget=4402,
+        allocation_difference=4403,
+        paid_total=4404,
+        assigned_total=4405,
+        unassigned_total=4406,
+        remaining_total=4407,
+        overrun=4408,
+        purchases=tuple(4409 + index for index in range(len(real.purchases))),
+        other=4419,
+        purchase_total=4420,
+        issued_total=4421,
+    )
+    assert real.other is not None and len(real.purchases) == render._PURCHASE_ROWS
+    monkeypatch.setattr(planning, "classroom_display", lambda classroom, *, listed: fake)
+    # With every rounding helper refusing, the summary still builds from the display alone.
+    with monkeypatch.context() as refusing:
+        for owner, name in [
+            (render, "format_whole"),
+            (render, "format_money"),
+            (render, "_whole"),
+            (planning, "half_up"),
+            (planning, "display_parts"),
+        ]:
+            refusing.setattr(owner, name, _refuse)
+        assert render._classroom_summary(report)["available"]
+    # The published page prints exactly the display's figures, every one of them.
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    dataclasses.replace(classroom_rendered.inputs, run_dir=run_dir).write(facts=report)
+    html = (run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    printed = set(_FIGURE.findall(_text(_TICK_TEXT.sub("", html))))
+    figures = [
+        *(
+            value
+            for row in fake.classes
+            for value in (row.allocation, row.paid, row.remaining)
+            if value is not None
+        ),
+        *range(4401, 4409),
+        *fake.purchases,
+        fake.other,
+        fake.purchase_total,
+        fake.issued_total,
+    ]
+    assert printed == {render._dollars(value) for value in figures if value is not None}
+
+
+def test_absent_planning_renders_an_explicit_unavailable_page(rendered: RenderedSet) -> None:
+    html = rendered.html(CLASSROOM_HTML)
+    text = _text(html)
+    assert [tile[2] for tile in _tiles(html)] == ["Unknown"] * 4
+    assert "No board-planning input is configured for this run." in text
+    assert "no adopted total is divided" in text and 'class="classchart"' not in html
+    assert "every other report of this run is unaffected" in text
+
+
+def test_a_missing_roster_never_divides_the_budget_equally(tmp_path: Path) -> None:
+    document = classroom_planning_document(classes=[], allocations=[])
+    document["payee_aliases"] = []
+    inputs = _classroom_inputs(tmp_path, document)
+    inputs.write()
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    text = _text(html)
+    tiles = _tiles(html)
+    assert tiles[0][2:] == ("Unknown", "Allocated to classrooms", "No roster recorded")
+    assert tiles[2][2] == "Unknown"  # no remaining figure without allocations
+    assert [unescape(t) for t in _CLASSBAR.findall(html)] == ["Unassigned posted payments: $396"]
+    assert "allocations are unavailable and the adopted budget is never divided equally" in text
+    assert "No roster is recorded, so no classroom has an allocation." in text
+
+
+def test_hostile_classroom_labels_are_escaped(tmp_path: Path) -> None:
+    document = classroom_planning_document()
+    document["classes"][0]["teacher_label"] = HOSTILE
+    inputs = _classroom_inputs(tmp_path, document)
+    inputs.write()
+    html = (inputs.run_dir / CLASSROOM_HTML).read_text(encoding="utf-8")
+    assert RAW_MARKER not in html
+    assert f"<title>{ESCAPED}: allocation $200" in html
+
+
+def test_a_roster_beyond_the_page_capacity_is_refused_before_anything_is_written(
+    tmp_path: Path,
+) -> None:
+    document = classroom_planning_document(allocations=[])
+    template = document["classes"][0]
+    document["classes"] = [
+        {**template, "class_id": f"class-{index:02d}", "teacher_label": f"Teacher {index:02d}"}
+        for index in range(render.CLASSROOM_CAPACITY + 1)
+    ]
+    document["payee_aliases"] = []
+    inputs = _classroom_inputs(tmp_path, document)
+    with pytest.raises(RenderError) as caught:
+        inputs.write()
+    assert caught.value.code == "classroom_layout_overflow"
+    _assert_clean_error(caught.value)
+    assert list(inputs.run_dir.iterdir()) == []
+
+
+def test_a_classroom_ledger_this_run_did_not_capture_is_refused(tmp_path: Path) -> None:
+    inputs = _classroom_inputs(tmp_path)
+    data = inputs.facts.classroom
+    assert data is not None and data.ledger_sha256 is not None
+    sources = tuple(
+        dataclasses.replace(s, sha256="0" * 64) if s.sha256 == data.ledger_sha256 else s
+        for s in inputs.context.sources
+    )
+    error = _expect(
+        "context_mismatch", inputs, context=dataclasses.replace(inputs.context, sources=sources)
+    )
+    assert "0 coverage source(s) and 1 evidence ref(s)" in str(error)
+    assert list(inputs.run_dir.iterdir()) == []
+
+
+def _classroom_fit_inputs(tmp_path: Path, world: str) -> tuple[RunInputs, int]:
+    """(inputs, expected bars) of one classroom fit world."""
+    if world == "standard":
+        return _classroom_inputs(tmp_path), 6
+    if world == "missing_roster":
+        document = classroom_planning_document(classes=[], allocations=[])
+        document["payee_aliases"] = []
+        return _classroom_inputs(tmp_path, document), 1
+    count = render.CLASSROOM_CAPACITY if world in ("large", "partial") else 3
+    rows = [list(row) for row in CLASSROOM_LEDGER_ROWS]
+    classes = []
+    for index in range(count):
+        label = (
+            f"Teacher {index:02d}"
+            if index % 3 == 0
+            else ("W" * 200 if world == "long" else _long_name(f"Example Teacher {index:02d}"))
+        )
+        classes.append(
+            {
+                "class_id": f"class-{index:02d}",
+                "teacher_label": label,
+                "student_count": 20 + index,
+                "per_student_amount": "250.00",
+                "effective_start": "2030-07-01",
+                "effective_end": "2031-06-30",
+                "eligible": True,
+            }
+        )
+        amount = (index * 9731) % 9000 + 1000  # some classrooms over their allocation
+        rows.append(
+            [
+                "8/1/2030",
+                f"Example order {index}",
+                f"-{amount}.25",
+                CLASSROOM_CATEGORY,
+                "2031",
+                f"EX-9{index:03d}",
+                f"Example Payee {index:02d}",
+            ]
+        )
+    if world == "partial":
+        rows.append(["", "Example undated order", "-7.00", CLASSROOM_CATEGORY, "2031", "EX-8", ""])
+    document = classroom_planning_document(
+        classes=classes, rows=rows, allocations=[], roster_complete=world != "partial"
+    )
+    document["payee_aliases"] = [
+        {"source_payee": f"Example Payee {index:02d}", "class_id": f"class-{index:02d}"}
+        for index in range(count)
+    ]
+    if world == "partial":
+        # Every rule-9 wording at once on the largest roster: a partial allocation total, a
+        # posted total "so far" (an undated row) and partial remaining figures.
+        document["classes"][1]["student_count"] = None
+        document["classes"][2]["per_student_amount"] = None
+    return _classroom_inputs(tmp_path, document, rows=rows), count + 1
+
+
+@pytest.mark.parametrize("world", ["standard", "large", "long", "missing_roster", "partial"])
+def test_chromium_classroom_page_fits_one_readable_letter_page(tmp_path: Path, world: str) -> None:
+    playwright = require_chromium()
+    inputs, bars = _classroom_fit_inputs(tmp_path, world)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UnsandboxedExportWarning)
+        inputs.write(exporter=None)
+    data = inputs.facts.classroom
+    assert data is not None and data.status != "unavailable"
+    if world in ("large", "partial"):
+        assert len(data.classes) == render.CLASSROOM_CAPACITY and data.over_budget
+    if world == "partial":
+        assert {
+            "roster_incomplete",
+            "allocation_missing",
+            "payments_unassigned",
+            "rows_unreadable",
+        } <= set(data.reasons)
+    uri = (inputs.run_dir / CLASSROOM_HTML).as_uri()
+    with playwright.sync_playwright() as driver:
+        browser = driver.chromium.launch(channel="chromium")
+        page = browser.new_page(viewport={"width": 1100, "height": 1200})
+        errors: list[str] = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(uri)
+        screen = page.evaluate(_SCREEN_CHECK)
+        assert screen["scroll"] <= screen["inner"]
+        assert screen["problems"] == [], screen["problems"][:5]
+        # No teacher row is hidden: one drawn bar group and one axis label per bar, every
+        # label inside the chart.
+        drawn = page.evaluate(
+            """() => {
+              const svg = document.querySelector('svg.classchart').getBoundingClientRect();
+              const labels = [...document.querySelectorAll('svg.classchart text.teacher')]
+                .map(t => t.getBoundingClientRect());
+              return {
+                groups: document.querySelectorAll('svg.classchart g.classbar').length,
+                labels: labels.length,
+                outside: labels.filter(r => r.left < svg.left - 0.5 || r.right > svg.right + 0.5
+                  || r.top < svg.top - 0.5 || r.bottom > svg.bottom + 0.5).length,
+                width: Math.min(...labels.map(r => Math.max(r.width, r.height))),
+              };
+            }"""
+        )
+        assert drawn["groups"] == drawn["labels"] == bars
+        assert drawn["outside"] == 0 and drawn["width"] > 10
+        page.set_viewport_size({"width": 730, "height": 1000})
+        page.emulate_media(media="print")
+        page.goto(uri)
+        fit = page.evaluate(_PRINT_CHECK)
+        assert fit["height"] <= FIT_LIMIT - FIT_RESERVE, fit["height"]
+        assert fit["row"] <= 38 and fit["eyebrow"] <= 16
+        assert fit["narrative"] <= 4.2 * fit["line"] + 16
+        page.emulate_media(media="screen")
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(uri)
+        phone = page.evaluate(_PHONE_CHECK)
+        assert phone["overflow"] <= 1 and phone["tops"] == 2 and phone["pad"] >= 16
+        browser.close()
+    assert not errors
+    payload = (inputs.run_dir / f"{CLASSROOM}.pdf").read_bytes()
+    assert _pdf_sizes(payload) == [(612, 792)]
+    flat = " ".join(fit["text"].split())
+    assert "Classroom Budgets" in flat and RUN_ID in flat and "1 page" in flat
+    texts = _pdf_texts(payload)
+    if texts is not None:  # extra: the printed PDF text itself
+        assert "Classroom Budgets" in texts[0] and "Where things stand" in texts[0]

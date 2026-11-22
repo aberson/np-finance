@@ -22,7 +22,7 @@
   {% block scope %}<p class="scope"><strong>{{ page.period.label }} · {{ page.period.range }} · through {{ page.period.through }}</strong>{% if page.period.legacy %} · {{ page.period.legacy }}{% endif %} · {{ page.basis }}{% for clause in page.scope_extra %} · {{ clause }}{% endfor %}</p>{% endblock %}
   {% block content %}{% endblock %}
   {% block tail %}
-  {% if page.legend %}<p class="chart-note marks">– Unknown: no declared coverage or no readable amount, never zero. * Partial: incomplete coverage or an unreadable target. $0 is an observed zero.</p>{% endif %}
+  {% if page.legend %}<p class="chart-note marks">{% block legend %}– Unknown: no declared coverage or no readable amount, never zero. * Partial: incomplete coverage or an unreadable target. $0 is an observed zero.{% endblock %}</p>{% endif %}
   <section class="narrative"><h2>Where things stand</h2><p>{{ data.narrative }}</p></section>
   {{ m.audit(page.audit) }}
   {% endblock %}

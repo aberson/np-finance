@@ -1,0 +1,38 @@
+{% extends 'main_reports/base.html.j2' %}
+{% import 'main_reports/macros.html.j2' as m %}
+{% block content %}
+  {{ m.tiles(data.tiles) }}
+
+  {% if data.available %}
+  <section class="section" id="classrooms">
+    {{ m.section_heading('Allocation and spending by classroom', 'Enrollment × per-student rate · posted payments through ' ~ page.period.through) }}
+    {% if data.chart %}{% set c = data.chart %}
+    <svg class="classchart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-labelledby="classchart-title classchart-desc"><title id="classchart-title">Allocation and posted spending by classroom</title><desc id="classchart-desc">{{ c.count }} bar(s), one per classroom{% if data.unassigned_bar %} plus unassigned posted payments{% endif %}. Each classroom bar's height is its allocation; the lower part is paid and the upper part remains. The figure above each classroom bar is the amount remaining, negative when over budget.{% if data.unassigned_bar %} The unassigned bar is posted payments not yet assigned to a classroom; its figure is that posted amount, with no remaining figure.{% endif %}{% if data.remaining_desc %} {{ data.remaining_desc }}{% endif %}</desc>
+      {% set k = c.colors %}{% for t in c.ticks %}<line x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="{{ k.grid }}" stroke-width="1"/><text x="{{ t.x }}" y="{{ t.y }}" dy="{{ c.tick_dy }}" font-size="{{ c.value_font }}" fill="{{ k.tick }}" text-anchor="end">{{ t.label }}</text>{% endfor %}
+      {% for b in c.bars %}<g class="classbar"><title>{{ b.title }}</title>{% for r in b.rects %}<rect x="{{ b.x }}" y="{{ r.y }}" width="{{ b.w }}" height="{{ r.h }}" fill="{{ r.fill }}"/>{% endfor %}{% if b.line %}<line class="allocation-line" x1="{{ b.x }}" x2="{{ b.x2 }}" y1="{{ b.line }}" y2="{{ b.line }}" stroke="{{ k.allocation }}" stroke-width="2"/>{% endif %}{% if c.value_vertical %}<text class="value{% if b.over %} over{% endif %}" transform="rotate(-90 {{ b.rx }} {{ b.value_y }})" x="{{ b.rx }}" y="{{ b.value_y }}" font-size="{{ c.value_font }}"{% if b.over %} font-weight="700" fill="{{ k.over }}"{% else %} fill="{{ k.value }}"{% endif %}>{{ b.value }}</text>{% else %}<text class="value{% if b.over %} over{% endif %}" x="{{ b.cx }}" y="{{ b.value_y }}" font-size="{{ c.value_font }}" text-anchor="middle"{% if b.over %} font-weight="700" fill="{{ k.over }}"{% else %} fill="{{ k.value }}"{% endif %}>{{ b.value }}</text>{% endif %}{% if c.horizontal %}<text class="teacher" x="{{ b.cx }}" y="{{ b.label_y }}" font-size="{{ c.axis_font }}" text-anchor="middle" fill="{{ k.label }}">{% for line in b.lines %}<tspan x="{{ b.cx }}" dy="{{ '0' if loop.first else c.axis_line }}">{{ line }}</tspan>{% endfor %}</text>{% else %}<text class="teacher" transform="rotate(-90 {{ b.rx }} {{ b.label_y }})" x="{{ b.rx }}" y="{{ b.label_y }}" font-size="{{ c.label_font }}" text-anchor="end" fill="{{ k.label }}">{{ b.lines[0] }}</text>{% endif %}</g>{% endfor %}
+      <line x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ c.base }}" y2="{{ c.base }}" stroke="{{ k.axis }}" stroke-width="1"/>
+    </svg>
+    <div class="legends">{% for item in data.legend %}<p class="legend"><span class="swatch" style="background:{{ item.color }}"></span>{{ item.text }}</p>{% endfor %}</div>
+    {% else %}<p class="chart-note">No classroom and no posted classroom payment to chart.</p>{% endif %}
+    <p class="chart-note">Bar height is enrollment times the per-student rate; the figure above each classroom bar is what remains.{% if data.unassigned_bar %} The unassigned bar shows posted payments not yet assigned to a classroom; its figure is that posted amount.{% endif %}{% if data.missing %} A dash means no allocation is recorded for that classroom; it is never estimated.{% endif %}{% if data.roster_absent %} No roster is recorded: allocations are unavailable and the adopted budget is never divided equally.{% endif %}</p>
+  </section>
+
+  <section class="section" id="purchases">
+    {{ m.section_heading('Larger reimbursed purchases', 'Paid, dated review items on posted classroom payments') }}
+    <div class="tablewrap"><table>
+      <colgroup><col style="width:52%"><col style="width:14%"><col style="width:20%"><col style="width:14%"></colgroup>
+      <thead><tr><th>Purchase</th><th>Date</th><th>Classroom</th><th class="amt">Amount</th></tr></thead>
+      <tbody>
+        {% for p in data.purchases %}<tr><td><strong>{{ m.label(p.item) }}</strong></td><td>{{ p.date }}</td><td>{{ m.label(p.classroom) }}</td>{{ m.amount(p.amount) }}</tr>{% else %}<tr><td colspan="4">No itemized purchase is linked to a posted classroom payment yet.</td></tr>{% endfor %}
+        {% if data.other %}<tr class="other"><td colspan="3">{{ data.other.text }}</td>{{ m.amount(data.other.amount) }}</tr>{% endif %}
+        {% if data.purchases %}<tr class="total"><td colspan="3">Itemized purchases on posted payments</td>{{ m.amount(data.purchase_total) }}</tr>{% endif %}
+      </tbody>
+    </table></div>
+  </section>
+  {% else %}
+  <section class="section" id="unavailable">
+    <div class="callout"><h2>Classroom budgets unavailable</h2><p class="split">{{ data.reason }}</p><p class="note">Allocations come only from the private roster (enrollment times the per-student rate); without it nothing is estimated and no adopted total is divided equally among classrooms.</p></div>
+  </section>
+  {% endif %}
+{% endblock %}
+{% block legend %}– Unknown or no allocation recorded, never zero. * Partial: roster, rates, assignment or ledger coverage incomplete.{% endblock %}

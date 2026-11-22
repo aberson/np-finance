@@ -14,7 +14,7 @@ Wired subcommands:
     ingest-receipts / map-receipts  Phase 4 - parse those .eml/.mbox files into ledger rows
     report-reimbursements  render the private queue from its validated local bundle
     update-reimbursements  optional mail fetch -> local evidence refresh -> private report
-    end-to-end-run         capture sources -> refresh evidence -> five reports -> publish
+    end-to-end-run         capture sources -> refresh evidence -> Main Report Set -> publish
 
 The LIVE data flow sources ``report`` / ``analyze`` from the operator-maintained "Budget
 Timeseries" tab and writes only ``report_log``; ``check`` / ``init-sheet`` / ``snapshot``
@@ -1224,7 +1224,7 @@ def _cmd_update_reimbursements(args: argparse.Namespace, *, service: Any = None)
 
 
 def _cmd_end_to_end_run(args: argparse.Namespace, *, service: Any = None) -> int:
-    """Capture every source, refresh reimbursements, build all five reports, then publish.
+    """Capture every source, refresh reimbursements, build every report, then publish.
 
     Delegates to :func:`np_finance.main_reports.runner.run` (the production caller). The
     request is checked before configuration is read: ``--dry-run`` refuses the ``--fetch-*``
@@ -1810,8 +1810,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_end_to_end = sub.add_parser(
         "end-to-end-run",
         help=(
-            "capture the CFO sources, refresh reimbursements, build the five-report Main "
-            "Report Set and publish it after validation"
+            "capture the CFO sources, refresh reimbursements, build the Main Report Set and "
+            "publish it after validation"
         ),
     )
     p_end_to_end.add_argument(
