@@ -58,6 +58,7 @@ from tests.conftest import (
     CFO_ID,
     VENDOR_JUNE,
     CfoHarness,
+    CfoWorksheet,
     RecordingSleep,
     _bundle_payload,
     _config,
@@ -331,6 +332,88 @@ def _tickets(path: Path) -> int:
     return len(reimbursement_report.load_bundle(path).tickets)
 
 
+def _enable_planning(world: World) -> Path:
+    planning = {
+        "schema_version": 1,
+        "fiscal_year": 2030,
+        "prior_fiscal_year": 2029,
+        "roster_complete": True,
+        "roster_as_of": "2030-08-01",
+        "roster_evidence": "fictional signed roster",
+        "classes": [
+            {
+                "class_id": "class-a",
+                "teacher_label": "Example Teacher A",
+                "student_count": 20,
+                "per_student_amount": "10.00",
+                "effective_start": "2029-08-01",
+                "effective_end": "2030-08-31",
+                "eligible": True,
+            }
+        ],
+        "payee_aliases": [],
+        "payment_allocations": [],
+        "category_roles": [],
+        "classroom_categories": [],
+        "bindings": [
+            {
+                "role": "balances",
+                "workbook": "cfo",
+                "tab": "Example Balances",
+                "header_signature": [
+                    ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"]
+                ],
+                "columns": {
+                    "date": "Date",
+                    "checking": "Checking",
+                    "savings": "Savings",
+                    "cd": "CD",
+                    "credit_card_liability": {
+                        "label": "Card Liability",
+                        "liability_sign": "negative",
+                    },
+                    "total": "Total",
+                },
+                "coverage_start": "2030-08-01",
+                "coverage_end": "2030-08-31",
+                "coverage_evidence": "fictional monthly close",
+            }
+        ],
+        "reserve_basis": {
+            "kind": "source_account_balance",
+            "binding_role": "balances",
+            "component": "cd",
+            "evidence": "fictional board policy",
+        },
+        "specialist_contract_categories": [],
+        "central_case": {
+            "fundraising_basis": "prior_actual_dollars",
+            "classroom_budget_categories": [],
+            "prior_classroom_categories": [],
+            "future_events": [],
+        },
+        "period_allocations": [],
+    }
+    path = world.root / "planning.json"
+    path.write_text(json.dumps(planning), encoding="utf-8")
+    world.config_path.write_text(
+        world.config_path.read_text("utf-8")
+        + '\n[main_reports.board_planning]\ninput_file = "planning.json"\n',
+        encoding="utf-8",
+    )
+    balances = CfoWorksheet(
+        [
+            ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"],
+            ["8/1/2030", "100.00", "200.00", "300.00", "-10.00", "590.00"],
+        ],
+        sheet_id=3001,
+    )
+    balances.title = "Example Balances"
+    world.harness.cfo_sheets["Example Balances"] = balances
+    world.harness.cfo_spreadsheet._worksheets["Example Balances"] = balances
+    return path
+
+
 # --------------------------------------------------------------------------------------
 # Bounded smoke: the production CLI from sources to a published five-report set
 # --------------------------------------------------------------------------------------
@@ -523,6 +606,46 @@ def test_dry_run_validates_everything_and_writes_nothing(
     stdout = capsys.readouterr().out
     assert "1 new, 0 unchanged" in stdout  # the refresh was planned, not written
     assert "[dry-run]: inputs validated" in stdout
+
+
+def test_cli_dry_run_validates_planning_without_writing(world: World) -> None:
+    _enable_planning(world)
+    before = _tree(world.root)
+    assert world.main("--dry-run") == runner.EXIT_OK
+    assert _tree(world.root) == before
+
+
+def test_normal_cli_run_retains_a_hashed_planning_capture(world: World) -> None:
+    _enable_planning(world)
+    assert world.main() == runner.EXIT_OK
+    manifest = _manifest(world.run_dirs()[0])
+    stored = json.loads((world.runs / manifest["capture_ref"]).read_text("utf-8"))
+    assert stored["planning"]["input_sha256"]
+    assert stored["planning"]["references"]["balances"]["sha256"]
+
+
+def test_cli_invalid_planning_input_keeps_the_publication_pointer(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert world.main() == runner.EXIT_OK
+    published = world.published()
+    pointer = published[runner.POINTER_NAME]
+    capsys.readouterr()
+
+    planning_path = _enable_planning(world)
+    invalid = json.loads(planning_path.read_text("utf-8"))
+    invalid["bindings"][0]["columns"]["credit_card_liability"] = "Card Liability"
+    planning_path.write_text(json.dumps(invalid), encoding="utf-8")
+
+    assert world.main() == runner.EXIT_FAILED
+    stdout = capsys.readouterr().out
+    assert "capture_failed" in stdout
+    assert "planning_input_invalid" in stdout
+    assert "previous publication is unchanged" in stdout
+    assert (world.output / runner.POINTER_NAME).read_bytes() == pointer
+    current = world.published()
+    for name in (runner.POINTER_NAME, *(alias for _source, alias in runner.COMPATIBILITY_FILES)):
+        assert current[name] == published[name]
 
 
 def test_dry_run_reports_a_failed_validation_without_writing(

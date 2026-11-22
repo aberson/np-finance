@@ -90,6 +90,8 @@ __all__ = [
     "SourceCapture",
     "AdoptedBudget",
     "CaptureConsistency",
+    "PlanningReferenceCapture",
+    "PlanningCapture",
     "CaptureSet",
     "SourceRef",
     "Allocation",
@@ -592,6 +594,81 @@ class CaptureConsistency:
 
 
 @dataclass(frozen=True)
+class PlanningReferenceCapture:
+    """One verbatim supplemental planning tab, kept outside normalized bank feeds."""
+
+    role: str
+    workbook: str
+    tab_title: str
+    tab_id: int | None
+    captured_at: datetime
+    header_signature: tuple[tuple[str, ...], ...]
+    columns: tuple[tuple[str, int], ...]
+    values: tuple[tuple[str, ...], ...]
+    formulas: tuple[FormulaCell, ...]
+    entered_numbers: tuple[EnteredNumber, ...]
+    coverage_start: date
+    coverage_end: date
+    coverage_evidence: str
+    sha256: str
+
+    def manifest_entry(self) -> dict[str, Any]:
+        return {
+            "role": self.role,
+            "workbook": self.workbook,
+            "tab_title": self.tab_title,
+            "tab_id": self.tab_id,
+            "captured_at": _utc_iso(self.captured_at),
+            "header_signature": [list(row) for row in self.header_signature],
+            "columns": {name: position for name, position in self.columns},
+            "row_count": len(self.values),
+            "formula_count": len(self.formulas),
+            "coverage_start": self.coverage_start.isoformat(),
+            "coverage_end": self.coverage_end.isoformat(),
+            "coverage_evidence": self.coverage_evidence,
+            "sha256": self.sha256,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        entry = self.manifest_entry()
+        entry["values"] = [list(row) for row in self.values]
+        entry["formulas"] = [cell.to_dict() for cell in self.formulas]
+        entry["entered_numbers"] = [cell.to_dict() for cell in self.entered_numbers]
+        return entry
+
+
+@dataclass(frozen=True)
+class PlanningCapture:
+    """Validated private JSON plus optional supplemental workbook snapshots."""
+
+    schema_version: int
+    fiscal_year: int
+    captured_at: datetime
+    input_json: str
+    input_sha256: str
+    references: tuple[PlanningReferenceCapture, ...]
+    quality_findings: tuple[str, ...]
+    sha256: str
+
+    def manifest_entry(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "fiscal_year": self.fiscal_year,
+            "captured_at": _utc_iso(self.captured_at),
+            "input_sha256": self.input_sha256,
+            "references": {item.role: item.manifest_entry() for item in self.references},
+            "quality_findings": list(self.quality_findings),
+            "sha256": self.sha256,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        entry = self.manifest_entry()
+        entry["input_json"] = self.input_json
+        entry["references"] = {item.role: item.to_dict() for item in self.references}
+        return entry
+
+
+@dataclass(frozen=True)
 class CaptureSet:
     """Every source/control capture plus our adopted budget and Assumptions, read once."""
 
@@ -601,6 +678,7 @@ class CaptureSet:
     assumptions: SourceCapture
     consistency: CaptureConsistency
     aggregate_sha256: str
+    planning: PlanningCapture | None = None
     schema_version: int = SCHEMA_VERSION
 
     @property
@@ -609,7 +687,7 @@ class CaptureSet:
 
     def manifest(self) -> dict[str, Any]:
         """Private provenance manifest (no raw cell values; workbook binding is private)."""
-        return {
+        result = {
             "schema_version": self.schema_version,
             "source_spreadsheet_id": self.source_spreadsheet_id,
             "aggregate_sha256": self.aggregate_sha256,
@@ -618,9 +696,12 @@ class CaptureSet:
             "adopted_budget": self.adopted_budget.manifest_entry(),
             "assumptions": self.assumptions.manifest_entry(),
         }
+        if self.planning is not None:
+            result["planning"] = self.planning.manifest_entry()
+        return result
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": self.schema_version,
             "source_spreadsheet_id": self.source_spreadsheet_id,
             "aggregate_sha256": self.aggregate_sha256,
@@ -629,6 +710,9 @@ class CaptureSet:
             "adopted_budget": self.adopted_budget.to_dict(),
             "assumptions": self.assumptions.to_dict(),
         }
+        if self.planning is not None:
+            result["planning"] = self.planning.to_dict()
+        return result
 
 
 @dataclass(frozen=True)

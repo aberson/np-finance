@@ -314,6 +314,96 @@ def _config(tmp_path: Path, **kwargs: Any) -> Config:
     return load_config(path)
 
 
+def _planning_input() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "fiscal_year": 2030,
+        "prior_fiscal_year": 2029,
+        "roster_complete": True,
+        "roster_as_of": "2030-01-15",
+        "roster_evidence": "fictional roster review",
+        "classes": [
+            {
+                "class_id": "class-a",
+                "teacher_label": "Example Teacher A",
+                "student_count": 20,
+                "per_student_amount": "10.00",
+                "effective_start": "2029-08-01",
+                "effective_end": "2030-06-30",
+                "eligible": True,
+            }
+        ],
+        "payee_aliases": [{"source_payee": "Example Payee", "class_id": "class-a"}],
+        "payment_allocations": [],
+        "category_roles": [],
+        "classroom_categories": [],
+        "bindings": [
+            {
+                "role": "balances",
+                "workbook": "cfo",
+                "tab": "Example Balances",
+                "header_signature": [
+                    ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"]
+                ],
+                "columns": {
+                    "date": "Date",
+                    "checking": "Checking",
+                    "savings": "Savings",
+                    "cd": "CD",
+                    "credit_card_liability": {
+                        "label": "Card Liability",
+                        "liability_sign": "negative",
+                    },
+                    "total": "Total",
+                },
+                "coverage_start": "2030-01-01",
+                "coverage_end": "2030-01-31",
+                "coverage_evidence": "fictional monthly close",
+            }
+        ],
+        "reserve_basis": {
+            "kind": "source_account_balance",
+            "binding_role": "balances",
+            "component": "cd",
+            "evidence": "fictional board policy",
+        },
+        "specialist_contract_categories": [],
+        "central_case": {
+            "fundraising_basis": "prior_actual_dollars",
+            "classroom_budget_categories": [],
+            "prior_classroom_categories": [],
+            "future_events": [],
+        },
+        "period_allocations": [],
+    }
+
+
+def _planning_config(tmp_path: Path, document: Mapping[str, Any] | None = None) -> Config:
+    path = tmp_path / "planning.json"
+    path.write_text(json.dumps(document or _planning_input()), encoding="utf-8")
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        _FULL_CONFIG
+        + main_reports_toml()
+        + '\n[main_reports.board_planning]\ninput_file = "planning.json"\n',
+        encoding="utf-8",
+    )
+    return load_config(config_path)
+
+
+def _planning_cfo(rows: Sequence[Sequence[str]] | None = None) -> dict[str, CfoWorksheet]:
+    cfo = _cfo_worksheets()
+    cfo["Example Balances"] = CfoWorksheet(
+        rows
+        or [
+            ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"],
+            ["1/31/2030", "100.00", "200.00", "300.00", "-10.00", "590.00"],
+        ],
+        sheet_id=2001,
+    )
+    return cfo
+
+
 def _store_root(tmp_path: Path) -> Path:
     """The configured private output root (the production store location)."""
     main = _config(tmp_path).main_reports
@@ -655,6 +745,349 @@ def test_duplicate_import_is_idempotent(tmp_path: Path) -> None:
     assert not again.created and again.path == stored.path
     assert stored.path.read_bytes() == original
     assert len(list((root / "captures").iterdir())) == 2
+
+
+def test_planning_capture_is_hashed_stored_and_not_normalized_as_bank_input(
+    tmp_path: Path,
+) -> None:
+    planning_cfo = _planning_cfo()
+    captured = Harness(_planning_config(tmp_path), planning_cfo).capture()
+    assert captured.planning is not None
+    assert captured.planning.input_sha256 and captured.planning.references[0].role == "balances"
+    legacy = Harness(_config(tmp_path), planning_cfo).capture()
+    assert normalize(captured) == normalize(legacy)
+    assert "balances" not in {transaction.source_alias for transaction in normalize(captured)}
+
+    stored = store_capture_set(captured, _store_root(tmp_path))
+    payload = json.loads(stored.path.read_text(encoding="utf-8"))
+    reconstructed = sources.planning_capture_from_dict(payload["planning"])
+    assert reconstructed.sha256 == captured.planning.sha256
+
+
+def test_pre_step_65_stored_capture_keeps_its_historical_aggregate_hash(tmp_path: Path) -> None:
+    # This no-board-planning envelope is the exact shape emitted before Step 65. Its pinned
+    # digest proves that optional planning did not add an absent/null aggregate component.
+    historical = Harness(_config(tmp_path)).capture()
+    assert historical.planning is None
+    assert historical.aggregate_sha256 == (
+        "28b4e053b73dda25781c793ee89f7b3688ee853eb4b3e5352bf49c8c4382f7b3"
+    )
+
+    root = _store_root(tmp_path)
+    stored = store_capture_set(historical, root)
+    envelope = json.loads(stored.path.read_text(encoding="utf-8"))
+    assert "planning" not in envelope
+    assert not store_capture_set(historical, root).created
+
+
+def test_stored_planning_reference_key_must_match_its_embedded_role(tmp_path: Path) -> None:
+    captured = Harness(_planning_config(tmp_path), _planning_cfo()).capture()
+    stored = store_capture_set(captured, _store_root(tmp_path))
+    envelope = json.loads(stored.path.read_text(encoding="utf-8"))
+    planning = envelope["planning"]
+    planning["references"]["academic_ledger"] = planning["references"].pop("balances")
+
+    with pytest.raises(ValueError, match="^planning reference role mismatch$"):
+        sources.planning_capture_from_dict(planning)
+    stored.path.write_text(json.dumps(envelope), encoding="utf-8")
+    with pytest.raises(SourceCaptureError, match="stored_capture_conflict"):
+        store_capture_set(captured, _store_root(tmp_path))
+
+
+def test_duplicate_planning_json_object_key_is_rejected_deterministically(tmp_path: Path) -> None:
+    document = json.dumps(_planning_input())
+    document = document.replace('"schema_version": 1', '"schema_version": 1, "schema_version": 1')
+    config = _planning_config(tmp_path)
+    (tmp_path / "planning.json").write_text(document, encoding="utf-8")
+    harness = Harness(config, _planning_cfo())
+
+    with pytest.raises(SourceConfigError) as caught:
+        harness.capture()
+    assert caught.value.code == "planning_input_invalid"
+    assert str(caught.value) == (
+        "planning_input_invalid: JSON object: contains duplicate key 'schema_version'"
+    )
+    assert all(sheet.value_reads == 0 for sheet in harness.cfo_sheets.values())
+
+
+@pytest.mark.parametrize("changed_input", ["roster", "alias", "policy"])
+def test_each_planning_document_component_changes_its_hash(
+    tmp_path: Path, changed_input: str
+) -> None:
+    original = Harness(_planning_config(tmp_path), _planning_cfo()).capture()
+    changed_document = _planning_input()
+    if changed_input == "roster":
+        changed_document["classes"][0]["student_count"] = 21
+    elif changed_input == "alias":
+        changed_document["payee_aliases"][0]["source_payee"] = "Example Revised Payee"
+    else:
+        changed_document["reserve_basis"]["evidence"] = "fictional revised board policy"
+    changed = Harness(_planning_config(tmp_path, changed_document), _planning_cfo()).capture()
+
+    assert original.planning is not None and changed.planning is not None
+    assert changed.planning.input_sha256 != original.planning.input_sha256
+    assert changed.planning.sha256 != original.planning.sha256
+    assert changed.aggregate_sha256 != original.aggregate_sha256
+
+
+def test_supplemental_source_row_changes_reference_and_aggregate_hash(tmp_path: Path) -> None:
+    original = Harness(_planning_config(tmp_path), _planning_cfo()).capture()
+    changed_rows = [
+        ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"],
+        ["1/31/2030", "100.00", "200.00", "301.00", "-10.00", "591.00"],
+    ]
+    supplemental = Harness(_planning_config(tmp_path), _planning_cfo(changed_rows)).capture()
+    assert original.planning is not None and supplemental.planning is not None
+    assert supplemental.planning.input_sha256 == original.planning.input_sha256
+    assert supplemental.planning.references[0].sha256 != original.planning.references[0].sha256
+    assert supplemental.planning.sha256 != original.planning.sha256
+    assert supplemental.aggregate_sha256 != original.aggregate_sha256
+
+
+def test_planning_file_change_mid_capture_retries_the_whole_capture(tmp_path: Path) -> None:
+    original = _planning_input()
+    revised = _planning_input()
+    revised["roster_evidence"] = "fictional revised roster review"
+    config = _planning_config(tmp_path, original)
+    path = tmp_path / "planning.json"
+    calls = 0
+
+    def mutating_clock() -> datetime:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            path.write_text(json.dumps(revised), encoding="utf-8")
+        return datetime(2030, 2, 1, 12, 0, calls, tzinfo=UTC)
+
+    captured = Harness(config, _planning_cfo()).capture(clock=mutating_clock)
+    assert captured.consistency.attempts == 2
+    assert captured.consistency.changed_aliases == ("planning_input",)
+    assert captured.planning is not None
+    assert json.loads(captured.planning.input_json)["roster_evidence"] == revised["roster_evidence"]
+
+
+def test_planning_file_changing_on_every_attempt_fails_closed(tmp_path: Path) -> None:
+    config = _planning_config(tmp_path)
+    path = tmp_path / "planning.json"
+    calls = 0
+
+    def mutating_clock() -> datetime:
+        nonlocal calls
+        calls += 1
+        changed = _planning_input()
+        changed["roster_evidence"] = f"fictional mutation {calls}"
+        path.write_text(json.dumps(changed), encoding="utf-8")
+        return datetime(2030, 2, 1, 12, 0, calls, tzinfo=UTC)
+
+    harness = Harness(config, _planning_cfo())
+    with pytest.raises(SourceCaptureError) as caught:
+        harness.capture(clock=mutating_clock)
+    assert caught.value.code == "capture_inconsistent"
+    assert str(caught.value).endswith("['planning_input']")
+    harness.assert_no_writes()
+
+
+def test_supplemental_row_change_mid_capture_retries_the_whole_capture(tmp_path: Path) -> None:
+    original = [
+        ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"],
+        ["1/31/2030", "100.00", "200.00", "300.00", "-10.00", "590.00"],
+    ]
+    revised = [original[0], ["1/31/2030", "100.00", "200.00", "301.00", "-10.00", "591.00"]]
+    balances = CfoWorksheet(original, sheet_id=2001, versions=[original, revised, revised])
+    captured = Harness(
+        _planning_config(tmp_path), _planning_cfo() | {"Example Balances": balances}
+    ).capture()
+    assert captured.consistency.attempts == 2
+    assert captured.consistency.changed_aliases == ("planning:balances",)
+    assert captured.planning is not None
+    assert captured.planning.references[0].values[-1][3] == "301.00"
+
+
+def test_supplemental_row_changing_on_every_attempt_fails_closed(tmp_path: Path) -> None:
+    header = ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"]
+    versions = [
+        [header, ["1/31/2030", "100.00", "200.00", f"30{index}.00", "-10.00", "590.00"]]
+        for index in range(4)
+    ]
+    balances = CfoWorksheet(versions[0], sheet_id=2001, versions=versions)
+    harness = Harness(_planning_config(tmp_path), _planning_cfo() | {"Example Balances": balances})
+    with pytest.raises(SourceCaptureError) as caught:
+        harness.capture()
+    assert caught.value.code == "capture_inconsistent"
+    assert str(caught.value).endswith("['planning:balances']")
+    harness.assert_no_writes()
+
+
+def test_supplemental_tab_identity_change_is_retried(tmp_path: Path) -> None:
+    class ChangingIdWorksheet(CfoWorksheet):
+        def __init__(self) -> None:
+            super().__init__(
+                [
+                    ["Date", "Checking", "Savings", "CD", "Card Liability", "Total"],
+                    ["1/31/2030", "100.00", "200.00", "300.00", "-10.00", "590.00"],
+                ],
+                sheet_id=2001,
+            )
+            self.id_versions = [2001, 2002, 2002, 2002]
+
+        def __getattribute__(self, name: str) -> Any:
+            if name == "id" and "id_versions" in object.__getattribute__(self, "__dict__"):
+                versions = object.__getattribute__(self, "id_versions")
+                return versions.pop(0) if len(versions) > 1 else versions[0]
+            return super().__getattribute__(name)
+
+    balances = ChangingIdWorksheet()
+    captured = Harness(
+        _planning_config(tmp_path), _planning_cfo() | {"Example Balances": balances}
+    ).capture()
+    assert captured.consistency.attempts == 2
+    assert captured.consistency.changed_aliases == ("planning:balances",)
+    assert captured.planning is not None
+    assert captured.planning.references[0].tab_id == 2002
+
+
+def test_stored_planning_mutation_is_detected(tmp_path: Path) -> None:
+    captured = Harness(_planning_config(tmp_path), _planning_cfo()).capture()
+    root = _store_root(tmp_path)
+    stored = store_capture_set(captured, root)
+    payload = json.loads(stored.path.read_text(encoding="utf-8"))
+    payload["planning"]["input_json"] += " "
+    stored.path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SourceCaptureError, match="stored_capture_conflict"):
+        store_capture_set(captured, root)
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        ("malformed_alias", "payee_aliases[0].class_id: must be a non-empty string"),
+        ("duplicate_class", "classes[1].class_id: must be a unique lowercase slug"),
+        (
+            "classroom_role",
+            "classroom_categories: must identify categories mapped only as expense",
+        ),
+        (
+            "specialist_role",
+            "specialist_contract_categories: must identify categories mapped only as expense",
+        ),
+        ("unsupported_version", "schema_version: must be 1"),
+        ("malformed_binding_role", "bindings[0].role: must be a non-empty string"),
+        ("empty_header", "bindings[0].header_signature: must be non-empty header rows"),
+        (
+            "unsupported_column",
+            "bindings[0].columns: has unsupported logical fields: ['typo_column']",
+        ),
+        (
+            "missing_liability_sign",
+            "bindings[0].columns.credit_card_liability: must declare a label and liability_sign",
+        ),
+        (
+            "invalid_liability_sign",
+            "bindings[0].columns.credit_card_liability.liability_sign: must be a non-empty string",
+        ),
+        (
+            "reserve_policy",
+            "reserve_basis: must select the captured balances CD component",
+        ),
+        (
+            "central_classroom_role",
+            "central_case.classroom_budget_categories: must identify categories "
+            "mapped only as expense",
+        ),
+        (
+            "prior_classroom_role",
+            "central_case.prior_classroom_categories: must identify categories "
+            "mapped only as expense",
+        ),
+        (
+            "event_income_role",
+            "central_case.future_events[0].income_categories: must identify categories "
+            "mapped only as fundraising",
+        ),
+        (
+            "event_expense_role",
+            "central_case.future_events[0].expense_categories: must identify categories "
+            "mapped only as expense",
+        ),
+        ("coverage_order", "bindings[0]: coverage_end precedes coverage_start"),
+    ],
+)
+def test_invalid_planning_inputs_have_exact_fail_closed_contracts(
+    tmp_path: Path, case: str, expected: str
+) -> None:
+    invalid = _planning_input()
+    if case == "malformed_alias":
+        invalid["payee_aliases"][0]["class_id"] = []
+    elif case == "duplicate_class":
+        invalid["classes"].append(dict(invalid["classes"][0]))
+    elif case in {"classroom_role", "specialist_role"}:
+        invalid["category_roles"] = [
+            {
+                "source_category": "Example Classroom",
+                "role": "fundraising",
+                "budget_category": "Classroom Supplies",
+            }
+        ]
+        key = (
+            "classroom_categories" if case == "classroom_role" else "specialist_contract_categories"
+        )
+        invalid[key] = ["Classroom Supplies"]
+        if case == "specialist_role":
+            invalid["specialist_contract_evidence"] = "fictional contract review"
+    elif case == "unsupported_version":
+        invalid["schema_version"] = 2
+    elif case == "malformed_binding_role":
+        invalid["bindings"][0]["role"] = []
+    elif case == "empty_header":
+        invalid["bindings"][0]["header_signature"] = []
+    elif case == "unsupported_column":
+        invalid["bindings"][0]["columns"]["typo_column"] = "Typo"
+    elif case == "missing_liability_sign":
+        invalid["bindings"][0]["columns"]["credit_card_liability"] = "Card Liability"
+    elif case == "invalid_liability_sign":
+        invalid["bindings"][0]["columns"]["credit_card_liability"]["liability_sign"] = []
+    elif case == "reserve_policy":
+        invalid["reserve_basis"]["component"] = "checking"
+    elif case in {
+        "central_classroom_role",
+        "prior_classroom_role",
+        "event_income_role",
+        "event_expense_role",
+    }:
+        category = "Example Category"
+        role = "expense" if case == "event_income_role" else "fundraising"
+        invalid["category_roles"] = [
+            {
+                "source_category": "Example Source Category",
+                "role": role,
+                "budget_category": category,
+            }
+        ]
+        if case == "central_classroom_role":
+            invalid["central_case"]["classroom_budget_categories"] = [category]
+        elif case == "prior_classroom_role":
+            invalid["central_case"]["prior_classroom_categories"] = [category]
+        else:
+            event = {
+                "event_id": "example-event",
+                "label": "Example Event",
+                "income_categories": [],
+                "expense_categories": [],
+                "event_date": "2030-03-01",
+                "confirmed": True,
+                "evidence": "fictional board calendar",
+            }
+            field = "income_categories" if case == "event_income_role" else "expense_categories"
+            event[field] = [category]
+            invalid["central_case"]["future_events"] = [event]
+    else:
+        invalid["bindings"][0]["coverage_end"] = "2029-12-31"
+    harness = Harness(_planning_config(tmp_path, invalid), _planning_cfo())
+    with pytest.raises(SourceConfigError) as caught:
+        harness.capture()
+    assert caught.value.code == "planning_input_invalid"
+    assert str(caught.value) == f"planning_input_invalid: {expected}"
+    assert all(sheet.value_reads == 0 for sheet in harness.cfo_sheets.values())
 
 
 def test_stored_capture_conflict_is_never_overwritten(tmp_path: Path) -> None:

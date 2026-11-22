@@ -39,6 +39,7 @@ __all__ = [
     "CrosswalkTarget",
     "CrosswalkEntry",
     "CategoryCrosswalk",
+    "BoardPlanning",
     "MainReports",
     "Config",
     "load_config",
@@ -202,6 +203,14 @@ class CategoryCrosswalk:
 
 
 @dataclass(frozen=True)
+class BoardPlanning:
+    """Private, versioned board-planning input document."""
+
+    input_file: str
+    input_path: Path
+
+
+@dataclass(frozen=True)
 class MainReports:
     """The OPTIONAL ``[main_reports]`` block: CFO workbook bindings for the Main Report Set.
 
@@ -216,6 +225,7 @@ class MainReports:
     assumptions_tab: str
     sources: tuple[SourceBinding, ...]
     crosswalk: CategoryCrosswalk | None = None
+    board_planning: BoardPlanning | None = None
 
 
 @dataclass(frozen=True)
@@ -713,6 +723,20 @@ def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
     sources = tuple(
         _load_source_binding(alias, value) for alias, value in sorted(sources_raw.items())
     )
+    planning_raw = raw.get("board_planning")
+    board_planning: BoardPlanning | None = None
+    if planning_raw is not None:
+        dotted = "main_reports.board_planning"
+        if not isinstance(planning_raw, dict):
+            raise ConfigError(dotted, f"expected a [{dotted}] table")
+        unknown = set(planning_raw) - {"input_file"}
+        if unknown:
+            raise ConfigError(dotted, f"{dotted} has unsupported keys: {sorted(unknown)}")
+        input_file = _require_str(planning_raw, "input_file", f"{dotted}.input_file")
+        board_planning = BoardPlanning(
+            input_file=input_file,
+            input_path=_resolve_path(input_file, base_dir),
+        )
     return MainReports(
         source_spreadsheet_id=source_spreadsheet_id,
         output_dir=output_dir,
@@ -720,4 +744,5 @@ def _load_main_reports(raw: Any, base_dir: Path) -> MainReports | None:
         assumptions_tab=assumptions_tab,
         sources=sources,
         crosswalk=_load_crosswalk(raw.get("crosswalk")),
+        board_planning=board_planning,
     )

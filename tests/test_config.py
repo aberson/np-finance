@@ -317,6 +317,36 @@ def test_main_reports_section_parses_bindings(tmp_path: Path) -> None:
     ]
 
 
+def test_board_planning_path_is_optional_and_resolved_from_config(tmp_path: Path) -> None:
+    text = (
+        _FULL_CONFIG
+        + _MAIN_REPORTS_SECTION
+        + """
+[main_reports.board_planning]
+input_file = "private/planning.json"
+"""
+    )
+    main = load_config(_write(tmp_path, text)).main_reports
+    assert main is not None and main.board_planning is not None
+    assert main.board_planning.input_file == "private/planning.json"
+    assert main.board_planning.input_path == (tmp_path / "private" / "planning.json").resolve()
+
+
+def test_board_planning_rejects_unknown_config_keys(tmp_path: Path) -> None:
+    text = (
+        _FULL_CONFIG
+        + _MAIN_REPORTS_SECTION
+        + """
+[main_reports.board_planning]
+input_file = "private/planning.json"
+cached_amount = "1.00"
+"""
+    )
+    with pytest.raises(ConfigError) as caught:
+        load_config(_write(tmp_path, text))
+    assert caught.value.field == "main_reports.board_planning"
+
+
 @pytest.mark.parametrize(
     ("old", "new", "field"),
     [
